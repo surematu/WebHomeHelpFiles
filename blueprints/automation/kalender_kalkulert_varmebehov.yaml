@@ -1,15 +1,19 @@
 blueprint:
-  name: Kalender - Kalkulert varmebehov (WebHome)
+  name: Kalender - Kalkulert varmebehov
   description: >
-    Beregner når forvarming og normal varme skal være aktiv basert på kalenderhendelser
-    (location inneholder et nøkkelord), innetemperatur og værvarsel (snittemperatur neste 24t).
+    Beregner når forvarming og normal varme skal være aktiv basert på kalenderhendelser,
+    innetemperatur og værvarsel (snittemperatur neste 24t).
+
+    - Hvis "Nøkkelord i kalender location" er UTFYLT: neste varme-hendelse = første event der location inneholder nøkkelordet.
+    - Hvis "Nøkkelord i kalender location" er TOMT: neste varme-hendelse = første event uansett (alle events regnes som varme).
+
     Oppdaterer valgfri input_text med status og kan sende valgfri varsling ~24t før neste hendelse.
 
     MERK:
     - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
 
     Blueprint versjon:
-    2026.02.00
+    2026.02.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kalender_kalkulert_varmebehov.yaml
   author: WebHome
@@ -60,8 +64,10 @@ blueprint:
 
         heat_location_keyword:
           name: Nøkkelord i kalender "location" som betyr varme
-          description: Case-insensitiv. F.eks "bryn".
-          default: bryn
+          description: >
+            Case-insensitiv. F.eks "bryn".
+            La stå TOMT for å ta med ALLE events (alle events regnes som varme).
+          default: ""
           selector:
             text:
 
@@ -111,13 +117,14 @@ blueprint:
       icon: mdi:bell-outline
       collapsed: true
       input:
-        status_text_entity:
+        status_text_entities:
           name: Status input_text (valgfri)
-          description: Velg input_text som skal oppdateres med "hva som skjer". La stå tom for å deaktivere.
-          default: ""
+          description: Velg én eller flere input_text som skal oppdateres med "hva som skjer". La stå tomt for å deaktivere.
+          default: []
           selector:
             entity:
               domain: input_text
+              multiple: true
 
         notify_targets:
           name: Notify targets (valgfri)
@@ -152,11 +159,12 @@ actions:
       io_indoor_temp_entity: !input indoor_temperature_entity
       io_preheat_bool: !input preheat_boolean
       io_heat_bool: !input heat_boolean
-      io_status_text_entity: !input status_text_entity
+      io_status_text_entities: !input status_text_entities
       io_notify_targets: !input notify_targets
 
       heat_location_keyword_raw: !input heat_location_keyword
-      heat_location_keyword: "{{ (heat_location_keyword_raw | default('bryn')) | lower }}"
+      heat_location_keyword: "{{ (heat_location_keyword_raw | default('') | string | trim) | lower }}"
+      heat_location_filter_enabled: "{{ (heat_location_keyword | length) > 0 }}"
 
       goal_indoor_temp: !input goal_temperature
       settings_add_hours: !input buffer_hours
@@ -220,16 +228,25 @@ actions:
         {% endfor %}
         {{ ns.all | sort(attribute='ts') }}
 
+      # Neste varme-hendelse:
+      # - hvis nøkkelord er satt: første event der location inneholder nøkkelordet
+      # - hvis nøkkelord er tomt: første event uansett
       data_next_event: |-
-        {% set ns = namespace(match=none) %}
-        {% for item in data_all_events_sorted %}
-          {% set loc = item.e.location | default('') | lower %}
-          {% if heat_location_keyword in loc %}
-            {% set ns.match = item.e %}
-            {% break %}
-          {% endif %}
-        {% endfor %}
-        {{ ns.match }}
+        {% if data_all_events_sorted | count == 0 %}
+          {{ none }}
+        {% elif not heat_location_filter_enabled %}
+          {{ data_all_events_sorted[0].e }}
+        {% else %}
+          {% set ns = namespace(match=none) %}
+          {% for item in data_all_events_sorted %}
+            {% set loc = item.e.location | default('') | lower %}
+            {% if heat_location_keyword in loc %}
+              {% set ns.match = item.e %}
+              {% break %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.match }}
+        {% endif %}
 
       # første hendelse uansett (brukes til 24t-varsel om "varme/ikke varme")
       data_next_event_incl_noheat: |-
@@ -361,21 +378,21 @@ actions:
           Forvarming est. {{ info_preheat_day }} kl {{ info_preheat_time }}, for hendelse{% if info_event_day != info_preheat_day %} {{ info_event_day }}{% endif %} kl {{ info_event_time }}
           (Inne {{ io_indoor_temp_now | round(0) }}°C / Ute min neste døgn {{ io_outdoor_temp_comming | round(0) }}°C) - {{ data_next_event.summary }}
         {% else %}
-          Ingen kommende varme-hendelser funnet (location mangler "{{ heat_location_keyword }}") eller data utilgjengelig.
+          Ingen kommende hendelser funnet eller data utilgjengelig.
         {% endif %}
 
       info_2_active_preheat: |-
         {% if data_next_event %}
           Forvarming pågår for hendelse {{ info_event_day }} kl {{ info_event_time }} - {{ data_next_event.summary }}
         {% else %}
-          Ingen kommende varme-hendelser funnet eller data utilgjengelig.
+          Ingen kommende hendelser funnet eller data utilgjengelig.
         {% endif %}
 
       info_3_active_heat: |-
         {% if data_next_event %}
           Normal varme for hendelse slutter {{ info_event_end_day }} kl {{ info_event_end_time }} - {{ data_next_event.summary }}
         {% else %}
-          Ingen kommende varme-hendelser funnet eller data utilgjengelig.
+          Ingen kommende hendelser funnet eller data utilgjengelig.
         {% endif %}
 
       info_result: |-
@@ -393,13 +410,16 @@ actions:
     choose:
       - conditions:
           - condition: template
-            value_template: "{{ io_status_text_entity is not none and (io_status_text_entity | string) | length > 0 }}"
+            value_template: "{{ (io_status_text_entities | count) > 0 }}"
         sequence:
-          - action: input_text.set_value
-            target:
-              entity_id: "{{ io_status_text_entity }}"
-            data:
-              value: "{{ info_result_short }}"
+          - repeat:
+              for_each: "{{ io_status_text_entities }}"
+              sequence:
+                - action: input_text.set_value
+                  target:
+                    entity_id: "{{ repeat.item }}"
+                  data:
+                    value: "{{ info_result_short }}"
 
   - alias: Sett varme-bool
     choose:
@@ -451,11 +471,11 @@ actions:
           PLAN 24T: Ingen hendelse funnet å sjekke 24t frem.
         {% else %}
           {% set loc = e.location | default('') | lower %}
-          {% set notify24h_is_heat = heat_location_keyword in loc %}
-          {% if notify24h_is_heat %}
+          {% set is_heat = (not heat_location_filter_enabled) or (heat_location_keyword in loc) %}
+          {% if is_heat %}
             Det kommer en hendelse om 24 timer, det er planlagt oppvarming.
           {% else %}
-            Ingen varme for hendelse om 24 timer (sted inneholder ikke "{{ heat_location_keyword }}") – {{ e.summary }}
+            Ingen varme for hendelse om 24 timer{% if heat_location_filter_enabled %} (sted inneholder ikke "{{ heat_location_keyword }}"){% endif %} – {{ e.summary }}
           {% endif %}
         {% endif %}
 
