@@ -8,6 +8,8 @@ blueprint:
     MERK:
     - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
   domain: automation
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kalender_kalkulert_varmebehov_blueprint.yaml
+  author: WebHome
   homeassistant:
     min_version: 2024.10.0
 
@@ -113,14 +115,16 @@ blueprint:
           selector:
             text:
 
-        notify_target:
-          name: Notify target (valgfri)
+        notify_targets:
+          name: Notify targets (valgfri)
           description: >
-            Entity ID til notify-*target* for notify.send_message (f.eks. notify.mobile_app_...).
-            La stå tom for å deaktivere varsling.
-          default: ""
+            Velg én eller flere notify-entiteter (f.eks. notify.mobile_app_...).
+            La stå tomt (ingen valgt) for å deaktivere varsling.
+          default: []
           selector:
-            text:
+            entity:
+              domain: notify
+              multiple: true
 
 mode: single
 
@@ -141,12 +145,11 @@ actions:
 
       # Inputs
       io_cal_entities: !input calendar_entities
-      io_weather_entity: !input weather_entity
       io_indoor_temp_entity: !input indoor_temperature_entity
       io_preheat_bool: !input preheat_boolean
       io_heat_bool: !input heat_boolean
       io_status_text_entity: !input status_text_entity
-      io_notify_target: !input notify_target
+      io_notify_targets: !input notify_targets
 
       heat_location_keyword_raw: !input heat_location_keyword
       heat_location_keyword: "{{ (heat_location_keyword_raw | default('bryn')) | lower }}"
@@ -224,6 +227,7 @@ actions:
         {% endfor %}
         {{ ns.match }}
 
+      # første hendelse uansett (brukes til 24t-varsel om "varme/ikke varme")
       data_next_event_incl_noheat: |-
         {{ data_all_events_sorted[0].e
            if data_all_events_sorted | count > 0
@@ -260,12 +264,15 @@ actions:
   - alias: Lag tidsvinduer (forvarming/varme)
     variables:
       startdata_ts_now: "{{ as_timestamp(now()) }}"
+
+      # start 15 min før eventstart
       startdata_ts_nexteventstart: >-
         {% if data_next_event %}
           {{ (as_timestamp(data_next_event.start) - 900) | float }}
         {% else %}
           {{ none }}
         {% endif %}
+
       startdata_ts_nexteventend: >-
         {% if data_next_event and data_next_event.end is defined %}
           {{ as_timestamp(data_next_event.end) }}
@@ -273,6 +280,7 @@ actions:
           {{ none }}
         {% endif %}
 
+      # beregn forvarmingsstart, rund ned til forrige :30, og ikke senere enn 1t før eventstart
       startdata_ts_preheatingstart: |-
         {% if startdata_ts_nexteventstart and tempchange_hoursNeededForGoal %}
           {% set raw_ts = startdata_ts_nexteventstart - (tempchange_hoursNeededForGoal | float * 3600) %}
@@ -381,7 +389,7 @@ actions:
     choose:
       - conditions:
           - condition: template
-            value_template: "{{ (io_status_text_entity | default('')) | length > 0 }}"
+            value_template: "{{ io_status_text_entity is not none and (io_status_text_entity | string) | length > 0 }}"
         sequence:
           - action: input_text.set_value
             target:
@@ -417,7 +425,7 @@ actions:
         target:
           entity_id: "{{ io_preheat_bool }}"
 
-  - alias: 24t varsling (valgfri) - uendret (sender både varme/ikke-varme)
+  - alias: 24t varsling (valgfri) - sender både varme/ikke-varme
     variables:
       notify24h_ts_target: "{{ as_timestamp(now() + timedelta(hours=24)) }}"
       notify24h_next_event_ts: >-
@@ -450,11 +458,11 @@ actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ (io_notify_target | default('')) | length > 0 and notify24h_match_window }}"
+            value_template: "{{ (io_notify_targets | count) > 0 and notify24h_match_window }}"
         sequence:
           - action: notify.send_message
             target:
-              entity_id: "{{ io_notify_target }}"
+              entity_id: "{{ io_notify_targets }}"
             data:
               title: "🔥 Varmeplan"
               message: |-
