@@ -117,14 +117,13 @@ blueprint:
       icon: mdi:bell-outline
       collapsed: true
       input:
-        status_text_entities:
+        status_text_entity:
           name: Status input_text (valgfri)
-          description: Velg én eller flere input_text som skal oppdateres med "hva som skjer". La stå tomt for å deaktivere.
-          default: []
+          description: Velg input_text som skal oppdateres med "hva som skjer". La stå tomt for å deaktivere.
+          default: ""
           selector:
             entity:
               domain: input_text
-              multiple: true
 
         notify_targets:
           name: Notify targets (valgfri)
@@ -159,7 +158,7 @@ actions:
       io_indoor_temp_entity: !input indoor_temperature_entity
       io_preheat_bool: !input preheat_boolean
       io_heat_bool: !input heat_boolean
-      io_status_text_entities: !input status_text_entities
+      io_status_text_entity: !input status_text_entity
       io_notify_targets: !input notify_targets
 
       heat_location_keyword_raw: !input heat_location_keyword
@@ -410,16 +409,13 @@ actions:
     choose:
       - conditions:
           - condition: template
-            value_template: "{{ (io_status_text_entities | count) > 0 }}"
+            value_template: "{{ io_status_text_entity is not none and (io_status_text_entity | string) | length > 0 }}"
         sequence:
-          - repeat:
-              for_each: "{{ io_status_text_entities }}"
-              sequence:
-                - action: input_text.set_value
-                  target:
-                    entity_id: "{{ repeat.item }}"
-                  data:
-                    value: "{{ info_result_short }}"
+          - action: input_text.set_value
+            target:
+              entity_id: "{{ io_status_text_entity }}"
+            data:
+              value: "{{ info_result_short }}"
 
   - alias: Sett varme-bool
     choose:
