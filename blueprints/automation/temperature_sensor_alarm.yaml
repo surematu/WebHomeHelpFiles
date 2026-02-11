@@ -1,5 +1,5 @@
 blueprint:
-  name: Temperature Sensor Alarm
+  name: Temperature Sensor Alarm (WebHome)
   description: >
     Sends a notification if a temperature sensor:
       - goes above limit 1 for 10 minutes
