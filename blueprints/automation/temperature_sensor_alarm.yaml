@@ -9,7 +9,11 @@ blueprint:
     Blueprint versjon:
     2026.02.00
   domain: automation
-  input:
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/temperature_sensor_alarm.yaml.yaml
+  author: WebHome
+  homeassistant:
+    min_version: 2024.10.0
+
     temp_sensor:
       name: Temperature Sensor
       selector:
