@@ -1,5 +1,5 @@
 blueprint:
-  name: Kalender - Kalkulert varmebehov
+  name: Kalender - Kalkulert varmebehov (WebHome)
   description: >
     Beregner når forvarming og normal varme skal være aktiv basert på kalenderhendelser
     (location inneholder et nøkkelord), innetemperatur og værvarsel (snittemperatur neste 24t).
