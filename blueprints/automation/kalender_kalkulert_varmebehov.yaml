@@ -4,13 +4,13 @@ blueprint:
     Beregner når forvarming og normal varme skal være aktiv basert på kalenderhendelser,
     innetemperatur og værvarsel (snittemperatur neste 24t).
 
-    - Hvis "Nøkkelord i kalender location" er UTFYLT: neste varme-hendelse = første event der location inneholder nøkkelordet.
-    - Hvis "Nøkkelord i kalender location" er TOMT: neste varme-hendelse = første event uansett (alle events regnes som varme).
+    -Hvis "Nøkkelord i kalender location" er UTFYLT: neste varme-hendelse = første event der location inneholder nøkkelordet.
+    -Hvis "Nøkkelord i kalender location" er TOMT: neste varme-hendelse = første event uansett (alle events regnes som varme).
 
     Oppdaterer valgfri input_text med status og kan sende valgfri varsling ~24t før neste hendelse.
 
     MERK:
-    - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
+    -Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
 
     Blueprint versjon:
     2026.02.02
