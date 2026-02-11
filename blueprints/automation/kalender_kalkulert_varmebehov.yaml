@@ -13,7 +13,7 @@ blueprint:
     - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
 
     Blueprint versjon:
-    2026.02.01
+    2026.02.02
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kalender_kalkulert_varmebehov.yaml
   author: WebHome
@@ -375,7 +375,7 @@ actions:
       info_1_next_event_far: |-
         {% if data_next_event %}
           Forvarming est. {{ info_preheat_day }} kl {{ info_preheat_time }}, for hendelse{% if info_event_day != info_preheat_day %} {{ info_event_day }}{% endif %} kl {{ info_event_time }}
-          (Inne {{ io_indoor_temp_now | round(0) }}°C / Ute min neste døgn {{ io_outdoor_temp_comming | round(0) }}°C) - {{ data_next_event.summary }}
+          (Inne {{ io_indoor_temp_now | round(0) }}°C / Ute snitt neste døgn {{ io_outdoor_temp_comming | round(0) }}°C) - {{ data_next_event.summary }}
         {% else %}
           Ingen kommende hendelser funnet eller data utilgjengelig.
         {% endif %}
