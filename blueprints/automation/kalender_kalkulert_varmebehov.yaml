@@ -7,8 +7,11 @@ blueprint:
 
     MERK:
     - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
+
+    Blueprint versjon:
+    2026.02.00
   domain: automation
-  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kalender_kalkulert_varmebehov_blueprint.yaml
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kalender_kalkulert_varmebehov.yaml
   author: WebHome
   homeassistant:
     min_version: 2024.10.0
