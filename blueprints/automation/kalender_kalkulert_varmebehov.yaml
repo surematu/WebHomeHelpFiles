@@ -113,10 +113,11 @@ blueprint:
       input:
         status_text_entity:
           name: Status input_text (valgfri)
-          description: Entity ID til input_text som skal oppdateres med "hva som skjer". La stå tom for å deaktivere.
+          description: Velg input_text som skal oppdateres med "hva som skjer". La stå tom for å deaktivere.
           default: ""
           selector:
-            text:
+            entity:
+              domain: input_text
 
         notify_targets:
           name: Notify targets (valgfri)
