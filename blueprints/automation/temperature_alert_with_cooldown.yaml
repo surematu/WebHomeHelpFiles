@@ -1,0 +1,101 @@
+blueprint:
+  name: Temperature Sensor Alarm with Cooldown
+  description: >
+    Sends a notification if a temperature sensor:
+      - goes above limit 1 for 10 minutes
+      - goes above limit 2 for 30 minutes
+      - goes 'unknown' for 10 minutes
+
+  domain: automation
+  input:
+    temp_sensor:
+      name: Temperature Sensor
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+
+    custom_sensor_name:
+      name: Custom Sensor Name
+      description: Override default name in the alert title (optional)
+      default: ""
+      selector:
+        text:
+
+    notify_target:
+      name: Notify Target
+      description: Choose one or more notification services (e.g., mobile app or cloud)
+      selector:
+        entity:
+          domain: notify
+          multiple: true
+
+    alarm_1_threshold:
+      name: "Alarm 1: Temp above"
+      default: -5
+      selector:
+        number:
+          min: -30
+          max: 20
+          step: 1
+          unit_of_measurement: "°C"
+
+    alarm_2_threshold:
+      name: "Alarm 2: Temp above"
+      default: -15
+      selector:
+        number:
+          min: -30
+          max: 20
+          step: 1
+          unit_of_measurement: "°C"
+
+mode: restart
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input temp_sensor
+    above: !input alarm_1_threshold
+    for:
+      minutes: 0
+    id: alarm_1
+
+  - platform: numeric_state
+    entity_id: !input temp_sensor
+    above: !input alarm_2_threshold
+    for:
+      minutes: 30
+    id: alarm_2
+
+  - platform: state
+    entity_id: !input temp_sensor
+    to: "unknown"
+    for:
+      minutes: 10
+    id: unknown
+
+action:
+  - variables:
+      custom_sensor_name: !input custom_sensor_name
+      sensor_name: >
+        {% if custom_sensor_name | trim != "" %}
+          {{ custom_sensor_name }}
+        {% else %}
+          {{ state_attr(trigger.entity_id, 'friendly_name') or trigger.entity_id }}
+        {% endif %}
+      alarm_1_threshold: !input alarm_1_threshold
+      alarm_2_threshold: !input alarm_2_threshold
+
+  - service: notify.send_message
+    data:
+      title: "🧊 *{{ sensor_name }}*"
+      message: >
+        {% if trigger.id == 'alarm_1' %}
+          Temp over {{ alarm_1_threshold }} °C for 10m.
+        {% elif trigger.id == 'alarm_2' %}
+          Temp over {{ alarm_2_threshold }} °C for 30m.
+        {% elif trigger.id == 'unknown' %}
+          Temp ukjent for 10m.
+        {% endif %}
+    target:
+      entity_id: !input notify_target
