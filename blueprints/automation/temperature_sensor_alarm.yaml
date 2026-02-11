@@ -6,8 +6,8 @@ blueprint:
       - goes above limit 2 for 30 minutes
       - goes 'unknown' for 10 minutes
 
-    Version 2026.02.00
-
+    Blueprint versjon:
+    2026.02.00
   domain: automation
   input:
     temp_sensor:
