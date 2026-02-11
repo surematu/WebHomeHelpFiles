@@ -1,0 +1,464 @@
+blueprint:
+  name: Kalender - Kalkulert varmebehov
+  description: >
+    Beregner når forvarming og normal varme skal være aktiv basert på kalenderhendelser
+    (location inneholder et nøkkelord), innetemperatur og værvarsel (snittemperatur neste 24t).
+    Oppdaterer valgfri input_text med status og kan sende valgfri varsling ~24t før neste hendelse.
+
+    MERK:
+    - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
+  domain: automation
+  homeassistant:
+    min_version: 2024.10.0
+
+  input:
+    main:
+      name: Hovedinnganger
+      icon: mdi:calendar-clock
+      input:
+        calendar_entities:
+          name: Kalender entiteter
+          description: Én eller flere kalendere som skal sjekkes.
+          selector:
+            entity:
+              domain: calendar
+              multiple: true
+
+        weather_entity:
+          name: Vær entitet
+          description: Weather-entitet som støtter "weather.get_forecasts".
+          selector:
+            entity:
+              domain: weather
+
+        indoor_temperature_entity:
+          name: Innetemperatur sensor
+          selector:
+            entity:
+              filter:
+                domain: sensor
+                device_class: temperature
+
+        preheat_boolean:
+          name: Forvarming bool (input_boolean)
+          description: Slås på/av når forvarming skal være aktiv.
+          selector:
+            entity:
+              domain: input_boolean
+
+        heat_boolean:
+          name: Varme bool (input_boolean)
+          description: Slås på/av når normal varme skal være aktiv.
+          selector:
+            entity:
+              domain: input_boolean
+
+        heat_location_keyword:
+          name: Nøkkelord i kalender "location" som betyr varme
+          description: Case-insensitiv. F.eks "bryn".
+          default: bryn
+          selector:
+            text:
+
+        goal_temperature:
+          name: Måltemperatur (°C)
+          description: Temperaturen du vil rekke før hendelsen (brukes i beregningen).
+          default: 23
+          selector:
+            number:
+              min: 10
+              max: 30
+              step: 0.5
+              unit_of_measurement: "°C"
+              mode: box
+
+    settings:
+      name: Innstillinger
+      icon: mdi:tune
+      collapsed: true
+      input:
+        buffer_hours:
+          name: Buffer (timer)
+          description: Ekstra timer legges til beregnet oppvarmingstid (starter forvarming tidligere).
+          default: 3
+          selector:
+            number:
+              min: 0
+              max: 24
+              step: 0.5
+              unit_of_measurement: "h"
+              mode: box
+
+        lookahead_hours:
+          name: Lookahead (timer)
+          description: Hvor langt frem det søkes etter hendelser i kalenderen. 168 = 7 dager.
+          default: 168
+          selector:
+            number:
+              min: 24
+              max: 720
+              step: 24
+              unit_of_measurement: "h"
+              mode: box
+
+    optional:
+      name: Valgfritt
+      icon: mdi:bell-outline
+      collapsed: true
+      input:
+        status_text_entity:
+          name: Status input_text (valgfri)
+          description: Entity ID til input_text som skal oppdateres med "hva som skjer". La stå tom for å deaktivere.
+          default: ""
+          selector:
+            text:
+
+        notify_target:
+          name: Notify target (valgfri)
+          description: >
+            Entity ID til notify-*target* for notify.send_message (f.eks. notify.mobile_app_...).
+            La stå tom for å deaktivere varsling.
+          default: ""
+          selector:
+            text:
+
+mode: single
+
+triggers:
+  - trigger: time_pattern
+    minutes: "/10"
+  - trigger: homeassistant
+    event: start
+    id: HA-START
+
+actions:
+  - alias: Innstillbare settpunkter
+    variables:
+      hours_to_check_temp: 24
+
+      # Hardkodet ute-temp sensor (endre her om du vil)
+      io_outdoor_temp_entity: sensor.utetemperatur
+
+      # Inputs
+      io_cal_entities: !input calendar_entities
+      io_weather_entity: !input weather_entity
+      io_indoor_temp_entity: !input indoor_temperature_entity
+      io_preheat_bool: !input preheat_boolean
+      io_heat_bool: !input heat_boolean
+      io_status_text_entity: !input status_text_entity
+      io_notify_target: !input notify_target
+
+      heat_location_keyword_raw: !input heat_location_keyword
+      heat_location_keyword: "{{ (heat_location_keyword_raw | default('bryn')) | lower }}"
+
+      goal_indoor_temp: !input goal_temperature
+      settings_add_hours: !input buffer_hours
+      lookahead_hours: !input lookahead_hours
+
+  - if:
+      - condition: trigger
+        id: HA-START
+    then:
+      - delay:
+          minutes: 3
+
+  - alias: Hent værvarsel (timevis)
+    action: weather.get_forecasts
+    target:
+      entity_id: !input weather_entity
+    data:
+      type: hourly
+    response_variable: wf
+
+  - alias: Vær - hent forecastliste
+    variables:
+      wf_key: >-
+        {{ wf.keys() | list | first if wf is mapping and (wf | count > 0) else '' }}
+      fc_list: >-
+        {{ wf[wf_key]['forecast'] if wf_key and wf[wf_key] is mapping and 'forecast' in wf[wf_key] else [] }}
+
+  - alias: Vær - lag temp-liste (neste 24t)
+    variables:
+      next_n: "{{ fc_list[:hours_to_check_temp|int] }}"
+      temp_list: "{{ next_n | map(attribute='temperature') | map('float') | list }}"
+      average_temp: >-
+        {{
+          (temp_list | sum / (temp_list | length)
+          if temp_list | length > 0 else 0) | float
+        }}
+
+  - alias: Nå-data (ute/inn)
+    variables:
+      io_outdoor_temp_now: "{{ states(io_outdoor_temp_entity) | float(999) | round(0) | int }}"
+      io_outdoor_temp_comming: "{{ [average_temp, io_outdoor_temp_now] | min }}"
+      io_indoor_temp_now: "{{ states(io_indoor_temp_entity) | float(999) | round(0) | int }}"
+
+  - alias: Hent kalenderhendelser (lookahead)
+    action: calendar.get_events
+    target:
+      entity_id: "{{ io_cal_entities }}"
+    data:
+      start_date_time: "{{ now() }}"
+      end_date_time: "{{ now() + timedelta(hours=lookahead_hours | float(168)) }}"
+    response_variable: cal
+
+  - alias: Kalender - sorter og finn neste hendelse som krever varme
+    variables:
+      data_all_events_sorted: |-
+        {% set ns = namespace(all=[]) %}
+        {% for cid, caldata in cal.items() %}
+          {% for e in caldata['events'] %}
+            {% set ns.all = ns.all + [ {'ts': as_timestamp(e.start), 'e': e} ] %}
+          {% endfor %}
+        {% endfor %}
+        {{ ns.all | sort(attribute='ts') }}
+
+      data_next_event: |-
+        {% set ns = namespace(match=none) %}
+        {% for item in data_all_events_sorted %}
+          {% set loc = item.e.location | default('') | lower %}
+          {% if heat_location_keyword in loc %}
+            {% set ns.match = item.e %}
+            {% break %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.match }}
+
+      data_next_event_incl_noheat: |-
+        {{ data_all_events_sorted[0].e
+           if data_all_events_sorted | count > 0
+           else none }}
+
+  - alias: Beregn oppvarmingshastighet og nødvendig tid
+    variables:
+      tempchange_degreePerHour: |-
+        {% set t = io_outdoor_temp_comming | float(999) %}
+        {% if t <= -20 %}
+          0.2
+        {% elif t <= -9 %}
+          0.25
+        {% elif t <= -6 %}
+          0.3
+        {% elif t <= -3 %}
+          0.5
+        {% elif t <= 0 %}
+          0.6
+        {% else %}
+          0.7
+        {% endif %}
+
+      tempchange_degreeIncreaseReq: >-
+        {% set diff = (goal_indoor_temp | float) - (io_indoor_temp_now | float) %}
+        {{ diff if diff > 0 else 0 }}
+
+      tempchange_hoursNeededForGoal: >-
+        {% set increase = tempchange_degreeIncreaseReq | float(0) %}
+        {% set rate = tempchange_degreePerHour | float(1) %}
+        {% set buffer = settings_add_hours | float(0) %}
+        {{ ((increase / rate) + buffer) | round(1) }}
+
+  - alias: Lag tidsvinduer (forvarming/varme)
+    variables:
+      startdata_ts_now: "{{ as_timestamp(now()) }}"
+      startdata_ts_nexteventstart: >-
+        {% if data_next_event %}
+          {{ (as_timestamp(data_next_event.start) - 900) | float }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+      startdata_ts_nexteventend: >-
+        {% if data_next_event and data_next_event.end is defined %}
+          {{ as_timestamp(data_next_event.end) }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
+      startdata_ts_preheatingstart: |-
+        {% if startdata_ts_nexteventstart and tempchange_hoursNeededForGoal %}
+          {% set raw_ts = startdata_ts_nexteventstart - (tempchange_hoursNeededForGoal | float * 3600) %}
+          {% set dt = raw_ts | timestamp_custom('%Y-%m-%d %H:%M', true) | as_datetime %}
+
+          {% set floored = dt.replace(minute=30 if dt.minute >= 30 else 0, second=0, microsecond=0) %}
+          {% if dt.minute < 30 %}
+            {% set floored = floored - timedelta(hours=1) %}
+            {% set floored = floored.replace(minute=30) %}
+          {% endif %}
+
+          {% set max_preheat_dt = (startdata_ts_nexteventstart | timestamp_custom('%Y-%m-%d %H:%M', true) | as_datetime) - timedelta(hours=1) %}
+          {% set final = floored if floored <= max_preheat_dt else max_preheat_dt %}
+          {{ final.timestamp() }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
+      startdata_hourstill_preheating: >-
+        {% if startdata_ts_nexteventstart and tempchange_hoursNeededForGoal %}
+          {{ ((startdata_ts_nexteventstart - (tempchange_hoursNeededForGoal | float * 3600) - startdata_ts_now) / 3600) | round(1) }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
+      startdata_preheat_start: >-
+        {% if startdata_hourstill_preheating is not none %}
+          {{ (startdata_hourstill_preheating | float(99)) <= 0.5 }}
+        {% else %}
+          false
+        {% endif %}
+
+      startdata_heat_start: >-
+        {% if startdata_ts_nexteventstart is not none and startdata_ts_nexteventend is not none %}
+          {{ startdata_ts_now >= startdata_ts_nexteventstart and startdata_ts_now < startdata_ts_nexteventend }}
+        {% else %}
+          false
+        {% endif %}
+
+  - alias: Bygg infotext
+    variables:
+      info_today: "{{ now().strftime('%Y-%m-%d') }}"
+      info_tomorrow: "{{ (now() + timedelta(days=1)).strftime('%Y-%m-%d') }}"
+
+      info_preheat_day: |-
+        {% if startdata_ts_preheatingstart %}
+          {% set d = startdata_ts_preheatingstart | timestamp_custom('%Y-%m-%d', true) %}
+          {% if d == info_today %}i dag{% elif d == info_tomorrow %}i morgen{% else %}{{ startdata_ts_preheatingstart | timestamp_custom('%a %-d.%b', true) }}{% endif %}
+        {% else %}
+          ukjent
+        {% endif %}
+
+      info_event_day: |-
+        {% if startdata_ts_nexteventstart %}
+          {% set d = startdata_ts_nexteventstart | timestamp_custom('%Y-%m-%d', true) %}
+          {% if d == info_today %}i dag{% elif d == info_tomorrow %}i morgen{% else %}{{ startdata_ts_nexteventstart | timestamp_custom('%a %-d.%b', true) }}{% endif %}
+        {% else %}
+          ukjent
+        {% endif %}
+
+      info_preheat_time: "{{ startdata_ts_preheatingstart | timestamp_custom('%H:%M', true) if startdata_ts_preheatingstart else '??:??' }}"
+      info_event_time: "{{ startdata_ts_nexteventstart | timestamp_custom('%H:%M', true) if startdata_ts_nexteventstart else '??:??' }}"
+      info_event_end_day: |-
+        {% if startdata_ts_nexteventend %}
+          {% set d = startdata_ts_nexteventend | timestamp_custom('%Y-%m-%d', true) %}
+          {% if d == info_today %}i dag{% elif d == info_tomorrow %}i morgen{% else %}{{ startdata_ts_nexteventend | timestamp_custom('%a %-d.%b', true) }}{% endif %}
+        {% else %}
+          ukjent
+        {% endif %}
+      info_event_end_time: "{{ startdata_ts_nexteventend | timestamp_custom('%H:%M', true) if startdata_ts_nexteventend else '??:??' }}"
+
+      info_1_next_event_far: |-
+        {% if data_next_event %}
+          Forvarming est. {{ info_preheat_day }} kl {{ info_preheat_time }}, for hendelse{% if info_event_day != info_preheat_day %} {{ info_event_day }}{% endif %} kl {{ info_event_time }}
+          (Inne {{ io_indoor_temp_now | round(0) }}°C / Ute min neste døgn {{ io_outdoor_temp_comming | round(0) }}°C) - {{ data_next_event.summary }}
+        {% else %}
+          Ingen kommende varme-hendelser funnet (location mangler "{{ heat_location_keyword }}") eller data utilgjengelig.
+        {% endif %}
+
+      info_2_active_preheat: |-
+        {% if data_next_event %}
+          Forvarming pågår for hendelse {{ info_event_day }} kl {{ info_event_time }} - {{ data_next_event.summary }}
+        {% else %}
+          Ingen kommende varme-hendelser funnet eller data utilgjengelig.
+        {% endif %}
+
+      info_3_active_heat: |-
+        {% if data_next_event %}
+          Normal varme for hendelse slutter {{ info_event_end_day }} kl {{ info_event_end_time }} - {{ data_next_event.summary }}
+        {% else %}
+          Ingen kommende varme-hendelser funnet eller data utilgjengelig.
+        {% endif %}
+
+      info_result: |-
+        {% if startdata_heat_start %}
+          {{ info_3_active_heat }}
+        {% elif startdata_preheat_start and not startdata_heat_start %}
+          {{ info_2_active_preheat }}
+        {% else %}
+          {{ info_1_next_event_far }}
+        {% endif %}
+
+      info_result_short: "{{ info_result[:250] }}"
+
+  - alias: Oppdater valgfri status input_text
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ (io_status_text_entity | default('')) | length > 0 }}"
+        sequence:
+          - action: input_text.set_value
+            target:
+              entity_id: "{{ io_status_text_entity }}"
+            data:
+              value: "{{ info_result_short }}"
+
+  - alias: Sett varme-bool
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ startdata_heat_start }}"
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: "{{ io_heat_bool }}"
+    default:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: "{{ io_heat_bool }}"
+
+  - alias: Sett forvarmings-bool
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ startdata_preheat_start and not startdata_heat_start }}"
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: "{{ io_preheat_bool }}"
+    default:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: "{{ io_preheat_bool }}"
+
+  - alias: 24t varsling (valgfri) - uendret (sender både varme/ikke-varme)
+    variables:
+      notify24h_ts_target: "{{ as_timestamp(now() + timedelta(hours=24)) }}"
+      notify24h_next_event_ts: >-
+        {% if data_next_event_incl_noheat %}
+          {{ as_timestamp(data_next_event_incl_noheat.start) }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+      notify24h_match_window: >-
+        {% if notify24h_next_event_ts is not none %}
+          {% set delta = notify24h_next_event_ts - notify24h_ts_target %}
+          {{ 0 <= delta < 600 }}
+        {% else %}
+          false
+        {% endif %}
+      notify24h_text: |-
+        {% set e = data_next_event_incl_noheat %}
+        {% if not e %}
+          PLAN 24T: Ingen hendelse funnet å sjekke 24t frem.
+        {% else %}
+          {% set loc = e.location | default('') | lower %}
+          {% set notify24h_is_heat = heat_location_keyword in loc %}
+          {% if notify24h_is_heat %}
+            Det kommer en hendelse om 24 timer, det er planlagt oppvarming.
+          {% else %}
+            Ingen varme for hendelse om 24 timer (sted inneholder ikke "{{ heat_location_keyword }}") – {{ e.summary }}
+          {% endif %}
+        {% endif %}
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ (io_notify_target | default('')) | length > 0 and notify24h_match_window }}"
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: "{{ io_notify_target }}"
+            data:
+              title: "🔥 Varmeplan"
+              message: |-
+                {{ notify24h_text }}
+
+                Info om neste oppvarming:
+                {{ info_result_short }}
