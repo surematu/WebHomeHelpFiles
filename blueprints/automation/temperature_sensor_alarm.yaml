@@ -1,10 +1,12 @@
 blueprint:
-  name: Temperature Sensor Alarm with Cooldown
+  name: Temperature Sensor Alarm
   description: >
     Sends a notification if a temperature sensor:
       - goes above limit 1 for 10 minutes
       - goes above limit 2 for 30 minutes
       - goes 'unknown' for 10 minutes
+
+    Version 2026.02.00
 
   domain: automation
   input:
