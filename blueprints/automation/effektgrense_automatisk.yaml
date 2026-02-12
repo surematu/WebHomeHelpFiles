@@ -102,7 +102,7 @@ blueprint:
 
         littleCold_min:
           name: Grense littleCold - minimum
-          default: 4.7
+          default: 4.5
           selector:
             number:
               min: 0
@@ -136,43 +136,43 @@ blueprint:
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_mar:
           name: Mars - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_apr:
           name: April - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_may:
           name: Mai - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_jun:
           name: Juni - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_jul:
           name: Juli - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_aug:
           name: August - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_sep:
           name: September - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_oct:
           name: Oktober - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_nov:
           name: November - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
         min_dec:
           name: Desember - minimum
-          default: 4.7
+          default: 4.5
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
 
     optional:
