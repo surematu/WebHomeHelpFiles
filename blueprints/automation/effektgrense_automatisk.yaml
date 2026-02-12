@@ -9,16 +9,18 @@ blueprint:
     - Hent hourly forecast fra valgt weather-entitet
     - Beregn snitt temperatur for neste N timer
     - Velg minimum basert på temperaturgrenser:
-        * Kaldt: <= kaldt_grader => kaldt_min
-        * Litt kaldt: <= litt_kaldt_grader => litt_kaldt_min
-        * Ellers: varm_min
+        * veryCold: <= veryCold_grader => veryCold_min
+        * littleCold: <= littleCold_grader => littleCold_min
+        * Ellers: warm_min
     - Kombiner med månedsminimum: ønsket = max(temp_min, måned_min)
     - Skriv kun hvis:
         * ønsket > nåværende verdi
         * ELLER første time første dag i måneden (00:xx) – da overskrives selv om lavere
+    - Ved hver faktisk skriving sendes valgfri notify-melding.
 
     MERK:
     - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
+
 
     Blueprint versjon:
     2026.02.00
@@ -26,7 +28,7 @@ blueprint:
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/effektgrense_automatisk.yaml
   author: WebHome
   homeassistant:
-    min_version: 2024.10.0
+    min_version: 2024.10.01
     
   input:
     main:
@@ -64,9 +66,9 @@ blueprint:
               unit_of_measurement: "h"
               mode: box
 
-        cold_degrees:
-          name: Grense kaldt - grader
-          description: Hvis snitt <= denne, brukes "Grense kaldt - minimum".
+        veryCold_degrees:
+          name: Grense veryCold - grader
+          description: Hvis snitt <= denne, brukes "Grense veryCold - minimum".
           default: -8
           selector:
             number:
@@ -76,8 +78,8 @@ blueprint:
               unit_of_measurement: "°C"
               mode: box
 
-        cold_min:
-          name: Grense kaldt - minimum
+        veryCold_min:
+          name: Grense veryCold - minimum
           default: 9
           selector:
             number:
@@ -86,9 +88,9 @@ blueprint:
               step: 0.1
               mode: box
 
-        cool_degrees:
-          name: Grense litt kaldt - grader
-          description: Hvis snitt <= denne (og ikke kaldt), brukes "Grense litt kaldt - minimum".
+        littleCold_degrees:
+          name: Grense littleCold - grader
+          description: Hvis snitt <= denne (og ikke veryCold), brukes "Grense littleCold - minimum".
           default: 8
           selector:
             number:
@@ -98,8 +100,8 @@ blueprint:
               unit_of_measurement: "°C"
               mode: box
 
-        cool_min:
-          name: Grense litt kaldt - minimum
+        littleCold_min:
+          name: Grense littleCold - minimum
           default: 4.7
           selector:
             number:
@@ -110,7 +112,7 @@ blueprint:
 
         warm_min:
           name: Ellers (varmt) - minimum
-          description: Brukes hvis vi ikke er innenfor kaldt/litt kaldt.
+          description: Brukes hvis vi ikke er innenfor veryCold/littleCold.
           default: 1.7
           selector:
             number:
@@ -175,7 +177,7 @@ blueprint:
 
     optional:
       name: Valgfritt
-      icon: mdi:information-outline
+      icon: mdi:bell-outline
       collapsed: true
       input:
         status_text_entity:
@@ -185,6 +187,17 @@ blueprint:
           selector:
             entity:
               domain: input_text
+
+        notify_targets:
+          name: Notify targets (valgfri)
+          description: >
+            Velg én eller flere notify-entiteter (f.eks. notify.mobile_app_...).
+            La stå tomt (ingen valgt) for å deaktivere varsling.
+          default: []
+          selector:
+            entity:
+              domain: notify
+              multiple: true
 
 mode: single
 
@@ -202,14 +215,15 @@ actions:
       io_weather_entity: !input weather_entity
       io_target_entity: !input target_limit_entity
       io_status_text_entity: !input status_text_entity
+      io_notify_targets: !input notify_targets
 
       hours_to_check_temp: !input hours_to_check
 
-      t_cold_degrees: !input cold_degrees
-      t_cold_min: !input cold_min
+      t_veryCold_degrees: !input veryCold_degrees
+      t_veryCold_min: !input veryCold_min
 
-      t_cool_degrees: !input cool_degrees
-      t_cool_min: !input cool_min
+      t_littleCold_degrees: !input littleCold_degrees
+      t_littleCold_min: !input littleCold_min
 
       t_warm_min: !input warm_min
 
@@ -284,10 +298,10 @@ actions:
     variables:
       temp_min_limit: >-
         {% set t = io_outdoor_temp_comming | float %}
-        {% if t <= (t_cold_degrees | float) %}
-          {{ t_cold_min | float }}
-        {% elif t <= (t_cool_degrees | float) %}
-          {{ t_cool_min | float }}
+        {% if t <= (t_veryCold_degrees | float) %}
+          {{ t_veryCold_min | float }}
+        {% elif t <= (t_littleCold_degrees | float) %}
+          {{ t_littleCold_min | float }}
         {% else %}
           {{ t_warm_min | float }}
         {% endif %}
@@ -321,7 +335,7 @@ actions:
       debug_text: >-
         KWh-grense:
         Ute nå={{ io_outdoor_temp_now }}°C, snitt={{ average_temp | round(1) }}°C, brukt={{ io_outdoor_temp_comming | round(1) }}°C.
-        Temp-min={{ temp_min_limit }}, Mnd-min={{ month_min_limit }}, Ønsket={{ desired_limit }}.
+        Min: temp_min={{ temp_min_limit }}, mnd_min={{ month_min_limit }}  → ønsket={{ desired_limit }}.
         Nå={{ io_current_limit }}. should_write={{ should_write }}. reason={{ write_reason }}
 
   - alias: Oppdater valgfri status input_text
@@ -336,7 +350,7 @@ actions:
             data:
               value: "{{ debug_text[:250] }}"
 
-  - alias: Sett input_number hvis nødvendig
+  - alias: Sett input_number hvis nødvendig (og varsle)
     choose:
       - conditions:
           - condition: template
@@ -348,3 +362,20 @@ actions:
             data:
               value: "{{ desired_limit | float }}"
 
+          - alias: Varsling ved endring (valgfri)
+            choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ (io_notify_targets | count) > 0 }}"
+                sequence:
+                  - action: notify.send_message
+                    target:
+                      entity_id: "{{ io_notify_targets }}"
+                    data:
+                      title: "⚡ WebHome – KWh-grense"
+                      message: |-
+                        KWh-grense oppdatert: {{ io_current_limit }} → {{ desired_limit }} ({{ now().strftime('%Y-%m-%d %H:%M') }})
+
+                        Ute: nå={{ io_outdoor_temp_now }}°C / snitt neste {{ hours_to_check_temp }}t={{ average_temp | round(1) }}°C / brukt={{ io_outdoor_temp_comming | round(1) }}°C
+                        Min: temp_min={{ temp_min_limit }}, mnd_min={{ month_min_limit }}  → ønsket={{ desired_limit }}
+                        Regel: {{ write_reason }}
