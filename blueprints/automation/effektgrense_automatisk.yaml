@@ -27,7 +27,7 @@ blueprint:
   author: WebHome
   homeassistant:
     min_version: 2024.10.0
-
+    
   input:
     main:
       name: Hovedinnganger
@@ -41,4 +41,310 @@ blueprint:
               domain: weather
 
         target_limit_entity:
-          name: Aktuell/endre grense entity (input_number_
+          name: Aktuell/endre grense entity (input_number)
+          description: Denne input_number settes til beregnet ønsket minimum.
+          selector:
+            entity:
+              domain: input_number
+
+    settings:
+      name: Innstillinger
+      icon: mdi:tune
+      collapsed: true
+      input:
+        hours_to_check:
+          name: Antall timer (forecast-snitt)
+          description: Antall timer som skal brukes for snitt utetemp. Default 24.
+          default: 24
+          selector:
+            number:
+              min: 1
+              max: 168
+              step: 1
+              unit_of_measurement: "h"
+              mode: box
+
+        cold_degrees:
+          name: Grense kaldt - grader
+          description: Hvis snitt <= denne, brukes "Grense kaldt - minimum".
+          default: -8
+          selector:
+            number:
+              min: -40
+              max: 40
+              step: 0.5
+              unit_of_measurement: "°C"
+              mode: box
+
+        cold_min:
+          name: Grense kaldt - minimum
+          default: 9
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 0.1
+              mode: box
+
+        cool_degrees:
+          name: Grense litt kaldt - grader
+          description: Hvis snitt <= denne (og ikke kaldt), brukes "Grense litt kaldt - minimum".
+          default: 8
+          selector:
+            number:
+              min: -40
+              max: 40
+              step: 0.5
+              unit_of_measurement: "°C"
+              mode: box
+
+        cool_min:
+          name: Grense litt kaldt - minimum
+          default: 4.7
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 0.1
+              mode: box
+
+        warm_min:
+          name: Ellers (varmt) - minimum
+          description: Brukes hvis vi ikke er innenfor kaldt/litt kaldt.
+          default: 1.7
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 0.1
+              mode: box
+
+    month_limits:
+      name: Månedsminimum (kWh)
+      icon: mdi:calendar-month
+      collapsed: true
+      input:
+        min_jan:
+          name: Januar - minimum
+          default: 9
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_feb:
+          name: Februar - minimum
+          default: 9
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_mar:
+          name: Mars - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_apr:
+          name: April - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_may:
+          name: Mai - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_jun:
+          name: Juni - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_jul:
+          name: Juli - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_aug:
+          name: August - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_sep:
+          name: September - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_oct:
+          name: Oktober - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_nov:
+          name: November - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+        min_dec:
+          name: Desember - minimum
+          default: 4.7
+          selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
+
+    optional:
+      name: Valgfritt
+      icon: mdi:information-outline
+      collapsed: true
+      input:
+        status_text_entity:
+          name: Status input_text (valgfri)
+          description: Oppdaterer input_text med debug/status. La stå tomt for å deaktivere.
+          default: ""
+          selector:
+            entity:
+              domain: input_text
+
+mode: single
+
+triggers:
+  - trigger: time_pattern
+    minutes: 0
+
+actions:
+  - alias: Innstillbare settpunkter / inputs
+    variables:
+      # Hardkodet ute-temp sensor (samme mønster som hos deg)
+      io_outdoor_temp_entity: sensor.utetemperatur
+
+      # Inputs
+      io_weather_entity: !input weather_entity
+      io_target_entity: !input target_limit_entity
+      io_status_text_entity: !input status_text_entity
+
+      hours_to_check_temp: !input hours_to_check
+
+      t_cold_degrees: !input cold_degrees
+      t_cold_min: !input cold_min
+
+      t_cool_degrees: !input cool_degrees
+      t_cool_min: !input cool_min
+
+      t_warm_min: !input warm_min
+
+      # Månedsminimum (inputs)
+      m_jan: !input min_jan
+      m_feb: !input min_feb
+      m_mar: !input min_mar
+      m_apr: !input min_apr
+      m_may: !input min_may
+      m_jun: !input min_jun
+      m_jul: !input min_jul
+      m_aug: !input min_aug
+      m_sep: !input min_sep
+      m_oct: !input min_oct
+      m_nov: !input min_nov
+      m_dec: !input min_dec
+
+      # "Første kjøring i måneden, første time"
+      is_month_reset_window: "{{ now().day == 1 and now().hour == 0 }}"
+
+  - alias: Hent værvarsel (timevis)
+    action: weather.get_forecasts
+    target:
+      entity_id: "{{ io_weather_entity }}"
+    data:
+      type: hourly
+    response_variable: wf
+
+  - alias: Vær - hent forecastliste
+    variables:
+      wf_key: >-
+        {{ wf.keys() | list | first if wf is mapping and (wf | count > 0) else '' }}
+      fc_list: >-
+        {{ wf[wf_key]['forecast'] if wf_key and wf[wf_key] is mapping and 'forecast' in wf[wf_key] else [] }}
+
+  - alias: Vær - lag temp-liste (neste N timer) og snitt
+    variables:
+      next_n: "{{ fc_list[:(hours_to_check_temp | int(24))] }}"
+      temp_list: "{{ next_n | map(attribute='temperature') | map('float') | list }}"
+      average_temp: >-
+        {{
+          (temp_list | sum / (temp_list | length)
+          if temp_list | length > 0 else 0) | float
+        }}
+
+  - alias: Nå-data (ute nå / forecast snitt / korrigert)
+    variables:
+      io_outdoor_temp_now: "{{ states(io_outdoor_temp_entity) | float(999) | round(0) | int }}"
+      io_outdoor_temp_comming: "{{ [average_temp, io_outdoor_temp_now] | min }}"
+      io_current_limit: "{{ states(io_target_entity) | float(0) }}"
+
+  - alias: Finn månedsminimum basert på nåværende måned
+    variables:
+      month_idx: "{{ now().month | int }}"
+      month_min_limit: >-
+        {% set m = month_idx %}
+        {% if m == 1 %}{{ m_jan }}
+        {% elif m == 2 %}{{ m_feb }}
+        {% elif m == 3 %}{{ m_mar }}
+        {% elif m == 4 %}{{ m_apr }}
+        {% elif m == 5 %}{{ m_may }}
+        {% elif m == 6 %}{{ m_jun }}
+        {% elif m == 7 %}{{ m_jul }}
+        {% elif m == 8 %}{{ m_aug }}
+        {% elif m == 9 %}{{ m_sep }}
+        {% elif m == 10 %}{{ m_oct }}
+        {% elif m == 11 %}{{ m_nov }}
+        {% else %}{{ m_dec }}
+        {% endif %}
+
+  - alias: Beregn temperatur-basert minimum + endelig ønsket
+    variables:
+      temp_min_limit: >-
+        {% set t = io_outdoor_temp_comming | float %}
+        {% if t <= (t_cold_degrees | float) %}
+          {{ t_cold_min | float }}
+        {% elif t <= (t_cool_degrees | float) %}
+          {{ t_cool_min | float }}
+        {% else %}
+          {{ t_warm_min | float }}
+        {% endif %}
+
+      desired_limit: >-
+        {{ [ (temp_min_limit | float), (month_min_limit | float) ] | max }}
+
+      # Skriveregler:
+      # - Vanlig: skriv kun hvis ønsket > nåværende
+      # - Reset-vindu: skriv hvis ønsket != nåværende (kan være lavere)
+      should_write: >-
+        {% set desired = desired_limit | float %}
+        {% set current = io_current_limit | float %}
+        {% if is_month_reset_window %}
+          {{ desired != current }}
+        {% else %}
+          {{ desired > current }}
+        {% endif %}
+
+      write_reason: >-
+        {% if not should_write %}
+          Ingen skriving (nåværende høyere eller lik ønsket).
+        {% elif is_month_reset_window %}
+          Reset-vindu (1. dag kl 00) – skriver selv om lavere.
+        {% else %}
+          Ønsket er høyere enn nåværende – øker grense.
+        {% endif %}
+
+  - alias: Debug / status tekst (valgfritt)
+    variables:
+      debug_text: >-
+        KWh-grense:
+        Ute nå={{ io_outdoor_temp_now }}°C, snitt={{ average_temp | round(1) }}°C, brukt={{ io_outdoor_temp_comming | round(1) }}°C.
+        Temp-min={{ temp_min_limit }}, Mnd-min={{ month_min_limit }}, Ønsket={{ desired_limit }}.
+        Nå={{ io_current_limit }}. should_write={{ should_write }}. reason={{ write_reason }}
+
+  - alias: Oppdater valgfri status input_text
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ io_status_text_entity is not none and (io_status_text_entity | string) | length > 0 }}"
+        sequence:
+          - action: input_text.set_value
+            target:
+              entity_id: "{{ io_status_text_entity }}"
+            data:
+              value: "{{ debug_text[:250] }}"
+
+  - alias: Sett input_number hvis nødvendig
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ should_write }}"
+        sequence:
+          - action: input_number.set_value
+            target:
+              entity_id: "{{ io_target_entity }}"
+            data:
+              value: "{{ desired_limit | float }}"
+
