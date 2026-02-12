@@ -1,1 +1,44 @@
+blueprint:
+  name: KWh-grense - Temperatur + månedsminimum (WebHome)
+  description: >
+    Setter en input_number (kWh-grense) basert på værvarsel (snittemperatur neste N timer),
+    kombinert med månedsminimum.
 
+    Logikk:
+    - Kjør hver time
+    - Hent hourly forecast fra valgt weather-entitet
+    - Beregn snitt temperatur for neste N timer
+    - Velg minimum basert på temperaturgrenser:
+        * Kaldt: <= kaldt_grader => kaldt_min
+        * Litt kaldt: <= litt_kaldt_grader => litt_kaldt_min
+        * Ellers: varm_min
+    - Kombiner med månedsminimum: ønsket = max(temp_min, måned_min)
+    - Skriv kun hvis:
+        * ønsket > nåværende verdi
+        * ELLER første time første dag i måneden (00:xx) – da overskrives selv om lavere
+
+    MERK:
+    - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
+
+    Blueprint versjon:
+    2026.02.00
+  domain: automation
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/effektgrense_automatisk.yaml
+  author: WebHome
+  homeassistant:
+    min_version: 2024.10.0
+
+  input:
+    main:
+      name: Hovedinnganger
+      icon: mdi:thermometer-lines
+      input:
+        weather_entity:
+          name: Vær entitet
+          description: Weather-entitet som støtter "weather.get_forecasts" (hourly).
+          selector:
+            entity:
+              domain: weather
+
+        target_limit_entity:
+          name: Aktuell/endre grense entity (input_number_
