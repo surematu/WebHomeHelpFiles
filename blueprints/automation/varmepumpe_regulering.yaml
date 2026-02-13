@@ -1,1 +1,244 @@
+blueprint:
+  name: Varmepumpe – pådrag til settpunkt, med min-pådrag og valgfri vifteboost (WebHome)
+  description: >
+    Regulerer varmepumpe-settpunkt lineært mellom (rom-basissettpunkt - under) og
+    (rom-basissettpunkt + over) basert på power_percent (0-100).
+    Har i tillegg min-pådrag: ( (rom_settpunkt + 1) - rom_temp ) * faktor, klippet 0-100.
+    Vifte-logikk styres av tekstinput: 0 = ingen vifteregulering, 1 = vifteboost.
 
+    Blueprint versjon:
+    2026.02.00
+  domain: automation
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
+  author: WebHome
+  homeassistant:
+    min_version: 2024.10.01
+
+  input:
+    rom_climate:
+      name: Climate – varmeregulering i rom
+      selector:
+        entity:
+          domain: climate
+
+    pumpe_climate:
+      name: Climate – varmepumpe (styring)
+      selector:
+        entity:
+          domain: climate
+
+    grader_under_min:
+      name: Grader under (ved 0% pådrag)
+      description: "Hvor mange °C under basissettpunkt varmepumpa skal settes når pådrag=0."
+      default: 3
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.5
+          mode: slider
+          unit_of_measurement: "°C"
+
+    grader_over_maks:
+      name: Grader over (ved 100% pådrag)
+      description: "Hvor mange °C over basissettpunkt varmepumpa skal settes når pådrag=100."
+      default: 3
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.5
+          mode: slider
+          unit_of_measurement: "°C"
+
+    faktor_min_padrag:
+      name: Faktor for minimum pådrag
+      description: >
+        Min-pådrag = ( (rom_settpunkt + 1) - rom_temp ) * faktor.
+        Eksempel: rom_settpunkt=22 -> bruker 23. rom_temp=21 gir delta=2.
+        Faktor=50 => min-pådrag=100.
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 200
+          step: 1
+          mode: box
+
+    vifte_tekstverdi:
+      name: Tekstverdi viftemodus (0/1)
+      description: "0 = ingen vifteregulering. 1 = vifte boost ved høyt pådrag (bruker viftelogikk)."
+      default: "0"
+      selector:
+        text: {}
+
+    pumpe_temp_min:
+      name: (Avansert) Absolutt min temperatur på varmepumpe
+      default: 10
+      selector:
+        number:
+          min: 5
+          max: 25
+          step: 1
+          mode: box
+          unit_of_measurement: "°C"
+
+    pumpe_temp_maks:
+      name: (Avansert) Absolutt maks temperatur på varmepumpe
+      default: 29
+      selector:
+        number:
+          min: 15
+          max: 35
+          step: 1
+          mode: box
+          unit_of_measurement: "°C"
+
+    debug_logg:
+      name: (Avansert) Debug logging til System Log
+      default: false
+      selector:
+        boolean: {}
+
+mode: restart
+
+triggers:
+  - trigger: time_pattern
+    minutes: /5
+
+  - trigger: state
+    entity_id: !input rom_climate
+    attribute: temperature
+
+actions:
+  # Liten forsinkelse slik du hadde (stabilisering / oppdatering av attributter)
+  - delay:
+      seconds: 5
+
+  # Steg 0: inputs og entiteter (for trace-lesbarhet)
+  - variables:
+      rom_e: !input rom_climate
+      pumpe_e: !input pumpe_climate
+      under_c: !input grader_under_min
+      over_c: !input grader_over_maks
+      faktor_min: !input faktor_min_padrag
+      vifte_raw: !input vifte_tekstverdi
+      pumpe_abs_min: !input pumpe_temp_min
+      pumpe_abs_maks: !input pumpe_temp_maks
+      debug: !input debug_logg
+
+  # Steg 1: les råverdier fra rom-klima og varmepumpe
+  - variables:
+      rom_settpunkt: "{{ state_attr(rom_e, 'temperature') | float(20) }}"
+      rom_temp: >-
+        {{ state_attr(rom_e, 'current_temperature')
+           | float(state_attr(rom_e, 'temperature') | float(20)) }}
+      rom_padrag_raw: "{{ state_attr(rom_e, 'power_percent') | float(0) }}"
+      rom_preset_mode: "{{ (state_attr(rom_e, 'preset_mode') | string | lower) }}"
+      pumpe_settpunkt_nå: "{{ state_attr(pumpe_e, 'temperature') | float(0) }}"
+      pumpe_vifte_nå: "{{ (state_attr(pumpe_e, 'fan_mode') | string | lower) }}"
+
+  # Steg 2: finn "comfort" (om tilgjengelig), og lag basissettpunkt = max(rom_settpunkt, comfort)
+  - variables:
+      rom_comfort_settpunkt: >-
+        {% set presets = state_attr(rom_e, 'preset_temperatures') %}
+        {% if presets is mapping and 'comfort_temp' in presets %}
+          {{ presets['comfort_temp'] | float(rom_settpunkt) }}
+        {% else %}
+          {{ rom_settpunkt }}
+        {% endif %}
+      basis_settpunkt: "{{ [rom_settpunkt, rom_comfort_settpunkt] | max }}"
+
+  # Steg 3: minimum-pådrag basert på (rom_settpunkt + 1°C) og rom_temp
+  - variables:
+      rom_referanse_settpunkt: "{{ rom_settpunkt + 1 }}"
+      temp_delta_under_ref: "{{ (rom_referanse_settpunkt - rom_temp) | float(0) }}"
+      min_padrag_beregnet: >-
+        {% set delta = temp_delta_under_ref | float(0) %}
+        {% set v = (delta if delta > 0 else 0) * (faktor_min | float(0)) %}
+        {{ [v, 100] | min }}
+      effektivt_padrag: >-
+        {% set p = rom_padrag_raw | float(0) %}
+        {% set m = min_padrag_beregnet | float(0) %}
+        {{ [ [p, m] | max, 100 ] | min }}
+
+  # Steg 4: map pådrag (0-100) til settpunkt mellom (basis-under) og (basis+over)
+  - variables:
+      pumpe_target_raw: >-
+        {% set p = effektivt_padrag | float(0) %}
+        {% set span = (under_c | float(0)) + (over_c | float(0)) %}
+        {{ (basis_settpunkt - (under_c | float(0))) + (p / 100) * span }}
+      pumpe_target_rundet: >-
+        {% set t = pumpe_target_raw | float(basis_settpunkt) %}
+        {% set r = t | round(0) %}
+        {{ [ [r, pumpe_abs_min | float(10)] | max, pumpe_abs_maks | float(29) ] | min }}
+      skal_oppdatere_temp: "{{ (pumpe_target_rundet | float) != (pumpe_settpunkt_nå | float) }}"
+
+  # Steg 5: vifte-logikk (styrt av tekstverdi)
+  - variables:
+      vifte_aktiv: "{{ (vifte_raw | string | trim) == '1' }}"
+      pumpe_har_vifte: "{{ state_attr(pumpe_e, 'fan_mode') is not none }}"
+      ønsket_vifte: >-
+        {% if not vifte_aktiv or not pumpe_har_vifte %}
+          {{ pumpe_vifte_nå }}
+        {% else %}
+          {% if rom_preset_mode == 'frost' %}
+            high
+          {% elif (effektivt_padrag | float(0)) < 20 %}
+            low
+          {% elif (effektivt_padrag | float(0)) > 50 %}
+            high
+          {% else %}
+            {{ pumpe_vifte_nå }}
+          {% endif %}
+        {% endif %}
+      skal_oppdatere_vifte: >-
+        {{ vifte_aktiv and pumpe_har_vifte and (ønsket_vifte | string) != (pumpe_vifte_nå | string) }}
+
+  # Steg 6: valgfri debug
+  - if:
+      - condition: template
+        value_template: "{{ debug }}"
+    then:
+      - action: system_log.write
+        data:
+          level: info
+          message: >-
+            VP blueprint debug:
+            rom_settpunkt={{rom_settpunkt}}, rom_temp={{rom_temp}},
+            rom_padrag_raw={{rom_padrag_raw}}, min_padrag={{min_padrag_beregnet}},
+            effektivt_padrag={{effektivt_padrag}},
+            basis_settpunkt={{basis_settpunkt}},
+            target_raw={{pumpe_target_raw}}, target_rundet={{pumpe_target_rundet}},
+            pumpe_settpunkt_nå={{pumpe_settpunkt_nå}},
+            vifte_aktiv={{vifte_aktiv}}, ønsket_vifte={{ønsket_vifte}}, pumpe_vifte_nå={{pumpe_vifte_nå}}
+
+  # Steg 7: utfør endringer kun ved behov
+  - if:
+      - condition: or
+        conditions:
+          - condition: template
+            value_template: "{{ skal_oppdatere_temp }}"
+          - condition: template
+            value_template: "{{ skal_oppdatere_vifte }}"
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ skal_oppdatere_temp }}"
+        then:
+          - action: climate.set_temperature
+            target:
+              entity_id: !input pumpe_climate
+            data:
+              hvac_mode: heat
+              temperature: "{{ pumpe_target_rundet }}"
+
+      - if:
+          - condition: template
+            value_template: "{{ skal_oppdatere_vifte }}"
+        then:
+          - action: climate.set_fan_mode
+            target:
+              entity_id: !input pumpe_climate
+            data:
+              fan_mode: "{{ ønsket_vifte }}"
