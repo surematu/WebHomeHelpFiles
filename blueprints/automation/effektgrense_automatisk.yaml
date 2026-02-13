@@ -23,7 +23,7 @@ blueprint:
 
 
     Blueprint versjon:
-    2026.02.01
+    2026.02.02
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/effektgrense_automatisk.yaml
   author: WebHome
@@ -372,10 +372,8 @@ actions:
                     target:
                       entity_id: "{{ io_notify_targets }}"
                     data:
-                      title: "⚡ WebHome – KWh-grense"
+                      title: "⚡ *KWh-grense* ⚡"
                       message: |-
-                        KWh-grense oppdatert: {{ io_current_limit }} → {{ desired_limit }} ({{ now().strftime('%Y-%m-%d %H:%M') }})
-
-                        Ute: nå={{ io_outdoor_temp_now }}°C / snitt neste {{ hours_to_check_temp }}t={{ average_temp | round(1) }}°C / brukt={{ io_outdoor_temp_comming | round(1) }}°C
-                        Min: temp_min={{ temp_min_limit }}, mnd_min={{ month_min_limit }}  → ønsket={{ desired_limit }}
-                        Regel: {{ write_reason }}
+                        *Utetemperatur*: {{ io_outdoor_temp_comming | round(1) }}°C (kommende timer)
+                        *Forklaring*: Grense grunnet utetemp; {{ temp_min_limit }} kwh. Grense grunnet dato; {{ month_min_limit }}.
+                        *Justering*: {{ io_current_limit }} → {{ desired_limit }}
