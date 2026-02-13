@@ -374,6 +374,6 @@ actions:
                     data:
                       title: "⚡ *KWh-grense* ⚡"
                       message: |-
-                        *Utetemperatur*: {{ io_outdoor_temp_comming | round(1) }}°C (kommende timer)
-                        *Forklaring*: Grense grunnet utetemp; {{ temp_min_limit }} kwh. Grense grunnet dato; {{ month_min_limit }}.
+                        Utetemp: {{ io_outdoor_temp_comming | round(1) }}°C (kommende timer)
+                        Grense: (Ute/Dato) {{ temp_min_limit }}kwh / {{ month_min_limit }}kwh.
                         *Justering*: {{ io_current_limit }} → {{ desired_limit }}
