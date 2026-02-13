@@ -5,7 +5,6 @@ blueprint:
     (rom-basissettpunkt + over) basert på power_percent (0-100).
     Har i tillegg min-pådrag: ( (rom_settpunkt + 1) - rom_temp ) * faktor, klippet 0-100.
     Vifte-logikk styres av tekstinput: 0 = ingen vifteregulering, 1 = vifteboost.
-
     Blueprint versjon:
     2026.02.01
   domain: automation
