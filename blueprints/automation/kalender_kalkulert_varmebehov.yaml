@@ -13,7 +13,7 @@ blueprint:
     -Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
 
     Blueprint versjon:
-    2026.02.03
+    2026.02.04
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kalender_kalkulert_varmebehov.yaml
   author: WebHome
@@ -278,8 +278,12 @@ actions:
       tempchange_hoursNeededForGoal: >-
         {% set increase = tempchange_degreeIncreaseReq | float(0) %}
         {% set rate = tempchange_degreePerHour | float(1) %}
-        {% set buffer = settings_add_hours | float(0) %}
-        {{ ((increase / rate) + buffer) | round(1) }}
+      
+        {% set base_buffer = settings_add_hours | float(0) %}
+        {% set extra_buffer = 3 if is_state(io_preheat_bool, 'on') else 0 %}
+        {% set buffer_dynamic = base_buffer + extra_buffer %}
+      
+        {{ ((increase / rate) + buffer_dynamic) | round(1) }}
 
   - alias: Lag tidsvinduer (forvarming/varme)
     variables:
@@ -484,9 +488,8 @@ actions:
             target:
               entity_id: "{{ io_notify_targets }}"
             data:
-              title: "🔥 Varmeplan"
+              title: "🔥 *Varmeplan* 🔥"
               message: |-
                 {{ notify24h_text }}
 
-                Info om neste oppvarming:
                 {{ info_result_short }}
