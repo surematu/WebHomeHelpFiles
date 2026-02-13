@@ -13,7 +13,7 @@ blueprint:
     -Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
 
     Blueprint versjon:
-    2026.02.04
+    2026.02.05
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kalender_kalkulert_varmebehov.yaml
   author: WebHome
@@ -255,20 +255,21 @@ actions:
 
   - alias: Beregn oppvarmingshastighet og nødvendig tid
     variables:
+      # Bryn: Utetemp -6 snitt - Fra 15-21 grader, tok 20 timer. Dvs 6/20 = 0,3 grad/time.
       tempchange_degreePerHour: |-
         {% set t = io_outdoor_temp_comming | float(999) %}
-        {% if t <= -12 %}
+        {% if t <= -13 %}
           0.05
         {% elif t <= -9 %}
-          0.1
-        {% elif t <= -6 %}
-          0.2
-        {% elif t <= -3 %}
+          0.15
+        {% elif t <= -5 %}
           0.3
         {% elif t <= 0 %}
           0.4
-        {% else %}
+        {% elif t <= 5 %}
           0.5
+        {% else %}
+          0.6
         {% endif %}
 
       tempchange_degreeIncreaseReq: >-
