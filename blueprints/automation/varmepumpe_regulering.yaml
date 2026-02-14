@@ -15,7 +15,7 @@ blueprint:
 
     Vifte-logikk styres av tekstinput: 0 = ingen vifteregulering, 1 = vifte boost.
 
-    Blueprint versjon: 2026.02.02
+    Blueprint versjon: 2026.02.03
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -128,7 +128,7 @@ mode: restart
 
 triggers:
   - trigger: time_pattern
-    minutes: "/5"
+    minutes: "/10"
 
   - trigger: state
     entity_id: !input rom_climate
