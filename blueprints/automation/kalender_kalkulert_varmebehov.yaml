@@ -290,6 +290,9 @@ actions:
     variables:
       startdata_ts_now: "{{ as_timestamp(now()) }}"
 
+      # Sjekk de neste 8 minuttene da vi kun kjører hvert 10. minutt. Eksempel; Kjøring 12:40, vil starte ved estimert start 12:45.
+      startdata_ts_now_lookahead: "{{ startdata_ts_now + (8 * 60) }}"
+
       # start 15 min før eventstart
       startdata_ts_nexteventstart: >-
         {% if data_next_event %}
@@ -340,7 +343,7 @@ actions:
 
       startdata_heat_start: >-
         {% if startdata_ts_nexteventstart is not none and startdata_ts_nexteventend is not none %}
-          {{ startdata_ts_now >= startdata_ts_nexteventstart and startdata_ts_now < startdata_ts_nexteventend }}
+          {{ startdata_ts_now_lookahead >= startdata_ts_nexteventstart and startdata_ts_now < startdata_ts_nexteventend }}
         {% else %}
           false
         {% endif %}
