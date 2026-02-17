@@ -9,7 +9,11 @@ blueprint:
          - tar med de som ikke er 'off'
          - fjerner duplikater som allerede er i liste (1)
 
-    Blueprint versjon: 2026.02.01
+    Nytt:
+      - Én samlet melding (analog + digital)
+      - Ignore-liste for entities (og valgfri ignore-liste for devices)
+
+    Blueprint versjon: 2026.02.02
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -19,7 +23,7 @@ blueprint:
   input:
     notify_target:
       name: Send varsel til
-      description: Velg én eller flere notify-tjenester (mobilapp/telegram/cloud osv.)
+      description: Velg én eller flere notify-tjenester
       selector:
         entity:
           domain: notify
@@ -42,10 +46,26 @@ blueprint:
         boolean:
 
     include_digital_battery_sensors:
-      name: "Ta med digitale batteri-sensorer (binary_sensor device_class: battery)"
+      name: "Ta med digitale batterisensorer (binary_sensor device_class: battery)"
       default: true
       selector:
         boolean:
+
+    ignore_entities:
+      name: Ignorer entities (valgfritt)
+      description: Velg entities du vil skjule fra rapporten (sensor/binary_sensor).
+      default: []
+      selector:
+        entity:
+          multiple: true
+
+    ignore_devices:
+      name: Ignorer devices (valgfritt)
+      description: Velg devices du vil skjule (skjuler alle batteri-entities knyttet til device).
+      default: []
+      selector:
+        device:
+          multiple: true
 
     check_time:
       name: Tid for planlagt sjekk
@@ -85,13 +105,11 @@ blueprint:
 mode: restart
 
 trigger:
-  # Steg 0A: Planlagt sjekk
   - platform: time
     at: !input check_time
     weekday: !input check_weekdays
     id: scheduled_check
 
-  # Steg 0B: Oppstart (valgfritt) - styres av enabled
   - platform: homeassistant
     event: start
     id: ha_start
@@ -100,60 +118,73 @@ trigger:
 condition: []
 
 action:
-  # Steg 1 - Inputs -> tydelige variabler
+  # Steg 1 - Inputs -> variabler
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
       threshold: !input threshold_percent
       include_na: !input include_unavailable_as_na
       include_digital: !input include_digital_battery_sensors
       debug_on: !input include_debug_details
+      ignore_entities: !input ignore_entities
+      ignore_devices: !input ignore_devices
 
-  # Steg 2 - Bygg liste: batteri-% (med dedupe og valgfri n/a)
+  # Steg 2 - Bygg liste: batteri-% (med dedupe + valgfri n/a) og ignore
   - alias: "Steg 2 - Bygg batteriliste (prosent + valgfri n/a)"
     variables:
       low_list_percent_and_na: |-
         {%- set ns = namespace(map={}, names={}, missing={}, lines=[]) -%}
+        {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+        {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
 
         {%- for s in states.sensor
               | selectattr('attributes.device_class','defined')
               | selectattr('attributes.device_class','eq','battery') -%}
 
-          {%- set state_str = s.state -%}
-          {%- set is_num = state_str | is_number -%}
-          {%- if is_num -%}
-            {%- set val = state_str | float -%}
+          {%- set eid = s.entity_id -%}
+          {%- set did = device_id(eid) -%}
+
+          {%- if eid in ignore_e or (did and did in ignore_d) -%}
+            {# Ignorert #}
           {%- else -%}
-            {%- set val = none -%}
-          {%- endif -%}
 
-          {#--- Clean display name ---#}
-          {%- set base = s.name
-              | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
-              | replace(' Battery+', '')
-              | regex_replace('\\s{2,}', ' ')
-              | regex_replace('\\s*\\+\\s*$', '')
-              | trim -%}
-
-          {#--- Normalized key for dedupe ---#}
-          {%- set norm = base
-              | lower
-              | regex_replace('[^\\w\\s:]', '')
-              | regex_replace('\\s{2,}', ' ')
-              | trim -%}
-
-          {#--- Numeric: keep lowest per name if under threshold ---#}
-          {%- if is_num and 0 <= val < (threshold | float(0)) -%}
-            {%- if norm not in ns.map or val < ns.map[norm] -%}
-              {%- set ns.map = dict(ns.map, **{norm: val}) -%}
-              {%- set ns.names = dict(ns.names, **{norm: base}) -%}
+            {%- set state_str = s.state -%}
+            {%- set is_num = state_str | is_number -%}
+            {%- if is_num -%}
+              {%- set val = state_str | float -%}
+            {%- else -%}
+              {%- set val = none -%}
             {%- endif -%}
 
-          {#--- Unavailable/non-numeric: record as missing if enabled ---#}
-          {%- elif (not is_num) and include_na -%}
-            {%- if norm not in ns.map and norm not in ns.missing -%}
-              {%- set ns.missing = dict(ns.missing, **{norm: true}) -%}
-              {%- set ns.names = dict(ns.names, **{norm: base}) -%}
+            {#--- Clean display name ---#}
+            {%- set base = s.name
+                | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
+                | replace(' Battery+', '')
+                | regex_replace('\\s{2,}', ' ')
+                | regex_replace('\\s*\\+\\s*$', '')
+                | trim -%}
+
+            {#--- Normalized key for dedupe ---#}
+            {%- set norm = base
+                | lower
+                | regex_replace('[^\\w\\s:]', '')
+                | regex_replace('\\s{2,}', ' ')
+                | trim -%}
+
+            {#--- Numeric: keep lowest per name if under threshold ---#}
+            {%- if is_num and 0 <= val < (threshold | float(0)) -%}
+              {%- if norm not in ns.map or val < ns.map[norm] -%}
+                {%- set ns.map = dict(ns.map, **{norm: val}) -%}
+                {%- set ns.names = dict(ns.names, **{norm: base}) -%}
+              {%- endif -%}
+
+            {#--- Unavailable/non-numeric: record as missing if enabled ---#}
+            {%- elif (not is_num) and include_na -%}
+              {%- if norm not in ns.map and norm not in ns.missing -%}
+                {%- set ns.missing = dict(ns.missing, **{norm: true}) -%}
+                {%- set ns.names = dict(ns.names, **{norm: base}) -%}
+              {%- endif -%}
             {%- endif -%}
+
           {%- endif -%}
         {%- endfor -%}
 
@@ -169,41 +200,14 @@ action:
 
         {{ ns.lines | join('\n') }}
 
-  # Steg 3 - Send varsel for prosent/n/a hvis noe finnes
-  - alias: "Steg 3 - Send varsel: Batteri % under terskel (og evt n/a)"
-    if:
-      - condition: template
-        value_template: "{{ low_list_percent_and_na | trim != '' }}"
-    then:
-      - alias: "Steg 3A - (Valgfri) Debug-bakgrunn"
-        variables:
-          debug_block_1: >-
-            {% if debug_on %}
-              ---
-              Debug:
-              - trigger: {{ trigger.id }}
-              - threshold: {{ threshold }}
-              - include_na: {{ include_na }}
-              - include_digital: {{ include_digital }}
-            {% else %}
-              {{ '' }}
-            {% endif %}
-
-      - alias: "Steg 3B - Send melding"
-        action: notify.send_message
-        data:
-          title: "🟠 *Batteri % under {{ threshold }}%:*"
-          message: >-
-            {{ low_list_percent_and_na }}
-            {{ debug_block_1 }}
-        target:
-          entity_id: !input notify_target
-
-  # Steg 4 - Bygg liste: digitale batterisensorer (binary_sensor battery)
-  - alias: "Steg 4 - Bygg digital batteriliste (binary_sensor)"
+  # Steg 3 - Bygg liste: digitale batterisensorer (og ignore)
+  - alias: "Steg 3 - Bygg digital batteriliste (binary_sensor)"
     variables:
       low_list_digital: |-
         {%- set ns = namespace(lines=[]) -%}
+        {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+        {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+
         {%- if not include_digital -%}
           {{ '' }}
         {%- else -%}
@@ -213,50 +217,57 @@ action:
               | sort(attribute='name') | list -%}
 
           {%- for e in items -%}
-            {%- set base = e.name
-                | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
-                | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
-                | regex_replace('(?i)\\bbattery\\b:?',' ')
-                | regex_replace('(?i)\\bbatteri\\b:?',' ')
-                | regex_replace('\\s*\\+\\s*$','')
-                | regex_replace('\\s*:\\s*$','')
-                | regex_replace('\\s{2,}',' ')
-                | trim -%}
+            {%- set eid = e.entity_id -%}
+            {%- set did = device_id(eid) -%}
 
-            {%- if e.state == 'on' -%}
-              {%- set status = 'Low' -%}
-            {%- elif e.state in ['unknown','unavailable','none'] -%}
-              {%- set status = 'Unknown' -%}
+            {%- if eid in ignore_e or (did and did in ignore_d) -%}
+              {# Ignorert #}
             {%- else -%}
-              {%- set status = e.state | title -%}
-            {%- endif -%}
 
-            {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ status ~ ')'] -%}
+              {%- set base = e.name
+                  | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
+                  | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
+                  | regex_replace('(?i)\\bbattery\\b:?',' ')
+                  | regex_replace('(?i)\\bbatteri\\b:?',' ')
+                  | regex_replace('\\s*\\+\\s*$','')
+                  | regex_replace('\\s*:\\s*$','')
+                  | regex_replace('\\s{2,}',' ')
+                  | trim -%}
+
+              {%- if e.state == 'on' -%}
+                {%- set status = 'Low' -%}
+              {%- elif e.state in ['unknown','unavailable','none'] -%}
+                {%- set status = 'Unknown' -%}
+              {%- else -%}
+                {%- set status = e.state | title -%}
+              {%- endif -%}
+
+              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ status ~ ')'] -%}
+
+            {%- endif -%}
           {%- endfor -%}
 
           {{ ns.lines | join('\n') }}
         {%- endif -%}
 
-  # Steg 5 - Fjern duplikater: ikke vis digital hvis navnet allerede finnes i prosent/n/a-lista
-  - alias: "Steg 5 - Fjern duplikater (digital vs prosent/n/a)"
+  # Steg 4 - Fjern duplikater: ikke vis digital hvis navnet allerede finnes i prosent/n/a-lista
+  - alias: "Steg 4 - Fjern duplikater (digital vs prosent/n/a)"
     variables:
       low_list_digital_nodup: >-
         {%- set ns = namespace(lines=[]) -%}
 
-        {#-- Normaliser navnene fra prosent/n/a-lista --#}
         {%- set low_names = (low_list_percent_and_na | default(''))
             .split('\n')
             | map('trim')
             | select('match','^- ')
             | map('regex_replace','^- ','')
             | map('regex_replace','\\s*\\([^)]*\\)\\s*$','')
-            | map('regex_replace','\\s*\\+\\s*$','')
+            | map('regex_replace','\\s*\\+\\s*$', '')
             | map('regex_replace','\\s{2,}',' ')
             | map('lower')
             | list
         -%}
 
-        {#-- Behold kun digital-linjer som ikke finnes i low_names --#}
         {%- for line in (low_list_digital | default('')).split('\n')
               | map('trim')
               | select('match','^- ') -%}
@@ -274,30 +285,44 @@ action:
 
         {{ ns.lines | join('\n') }}
 
-  # Steg 6 - Send varsel for digital-liste hvis noe finnes
-  - alias: "Steg 6 - Send varsel: Batteri lavt (digital)"
+  # Steg 5 - Bygg én samlet melding
+  - alias: "Steg 5 - Bygg samlet melding (analog + digital)"
+    variables:
+      combined_message: >-
+        {% set parts = namespace(lines=[]) %}
+
+        {% if (low_list_percent_and_na | trim) != '' %}
+          {% set parts.lines = parts.lines + ["*Batteri % under " ~ (threshold | string) ~ "%:*", low_list_percent_and_na, ""] %}
+        {% endif %}
+
+        {% if (low_list_digital_nodup | trim) != '' %}
+          {% set parts.lines = parts.lines + ["*Digital batteri lavt:*", low_list_digital_nodup, ""] %}
+        {% endif %}
+
+        {% if debug_on %}
+          {% set parts.lines = parts.lines + [
+            "---",
+            "Debug:",
+            "- trigger: " ~ trigger.id,
+            "- threshold: " ~ (threshold | string),
+            "- include_na: " ~ (include_na | string),
+            "- include_digital: " ~ (include_digital | string),
+            "- ignored_entities: " ~ ((ignore_entities | count) | string),
+            "- ignored_devices: " ~ ((ignore_devices | count) | string)
+          ] %}
+        {% endif %}
+
+        {{ (parts.lines | join('\n')) | trim }}
+
+  # Steg 6 - Send kun hvis vi faktisk har noe å melde
+  - alias: "Steg 6 - Send samlet varsel"
     if:
       - condition: template
-        value_template: "{{ low_list_digital_nodup | trim != '' }}"
+        value_template: "{{ combined_message | trim != '' }}"
     then:
-      - alias: "Steg 6A - (Valgfri) Debug-bakgrunn"
-        variables:
-          debug_block_2: >-
-            {% if debug_on %}
-              ---
-              Debug:
-              - trigger: {{ trigger.id }}
-              - include_digital: {{ include_digital }}
-            {% else %}
-              {{ '' }}
-            {% endif %}
-
-      - alias: "Steg 6B - Send melding"
-        action: notify.send_message
+      - action: notify.send_message
         data:
-          title: "🟠 *Batteri lavt:*"
-          message: >-
-            {{ low_list_digital_nodup }}
-            {{ debug_block_2 }}
+          title: "🟠 *Batteri lavt*"
+          message: "{{ combined_message }}"
         target:
           entity_id: !input notify_target
