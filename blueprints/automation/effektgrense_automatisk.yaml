@@ -23,12 +23,12 @@ blueprint:
 
 
     Blueprint versjon:
-    2026.02.06
+    2026.02.07
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/effektgrense_automatisk.yaml
   author: WebHome
   homeassistant:
-    min_version: 2024.10.00
+    min_version: 2025.1.0
     
   input:
     main:
