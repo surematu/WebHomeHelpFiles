@@ -3,10 +3,13 @@ blueprint:
   description: >
     Varsler når batteri-enheter ikke har rapportert inn på en stund.
 
-    Datakilder for "sist sett" (prioritert):
-      1) state_attr(entity,'last_seen')
-      2) sensor på samme device som inneholder "last_seen"
-      3) fallback: entity.last_updated
+    Slik finner vi "sist sett" (mest robust):
+      - Vi tar NYESTE tidspunkt på hele device-et ved å se på alle entities på samme device:
+        * state_attr(entity,'last_seen') hvis finnes
+        * entity_id som inneholder "last_seen" (og parsbar timestamp i state)
+        * ellers fallback: entity.last_updated
+      -> Dette gjør at BLE/Zigbee-enheter som oppdaterer f.eks. "Signal Strength" ofte,
+         ikke feilaktig flagges bare fordi batteri-% ikke endrer seg.
 
     Overvåker:
       - sensor.* med device_class: battery
@@ -16,9 +19,9 @@ blueprint:
       - "- Navn (5h 39m)" (ingen batteri % og ingen signal)
 
     Terskel:
-      - Kan settes som duration (f.eks. 5 minutter for test), default 72 timer
+      - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.02.01
+    Blueprint versjon: 2026.02.02
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -46,6 +49,9 @@ blueprint:
 
     include_unavailable:
       name: Ta med unknown/unavailable i varsel
+      description: >
+        Hvis på: enheter der batteri-entity er unknown/unavailable blir også listet.
+        Hvis du får støy, sett denne til av.
       default: true
       selector:
         boolean:
@@ -128,7 +134,7 @@ action:
       ignore_devices: !input ignore_devices
       debug_on: !input include_debug_details
 
-      # Bygg terskel i sekunder og en fin label (for tittel)
+      # Bygg terskel i sekunder og en fin label (for header)
       max_age_seconds: >-
         {% set d = max_age %}
         {{ (d.get('days',0)|int * 86400)
@@ -157,6 +163,14 @@ action:
         {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
         {%- set ns = namespace(map={}, lines=[]) -%}
 
+        {# -------------------------------------------------
+           Hjelper: finn "nyeste aktivitet" for et device_id.
+           Vi tar max av:
+             - last_seen-attributt (hvis finnes)
+             - *last_seen*-sensorer (timestamp i state)
+             - last_updated på alle entities på device
+           ------------------------------------------------- #}
+
         {# ===== 2A: sensor battery ===== #}
         {%- for s in states.sensor
               | selectattr('attributes.device_class','defined')
@@ -169,7 +183,7 @@ action:
             {# ignorert #}
           {%- else -%}
 
-            {# navn + dedupe #}
+            {# navn + dedupe-nøkkel (samme stil som tidligere) #}
             {%- set base = s.name
                 | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
                 | replace(' Battery+', '')
@@ -183,31 +197,36 @@ action:
                 | regex_replace('\\s{2,}', ' ')
                 | trim -%}
 
-            {# timestamp #}
-            {%- set ts = 0 -%}
+            {# Finn ts for device (nyeste aktivitet) #}
+            {%- set found = namespace(ts=0) -%}
+            {%- if did -%}
+              {%- for ent in device_entities(did) -%}
+                {%- set st_obj = states[ent] -%}
+                {%- if st_obj is not none -%}
 
-            {# 1) last_seen attribute #}
-            {%- set ls_attr = state_attr(eid, 'last_seen') -%}
-            {%- if ls_attr is not none -%}
-              {%- set ts = as_timestamp(ls_attr, default=0) | float(0) -%}
-            {%- endif -%}
+                  {# A) last_updated #}
+                  {%- set t_upd = as_timestamp(st_obj.last_updated, default=0) | float(0) -%}
+                  {%- if t_upd > found.ts -%}{%- set found.ts = t_upd -%}{%- endif -%}
 
-            {# 2) last_seen sensor på samme device #}
-            {%- if ts | float(0) == 0 and did -%}
-              {%- set found = namespace(ts=0) -%}
-              {%- for x in states.sensor -%}
-                {%- if found.ts == 0 and device_id(x.entity_id) == did and 'last_seen' in (x.entity_id | lower) -%}
-                  {%- set t2 = as_timestamp(x.state, default=0) | float(0) -%}
-                  {%- if t2 > 0 -%}
-                    {%- set found.ts = t2 -%}
+                  {# B) last_seen-attributt #}
+                  {%- set ls = state_attr(ent,'last_seen') -%}
+                  {%- if ls is not none -%}
+                    {%- set t_ls = as_timestamp(ls, default=0) | float(0) -%}
+                    {%- if t_ls > found.ts -%}{%- set found.ts = t_ls -%}{%- endif -%}
                   {%- endif -%}
+
+                  {# C) last_seen-sensor med timestamp i state #}
+                  {%- if 'last_seen' in (ent | lower) -%}
+                    {%- set t2 = as_timestamp(states(ent), default=0) | float(0) -%}
+                    {%- if t2 > found.ts -%}{%- set found.ts = t2 -%}{%- endif -%}
+                  {%- endif -%}
+
                 {%- endif -%}
               {%- endfor -%}
-              {%- set ts = found.ts -%}
             {%- endif -%}
 
-            {# 3) fallback: last_updated #}
-            {%- if ts | float(0) == 0 -%}
+            {%- set ts = found.ts | float(0) -%}
+            {%- if ts == 0 -%}
               {%- set ts = as_timestamp(s.last_updated, default=0) | float(0) -%}
             {%- endif -%}
 
@@ -238,7 +257,6 @@ action:
                     norm: {
                       'base': base,
                       'age_s': age_s,
-                      'src': 'sensor',
                       'state': st
                     }
                   }) -%}
@@ -278,27 +296,36 @@ action:
                 | regex_replace('\\s{2,}', ' ')
                 | trim -%}
 
-            {# timestamp #}
-            {%- set ts = 0 -%}
-            {%- set ls_attr = state_attr(eid, 'last_seen') -%}
-            {%- if ls_attr is not none -%}
-              {%- set ts = as_timestamp(ls_attr, default=0) | float(0) -%}
-            {%- endif -%}
+            {# Finn ts for device (nyeste aktivitet) #}
+            {%- set found = namespace(ts=0) -%}
+            {%- if did -%}
+              {%- for ent in device_entities(did) -%}
+                {%- set st_obj = states[ent] -%}
+                {%- if st_obj is not none -%}
 
-            {%- if ts | float(0) == 0 and did -%}
-              {%- set found = namespace(ts=0) -%}
-              {%- for x in states.sensor -%}
-                {%- if found.ts == 0 and device_id(x.entity_id) == did and 'last_seen' in (x.entity_id | lower) -%}
-                  {%- set t2 = as_timestamp(x.state, default=0) | float(0) -%}
-                  {%- if t2 > 0 -%}
-                    {%- set found.ts = t2 -%}
+                  {# A) last_updated #}
+                  {%- set t_upd = as_timestamp(st_obj.last_updated, default=0) | float(0) -%}
+                  {%- if t_upd > found.ts -%}{%- set found.ts = t_upd -%}{%- endif -%}
+
+                  {# B) last_seen-attributt #}
+                  {%- set ls = state_attr(ent,'last_seen') -%}
+                  {%- if ls is not none -%}
+                    {%- set t_ls = as_timestamp(ls, default=0) | float(0) -%}
+                    {%- if t_ls > found.ts -%}{%- set found.ts = t_ls -%}{%- endif -%}
                   {%- endif -%}
+
+                  {# C) last_seen-sensor med timestamp i state #}
+                  {%- if 'last_seen' in (ent | lower) -%}
+                    {%- set t2 = as_timestamp(states(ent), default=0) | float(0) -%}
+                    {%- if t2 > found.ts -%}{%- set found.ts = t2 -%}{%- endif -%}
+                  {%- endif -%}
+
                 {%- endif -%}
               {%- endfor -%}
-              {%- set ts = found.ts -%}
             {%- endif -%}
 
-            {%- if ts | float(0) == 0 -%}
+            {%- set ts = found.ts | float(0) -%}
+            {%- if ts == 0 -%}
               {%- set ts = as_timestamp(b.last_updated, default=0) | float(0) -%}
             {%- endif -%}
 
@@ -329,7 +356,6 @@ action:
                     norm: {
                       'base': base,
                       'age_s': age_s,
-                      'src': 'binary_sensor',
                       'state': st
                     }
                   }) -%}
@@ -344,10 +370,10 @@ action:
         {# ===== 2C: Render sortert (eldst først) ===== #}
         {%- set items = namespace(lst=[]) -%}
         {%- for norm, it in ns.map.items() -%}
-          {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string, it['state']|string)] -%}
+          {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string)] -%}
         {%- endfor -%}
 
-        {%- for age_s, base, st in (items.lst | sort(reverse=true)) -%}
+        {%- for age_s, base in (items.lst | sort(reverse=true)) -%}
           {%- set d = (age_s // 86400) | int(0) -%}
           {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
           {%- set m = ((age_s % 3600) // 60) | int(0) -%}
@@ -360,8 +386,7 @@ action:
             {%- set age_txt = m|string ~ 'm' -%}
           {%- endif -%}
 
-          {%- set line = '- ' ~ base ~ ' (' ~ age_txt ~ ')' -%}
-          {%- set ns.lines = ns.lines + [line] -%}
+          {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ age_txt ~ ')'] -%}
         {%- endfor -%}
 
         {{ ns.lines | join('\n') }}
