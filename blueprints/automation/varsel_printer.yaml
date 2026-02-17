@@ -9,9 +9,9 @@ blueprint:
       - Planlagt sjekk (default: onsdag 09:00)
       - Etter HA restart
       - Valgfritt: Valgte wake-up entities går fra unavailable/unknown -> tilgjengelig,
-        og har vært stabilt tilgjengelig i X minutter før sjekk.
+        og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.02.05
+    Blueprint versjon: 2026.02.06
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -79,10 +79,10 @@ blueprint:
           multiple: true
 
     wakeup_stable_minutes:
-      name: Stabil online før sjekk (minutter)
+      name: Ventetid etter online (minutter)
       description: >
-        Når wake-up entity blir tilgjengelig, vent til den har vært stabilt tilgjengelig
-        i dette antallet minutter før full blekk-sjekk kjøres.
+        Når wake-up entity blir tilgjengelig: vent dette antallet minutter før blekk-sjekk.
+        Med mode: restart vil blafring føre til at ventetiden starter på nytt.
       default: 10
       selector:
         number:
@@ -132,12 +132,6 @@ actions:
       wakeup_stable_minutes: !input wakeup_stable_minutes
       notify_on_unavailable: !input notify_on_unavailable
       include_debug_details: !input include_debug_details
-      wakeup_entity_id: >-
-        {% if trigger.id == 'wakeup_available' and trigger.entity_id is defined %}
-          {{ trigger.entity_id }}
-        {% else %}
-          {{ '' }}
-        {% endif %}
 
   - alias: "Steg 2 - Wake-up: bekreft tilgjengelig state"
     if:
@@ -148,25 +142,21 @@ actions:
         value_template: >
           {{ trigger.to_state is not none and trigger.to_state.state not in ['unavailable','unknown'] }}
 
-  # Viktig: bruk wait_template (ikke templated entity_id i wait_for_trigger)
-  - alias: "Steg 3 - Wake-up: vent på stabil online"
+  - alias: "Steg 3 - Wake-up: vent X minutter etter online (stabil drift)"
     if:
       - condition: template
         value_template: "{{ trigger.id == 'wakeup_available' and (wakeup_stable_minutes | int(0)) > 0 }}"
     then:
-      - alias: "Steg 3A - Vent X min, men avbryt hvis den blir unavailable/unknown"
-        wait_template: >
-          {{ states(wakeup_entity_id) in ['unavailable','unknown'] }}
-        timeout:
-          minutes: "{{ wakeup_stable_minutes | int(0) }}"
-        continue_on_timeout: true
+      - alias: "Steg 3A - Delay X minutter"
+        delay:
+          minutes: !input wakeup_stable_minutes
 
-      - alias: "Steg 3B - Hvis den gikk offline før timeout: stopp"
+      - alias: "Steg 3B - Hvis den ble utilgjengelig i ventetiden: stopp"
         if:
           - condition: template
-            value_template: "{{ wait.completed }}"
+            value_template: "{{ states(trigger.entity_id) in ['unavailable','unknown'] }}"
         then:
-          - stop: "Wake-up entity ble utilgjengelig før stabilitetstiden var ferdig."
+          - stop: "Wake-up entity ble utilgjengelig før ventetiden var ferdig."
 
   - alias: "Steg 4 - Kort ekstra ventetid (blekk % rekker å oppdatere)"
     delay:
