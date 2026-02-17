@@ -1,1 +1,310 @@
+blueprint:
+  name: Varsel - Batteri, lavt nivå (WebHome)
+  description: >
+    Sender varsel om lavt batteri basert på:
+      1) sensor.* med device_class: battery (prosent)
+         - deduper per "renset" navn og beholder laveste verdi
+         - kan inkludere non-numeric/unavailable som (n/a)
+      2) binary_sensor.* med device_class: battery (digital battery low)
+         - tar med de som ikke er 'off'
+         - fjerner duplikater som allerede er i liste (1)
 
+    Blueprint versjon: 2026.02.00
+  domain: automation
+  author: WebHome
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    notify_target:
+      name: Send varsel til
+      description: Velg én eller flere notify-tjenester (mobilapp/telegram/cloud osv.)
+      selector:
+        entity:
+          domain: notify
+          multiple: true
+
+    threshold_percent:
+      name: Terskel for lavt batteri (%)
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+    include_unavailable_as_na:
+      name: Ta med unknown/unavailable/non-numeric som (n/a)
+      default: true
+      selector:
+        boolean:
+
+    include_digital_battery_sensors:
+      name: Ta med digitale batteri-sensorer (binary_sensor device_class: battery)
+      default: true
+      selector:
+        boolean:
+
+    check_time:
+      name: Tid for planlagt sjekk
+      default: "09:00:00"
+      selector:
+        time:
+
+    check_weekdays:
+      name: Ukedag(er) for planlagt sjekk
+      default:
+        - wed
+      selector:
+        select:
+          multiple: true
+          mode: list
+          options:
+            - { label: Mandag, value: mon }
+            - { label: Tirsdag, value: tue }
+            - { label: Onsdag, value: wed }
+            - { label: Torsdag, value: thu }
+            - { label: Fredag, value: fri }
+            - { label: Lørdag, value: sat }
+            - { label: Søndag, value: sun }
+
+    run_on_startup:
+      name: Kjør ved oppstart av Home Assistant
+      default: false
+      selector:
+        boolean:
+
+    include_debug_details:
+      name: Legg til debug-detaljer i varselet
+      default: false
+      selector:
+        boolean:
+
+mode: restart
+
+trigger:
+  # Steg 0A: Planlagt sjekk
+  - platform: time
+    at: !input check_time
+    weekday: !input check_weekdays
+    id: scheduled_check
+
+  # Steg 0B: Oppstart (valgfritt)
+  - platform: homeassistant
+    event: start
+    id: ha_start
+
+condition:
+  # Steg 0C: Hvis run_on_startup=false, blokker ha_start-trigger
+  - condition: template
+    value_template: >-
+      {% if trigger.id == 'ha_start' %}
+        {{ !input run_on_startup }}
+      {% else %}
+        true
+      {% endif %}
+
+action:
+  # Steg 1 - Inputs -> tydelige variabler
+  - alias: "Steg 1 - Sett grunnvariabler"
+    variables:
+      threshold: !input threshold_percent
+      include_na: !input include_unavailable_as_na
+      include_digital: !input include_digital_battery_sensors
+      debug_on: !input include_debug_details
+
+  # Steg 2 - Bygg liste: batteri-% (med dedupe og valgfri n/a)
+  - alias: "Steg 2 - Bygg batteriliste (prosent + valgfri n/a)"
+    variables:
+      low_list_percent_and_na: |-
+        {%- set ns = namespace(map={}, names={}, missing={}, lines=[]) -%}
+
+        {%- for s in states.sensor
+              | selectattr('attributes.device_class','defined')
+              | selectattr('attributes.device_class','eq','battery') -%}
+
+          {%- set state_str = s.state -%}
+          {%- set is_num = state_str | is_number -%}
+          {%- if is_num -%}
+            {%- set val = state_str | float -%}
+          {%- else -%}
+            {%- set val = none -%}
+          {%- endif -%}
+
+          {#--- Clean display name ---#}
+          {%- set base = s.name
+              | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
+              | replace(' Battery+', '')
+              | regex_replace('\\s{2,}', ' ')
+              | regex_replace('\\s*\\+\\s*$', '')
+              | trim -%}
+
+          {#--- Normalized key for dedupe ---#}
+          {%- set norm = base
+              | lower
+              | regex_replace('[^\\w\\s:]', '')
+              | regex_replace('\\s{2,}', ' ')
+              | trim -%}
+
+          {#--- Numeric: keep lowest per name if under threshold ---#}
+          {%- if is_num and 0 <= val < (threshold | float(0)) -%}
+            {%- if norm not in ns.map or val < ns.map[norm] -%}
+              {%- set ns.map = dict(ns.map, **{norm: val}) -%}
+              {%- set ns.names = dict(ns.names, **{norm: base}) -%}
+            {%- endif -%}
+
+          {#--- Unavailable/non-numeric: record as missing if enabled ---#}
+          {%- elif (not is_num) and include_na -%}
+            {%- if norm not in ns.map and norm not in ns.missing -%}
+              {%- set ns.missing = dict(ns.missing, **{norm: true}) -%}
+              {%- set ns.names = dict(ns.names, **{norm: base}) -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {#--- First: numeric lows sorted ascending ---#}
+        {%- for norm, v in ns.map | dictsort(by='value') -%}
+          {%- set ns.lines = ns.lines + ['- ' ~ ns.names[norm] ~ ' (' ~ (v | round(0)) ~ '%)'] -%}
+        {%- endfor -%}
+
+        {#--- Then: unavailable entries (alphabetical) ---#}
+        {%- for norm, _ in ns.missing | dictsort -%}
+          {%- set ns.lines = ns.lines + ['- ' ~ ns.names[norm] ~ ' (n/a)'] -%}
+        {%- endfor -%}
+
+        {{ ns.lines | join('\n') }}
+
+  # Steg 3 - Send varsel for prosent/n/a hvis noe finnes
+  - alias: "Steg 3 - Send varsel: Batteri % under terskel (og evt n/a)"
+    if:
+      - condition: template
+        value_template: "{{ low_list_percent_and_na | trim != '' }}"
+    then:
+      - alias: "Steg 3A - (Valgfri) Debug-bakgrunn"
+        variables:
+          debug_block_1: >-
+            {% if debug_on %}
+              ---
+              Debug:
+              - trigger: {{ trigger.id }}
+              - threshold: {{ threshold }}
+              - include_na: {{ include_na }}
+              - include_digital: {{ include_digital }}
+            {% else %}
+              {{ '' }}
+            {% endif %}
+
+      - alias: "Steg 3B - Send melding"
+        action: notify.send_message
+        data:
+          title: "🟠 *Batteri % under {{ threshold }}%:*"
+          message: >-
+            {{ low_list_percent_and_na }}
+            {{ debug_block_1 }}
+        target:
+          entity_id: !input notify_target
+
+  # Steg 4 - Bygg liste: digitale batterisensorer (binary_sensor battery)
+  - alias: "Steg 4 - Bygg digital batteriliste (binary_sensor)"
+    variables:
+      low_list_digital: |-
+        {%- set ns = namespace(lines=[]) -%}
+        {%- if not include_digital -%}
+          {{ '' }}
+        {%- else -%}
+          {%- set items = states.binary_sensor
+              | selectattr('attributes.device_class','eq','battery')
+              | rejectattr('state','eq','off')
+              | sort(attribute='name') | list -%}
+
+          {%- for e in items -%}
+            {%- set base = e.name
+                | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
+                | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
+                | regex_replace('(?i)\\bbattery\\b:?',' ')
+                | regex_replace('(?i)\\bbatteri\\b:?',' ')
+                | regex_replace('\\s*\\+\\s*$','')
+                | regex_replace('\\s*:\\s*$','')
+                | regex_replace('\\s{2,}',' ')
+                | trim -%}
+
+            {%- if e.state == 'on' -%}
+              {%- set status = 'Low' -%}
+            {%- elif e.state in ['unknown','unavailable','none'] -%}
+              {%- set status = 'Unknown' -%}
+            {%- else -%}
+              {%- set status = e.state | title -%}
+            {%- endif -%}
+
+            {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ status ~ ')'] -%}
+          {%- endfor -%}
+
+          {{ ns.lines | join('\n') }}
+        {%- endif -%}
+
+  # Steg 5 - Fjern duplikater: ikke vis digital hvis navnet allerede finnes i prosent/n/a-lista
+  - alias: "Steg 5 - Fjern duplikater (digital vs prosent/n/a)"
+    variables:
+      low_list_digital_nodup: >-
+        {%- set ns = namespace(lines=[]) -%}
+
+        {#-- Normaliser navnene fra prosent/n/a-lista --#}
+        {%- set low_names = (low_list_percent_and_na | default(''))
+            .split('\n')
+            | map('trim')
+            | select('match','^- ')
+            | map('regex_replace','^- ','')
+            | map('regex_replace','\\s*\\([^)]*\\)\\s*$','')
+            | map('regex_replace','\\s*\\+\\s*$','')
+            | map('regex_replace','\\s{2,}',' ')
+            | map('lower')
+            | list
+        -%}
+
+        {#-- Behold kun digital-linjer som ikke finnes i low_names --#}
+        {%- for line in (low_list_digital | default('')).split('\n')
+              | map('trim')
+              | select('match','^- ') -%}
+          {%- set raw = line | regex_replace('^- ','') -%}
+          {%- set name_norm = raw
+              | regex_replace('\\s*\\([^)]*\\)\\s*$','')
+              | regex_replace('\\s*\\+\\s*$','')
+              | regex_replace('\\s{2,}',' ')
+              | lower
+          -%}
+          {%- if name_norm not in low_names -%}
+            {%- set ns.lines = ns.lines + [ line ] -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {{ ns.lines | join('\n') }}
+
+  # Steg 6 - Send varsel for digital-liste hvis noe finnes
+  - alias: "Steg 6 - Send varsel: Batteri lavt (digital)"
+    if:
+      - condition: template
+        value_template: "{{ low_list_digital_nodup | trim != '' }}"
+    then:
+      - alias: "Steg 6A - (Valgfri) Debug-bakgrunn"
+        variables:
+          debug_block_2: >-
+            {% if debug_on %}
+              ---
+              Debug:
+              - trigger: {{ trigger.id }}
+              - include_digital: {{ include_digital }}
+            {% else %}
+              {{ '' }}
+            {% endif %}
+
+      - alias: "Steg 6B - Send melding"
+        action: notify.send_message
+        data:
+          title: "🟠 *Batteri lavt:*"
+          message: >-
+            {{ low_list_digital_nodup }}
+            {{ debug_block_2 }}
+        target:
+          entity_id: !input notify_target
