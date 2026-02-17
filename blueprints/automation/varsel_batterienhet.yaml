@@ -1,0 +1,477 @@
+blueprint:
+  name: Varsel - Batteri-enheter uten signal på lenge (WebHome)
+  description: >
+    Varsler når batteri-enheter ikke har rapportert inn på en stund.
+
+    Datakilder for "sist sett" (prioritert):
+      1) state_attr(entity,'last_seen')
+      2) sensor på samme device som inneholder "last_seen"
+      3) fallback: entity.last_updated
+
+    Overvåker:
+      - sensor.* med device_class: battery
+      - binary_sensor.* med device_class: battery
+
+    Nytt:
+      - Ignorer entities og/eller devices
+      - Én samlet melding
+      - Filtrerer bort meningsløse linjer som tomt navn og "Battery"
+
+    Blueprint versjon: 2026.02.00
+  domain: automation
+  author: WebHome
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batterienhet.yaml
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    notify_target:
+      name: Send varsel til
+      description: Velg én eller flere notify-tjenester
+      selector:
+        entity:
+          domain: notify
+          multiple: true
+
+    max_age_hours:
+      name: Maks tid siden sist signal (timer)
+      description: Varsle hvis enhet ikke er sett på mer enn dette antall timer.
+      default: 72
+      selector:
+        number:
+          min: 1
+          max: 720
+          step: 1
+          unit_of_measurement: "h"
+
+    include_unavailable:
+      name: Ta med unknown/unavailable i varsel
+      default: true
+      selector:
+        boolean:
+
+    include_signal_details:
+      name: Ta med signalinfo (linkquality/lqi/rssi) hvis tilgjengelig
+      default: true
+      selector:
+        boolean:
+
+    ignore_entities:
+      name: Ignorer entities (valgfritt)
+      description: Velg entities du vil skjule fra rapporten.
+      default: []
+      selector:
+        entity:
+          multiple: true
+
+    ignore_devices:
+      name: Ignorer devices (valgfritt)
+      description: Velg devices du vil skjule (skjuler alle batteri-entities knyttet til device).
+      default: []
+      selector:
+        device:
+          multiple: true
+
+    check_time:
+      name: Tid for planlagt sjekk
+      default: "09:00:00"
+      selector:
+        time:
+
+    check_weekdays:
+      name: Ukedag(er) for planlagt sjekk
+      default:
+        - mon
+        - wed
+        - fri
+      selector:
+        select:
+          multiple: true
+          mode: list
+          options:
+            - { label: Mandag, value: mon }
+            - { label: Tirsdag, value: tue }
+            - { label: Onsdag, value: wed }
+            - { label: Torsdag, value: thu }
+            - { label: Fredag, value: fri }
+            - { label: Lørdag, value: sat }
+            - { label: Søndag, value: sun }
+
+    run_on_startup:
+      name: Kjør ved oppstart av Home Assistant
+      default: false
+      selector:
+        boolean:
+
+    include_debug_details:
+      name: Legg til debug-detaljer i varselet
+      default: false
+      selector:
+        boolean:
+
+mode: restart
+
+trigger:
+  - platform: time
+    at: !input check_time
+    weekday: !input check_weekdays
+    id: scheduled_check
+
+  - platform: homeassistant
+    event: start
+    id: ha_start
+    enabled: !input run_on_startup
+
+condition: []
+
+action:
+  # Steg 1 - Inputs -> tydelige variabler
+  - alias: "Steg 1 - Sett grunnvariabler"
+    variables:
+      max_age_hours: !input max_age_hours
+      include_unavailable: !input include_unavailable
+      include_signal_details: !input include_signal_details
+      ignore_entities: !input ignore_entities
+      ignore_devices: !input ignore_devices
+      debug_on: !input include_debug_details
+
+  # Steg 2 - Bygg rå liste over "stale" batteri-enheter (dedupe per normalisert navn)
+  - alias: "Steg 2 - Finn batteri-enheter uten signal på lenge (rå)"
+    variables:
+      stale_list_raw: |-
+        {%- set threshold_s = (max_age_hours | float(0) * 3600) | int(0) -%}
+        {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+        {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+
+        {# map[norm] = {'base':..., 'age_s':..., 'extra':..., 'signal':..., 'src':..., 'state':...} #}
+        {%- set ns = namespace(map={}, lines=[]) -%}
+
+        {# -----------------------------
+           Hjelpefunksjon: lag "base" + "norm" (samme stil som tidligere)
+           ----------------------------- #}
+
+        {# ===== 2A: Prosenter (sensor battery) ===== #}
+        {%- for s in states.sensor
+              | selectattr('attributes.device_class','defined')
+              | selectattr('attributes.device_class','eq','battery') -%}
+
+          {%- set eid = s.entity_id -%}
+          {%- set did = device_id(eid) -%}
+          {%- if eid in ignore_e or (did and did in ignore_d) -%}
+            {# ignorert #}
+          {%- else -%}
+
+            {# --- navn + dedupe-nøkkel --- #}
+            {%- set base = s.name
+                | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
+                | replace(' Battery+', '')
+                | regex_replace('\\s{2,}', ' ')
+                | regex_replace('\\s*\\+\\s*$', '')
+                | trim -%}
+
+            {%- set norm = base
+                | lower
+                | regex_replace('[^\\w\\s:]', '')
+                | regex_replace('\\s{2,}', ' ')
+                | trim -%}
+
+            {# --- finn best mulig "sist sett" timestamp --- #}
+            {%- set ts = 0 -%}
+
+            {# 1) last_seen attribute #}
+            {%- set ls_attr = state_attr(eid, 'last_seen') -%}
+            {%- if ls_attr is not none -%}
+              {%- set ts = as_timestamp(ls_attr, default=0) | float(0) -%}
+            {%- endif -%}
+
+            {# 2) last_seen sensor på samme device #}
+            {%- if ts | float(0) == 0 and did -%}
+              {%- set found = namespace(ts=0) -%}
+              {%- for x in states.sensor -%}
+                {%- if found.ts == 0 and device_id(x.entity_id) == did and 'last_seen' in (x.entity_id | lower) -%}
+                  {%- set t2 = as_timestamp(x.state, default=0) | float(0) -%}
+                  {%- if t2 > 0 -%}
+                    {%- set found.ts = t2 -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- set ts = found.ts -%}
+            {%- endif -%}
+
+            {# 3) fallback: last_updated #}
+            {%- if ts | float(0) == 0 -%}
+              {%- set ts = as_timestamp(s.last_updated, default=0) | float(0) -%}
+            {%- endif -%}
+
+            {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+            {%- set st = s.state -%}
+            {%- set is_unavail = st in ['unknown','unavailable'] -%}
+            {%- set is_stale = age_s >= threshold_s -%}
+
+            {%- if (is_stale) or (include_unavailable and is_unavail) -%}
+
+              {# extra: batteri % hvis numerisk, ellers n/a hvis unavail #}
+              {%- set extra = '' -%}
+              {%- if st | is_number -%}
+                {%- set extra = (st | float(0) | round(0)) ~ '%' -%}
+              {%- elif is_unavail -%}
+                {%- set extra = 'n/a' -%}
+              {%- endif -%}
+
+              {# signal: prøv å finne linkquality/lqi/rssi/signal på samme device #}
+              {%- set sig = namespace(txt='') -%}
+              {%- if include_signal_details and did -%}
+                {%- for x in states.sensor -%}
+                  {%- if sig.txt == '' and device_id(x.entity_id) == did -%}
+                    {%- set xl = x.entity_id | lower -%}
+                    {%- if (('linkquality' in xl) or ('lqi' in xl) or ('rssi' in xl) or ('signal' in xl)) and (x.state | is_number) -%}
+                      {%- set u = state_attr(x.entity_id,'unit_of_measurement') or '' -%}
+                      {%- set sig.txt = (x.state | string) ~ (u | string) -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endfor -%}
+              {%- endif -%}
+
+              {# legg inn i map: behold "verste" (størst age_s), eller unavail prioritet #}
+              {%- if norm != '' -%}
+                {%- set keep = false -%}
+                {%- if norm not in ns.map -%}
+                  {%- set keep = true -%}
+                {%- else -%}
+                  {%- set cur = ns.map[norm] -%}
+                  {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
+                  {%- if is_unavail and not cur_unavail -%}
+                    {%- set keep = true -%}
+                  {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                    {%- set keep = true -%}
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- if keep -%}
+                  {%- set ns.map = dict(ns.map, **{
+                    norm: {
+                      'base': base,
+                      'age_s': age_s,
+                      'extra': extra,
+                      'signal': sig.txt,
+                      'src': 'sensor',
+                      'state': st
+                    }
+                  }) -%}
+                {%- endif -%}
+              {%- endif -%}
+
+            {%- endif -%}
+
+          {%- endif -%}
+        {%- endfor -%}
+
+        {# ===== 2B: Digitale batterier (binary_sensor battery) ===== #}
+        {%- for b in states.binary_sensor
+              | selectattr('attributes.device_class','eq','battery') -%}
+
+          {%- set eid = b.entity_id -%}
+          {%- set did = device_id(eid) -%}
+          {%- if eid in ignore_e or (did and did in ignore_d) -%}
+            {# ignorert #}
+          {%- else -%}
+
+            {# navn (samme stil som din digital-liste) #}
+            {%- set base = b.name
+                | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
+                | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
+                | regex_replace('(?i)\\bbattery\\b:?',' ')
+                | regex_replace('(?i)\\bbatteri\\b:?',' ')
+                | regex_replace('\\s*\\+\\s*$','')
+                | regex_replace('\\s*:\\s*$','')
+                | regex_replace('\\s{2,}',' ')
+                | trim -%}
+
+            {%- set norm = base
+                | lower
+                | regex_replace('[^\\w\\s:]', '')
+                | regex_replace('\\s{2,}', ' ')
+                | trim -%}
+
+            {# sist sett: samme prioritet #}
+            {%- set ts = 0 -%}
+            {%- set ls_attr = state_attr(eid, 'last_seen') -%}
+            {%- if ls_attr is not none -%}
+              {%- set ts = as_timestamp(ls_attr, default=0) | float(0) -%}
+            {%- endif -%}
+
+            {%- if ts | float(0) == 0 and did -%}
+              {%- set found = namespace(ts=0) -%}
+              {%- for x in states.sensor -%}
+                {%- if found.ts == 0 and device_id(x.entity_id) == did and 'last_seen' in (x.entity_id | lower) -%}
+                  {%- set t2 = as_timestamp(x.state, default=0) | float(0) -%}
+                  {%- if t2 > 0 -%}
+                    {%- set found.ts = t2 -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- set ts = found.ts -%}
+            {%- endif -%}
+
+            {%- if ts | float(0) == 0 -%}
+              {%- set ts = as_timestamp(b.last_updated, default=0) | float(0) -%}
+            {%- endif -%}
+
+            {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+            {%- set st = b.state -%}
+            {%- set is_unavail = st in ['unknown','unavailable'] -%}
+            {%- set is_stale = age_s >= threshold_s -%}
+
+            {%- if (is_stale) or (include_unavailable and is_unavail) -%}
+
+              {# extra: bare hvis den er "on"/unavail (unngå støy for off) #}
+              {%- set extra = '' -%}
+              {%- if st == 'on' -%}
+                {%- set extra = 'Low' -%}
+              {%- elif is_unavail -%}
+                {%- set extra = 'Unknown' -%}
+              {%- endif -%}
+
+              {# signal #}
+              {%- set sig = namespace(txt='') -%}
+              {%- if include_signal_details and did -%}
+                {%- for x in states.sensor -%}
+                  {%- if sig.txt == '' and device_id(x.entity_id) == did -%}
+                    {%- set xl = x.entity_id | lower -%}
+                    {%- if (('linkquality' in xl) or ('lqi' in xl) or ('rssi' in xl) or ('signal' in xl)) and (x.state | is_number) -%}
+                      {%- set u = state_attr(x.entity_id,'unit_of_measurement') or '' -%}
+                      {%- set sig.txt = (x.state | string) ~ (u | string) -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endfor -%}
+              {%- endif -%}
+
+              {# dedupe: behold verste #}
+              {%- if norm != '' -%}
+                {%- set keep = false -%}
+                {%- if norm not in ns.map -%}
+                  {%- set keep = true -%}
+                {%- else -%}
+                  {%- set cur = ns.map[norm] -%}
+                  {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
+                  {%- if is_unavail and not cur_unavail -%}
+                    {%- set keep = true -%}
+                  {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                    {%- set keep = true -%}
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- if keep -%}
+                  {%- set ns.map = dict(ns.map, **{
+                    norm: {
+                      'base': base,
+                      'age_s': age_s,
+                      'extra': extra,
+                      'signal': sig.txt,
+                      'src': 'binary_sensor',
+                      'state': st
+                    }
+                  }) -%}
+                {%- endif -%}
+              {%- endif -%}
+
+            {%- endif -%}
+
+          {%- endif -%}
+        {%- endfor -%}
+
+        {# ===== 2C: Render sortert (eldst først) ===== #}
+        {%- set items = namespace(lst=[]) -%}
+        {%- for norm, it in ns.map.items() -%}
+          {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string, it['extra']|string, it['signal']|string, it['src']|string, it['state']|string)] -%}
+        {%- endfor -%}
+
+        {%- for age_s, base, extra, sig, src, st in (items.lst | sort(reverse=true)) -%}
+          {# formater tid #}
+          {%- set d = (age_s // 86400) | int(0) -%}
+          {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
+          {%- set m = ((age_s % 3600) // 60) | int(0) -%}
+          {%- if d > 0 -%}
+            {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
+          {%- elif h > 0 -%}
+            {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
+          {%- else -%}
+            {%- set age_txt = m|string ~ 'm' -%}
+          {%- endif -%}
+
+          {%- set parts = namespace(t='- ' ~ base) -%}
+          {%- if extra | trim != '' -%}
+            {%- set parts.t = parts.t ~ ' (' ~ extra ~ ')' -%}
+          {%- endif -%}
+          {%- set parts.t = parts.t ~ ' — sist sett ' ~ age_txt -%}
+
+          {%- if sig | trim != '' -%}
+            {%- set parts.t = parts.t ~ ' • signal ' ~ sig -%}
+          {%- endif -%}
+
+          {%- set ns.lines = ns.lines + [parts.t] -%}
+        {%- endfor -%}
+
+        {{ ns.lines | join('\n') }}
+
+  # Steg 3 - Rydd bort meningsløse linjer før melding (tomt navn og "Battery")
+  - alias: "Steg 3 - Rydd bort meningsløse linjer"
+    variables:
+      stale_list_clean: >-
+        {% set out = namespace(lines=[]) %}
+        {% for line in (stale_list_raw | default('')).split('\n') %}
+          {% set l = line | trim %}
+          {% if l == '' %}
+          {% elif not l.startswith('- ') %}
+          {% else %}
+            {% set name = (l
+              | regex_replace('^-\\s*','')
+              | regex_replace('\\s*\\(.*$','')
+              | regex_replace('\\s*—.*$','')
+              | trim) %}
+            {% if name != '' and (name | lower) != 'battery' %}
+              {% set out.lines = out.lines + [l] %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ out.lines | join('\n') }}
+
+  # Steg 4 - Bygg endelig melding (én samlet)
+  - alias: "Steg 4 - Bygg endelig melding"
+    variables:
+      combined_message: >-
+        {% set parts = namespace(lines=[]) %}
+        {% if (stale_list_clean | trim) != '' %}
+          {% set parts.lines = parts.lines + [
+            "*Batteri-enheter uten signal > " ~ (max_age_hours | string) ~ "h:*",
+            stale_list_clean,
+            ""
+          ] %}
+        {% endif %}
+
+        {% if debug_on %}
+          {% set parts.lines = parts.lines + [
+            "---",
+            "Debug:",
+            "- trigger: " ~ trigger.id,
+            "- max_age_hours: " ~ (max_age_hours | string),
+            "- include_unavailable: " ~ (include_unavailable | string),
+            "- include_signal_details: " ~ (include_signal_details | string),
+            "- ignored_entities: " ~ ((ignore_entities | count) | string),
+            "- ignored_devices: " ~ ((ignore_devices | count) | string)
+          ] %}
+        {% endif %}
+        {{ (parts.lines | join('\n')) | trim }}
+
+  # Steg 5 - Send varsel hvis vi har noe å melde
+  - alias: "Steg 5 - Send varsel"
+    if:
+      - condition: template
+        value_template: "{{ combined_message | trim != '' }}"
+    then:
+      - action: notify.send_message
+        data:
+          title: "🟠 *Ingen signal på lenge*"
+          message: "{{ combined_message }}"
+        target:
+          entity_id: !input notify_target
