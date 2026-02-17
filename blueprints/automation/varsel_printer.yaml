@@ -8,10 +8,10 @@ blueprint:
     Triggere:
       - Planlagt sjekk (default: onsdag 09:00)
       - Etter HA restart
-      - Valgfritt: Valgte wake-up entities går fra unavailable/unknown -> tilgjengelig,
+      - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.02.07
+    Blueprint versjon: 2026.02.8
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -67,11 +67,10 @@ blueprint:
         text:
 
     availability_trigger_entities:
-      name: Wake-up entities (valgfritt)
+      name: Wake-up entities
       description: >
         Velg entity(er) som trigges når de går fra unavailable/unknown -> tilgjengelig.
-        Typisk én blekk-sensor eller printer status-sensor som bare er online når printeren er på.
-      default: []
+        (NB: state-trigger krever minst én entity.)
       selector:
         entity:
           multiple: true
@@ -123,7 +122,6 @@ trigger:
 condition: []
 
 action:
-  # Steg 1 - Inputs -> variabler
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
       threshold: !input ink_threshold_percent
@@ -132,7 +130,6 @@ action:
       include_na: !input notify_on_unavailable
       debug_on: !input include_debug_details
 
-  # Steg 2 - Wake-up: vent X minutter etter online (stabil drift)
   - alias: "Steg 2 - Wake-up: vent på stabil drift"
     if:
       - condition: template
@@ -149,15 +146,13 @@ action:
         then:
           - stop: "Wake-up entity ble utilgjengelig før ventetiden var ferdig."
 
-  # Steg 3 - Kort ekstra ventetid (blekk % rekker å oppdatere)
-  - alias: "Steg 3 - Kort ekstra ventetid"
+  - alias: "Steg 3 - Kort ekstra ventetid (blekk % rekker å oppdatere)"
     delay:
       seconds: 10
 
-  # Steg 4 - Auto-finn blekk/toner-sensorer (lager LISTE direkte)
-  - alias: "Steg 4 - Auto-finn blekk/toner-sensorer"
+  - alias: "Steg 4 - Finn blekk/toner-sensorer (rått)"
     variables:
-      ink_entities: >-
+      ink_entities_raw: >-
         {% set kw_l = kw | lower %}
         {% set ink_words = ['blekk','ink','toner','cartridge','kartusj','cyan','magenta','yellow','black','svart','gul','gult'] %}
         {% set ns = namespace(ids=[]) %}
@@ -190,10 +185,18 @@ action:
 
         {{ (ns.ids | unique | list | sort) | to_json }}
 
-  # Steg 5 - Auto-finn status-sensorer (valgfritt)
-  - alias: "Steg 5 - Auto-finn status-sensorer"
+  - alias: "Steg 5 - Parse blekk/toner-liste (robust)"
     variables:
-      status_entities: >-
+      ink_entities: >-
+        {% if ink_entities_raw is string %}
+          {{ ink_entities_raw | from_json(default=[]) }}
+        {% else %}
+          {{ ink_entities_raw }}
+        {% endif %}
+
+  - alias: "Steg 6 - Finn status-sensorer (rått)"
+    variables:
+      status_entities_raw: >-
         {% set kw_l = kw | lower %}
         {% set ns = namespace(ids=[]) %}
         {% for s in states.sensor %}
@@ -209,39 +212,55 @@ action:
         {% endfor %}
         {{ (ns.ids | unique | list | sort) | to_json }}
 
-  # Steg 6 - Bygg rapport (DICT direkte, ingen from_json)
-  - alias: "Steg 6 - Bygg rapport"
+  - alias: "Steg 7 - Parse statusliste (robust)"
     variables:
-      report: >-
+      status_entities: >-
+        {% if status_entities_raw is string %}
+          {{ status_entities_raw | from_json(default=[]) }}
+        {% else %}
+          {{ status_entities_raw }}
+        {% endif %}
+
+  - alias: "Steg 8 - Bygg rapport (JSON, men uten Undefined-feller)"
+    variables:
+      report_raw: >-
         {% set threshold_f = threshold | float(0) %}
         {% set ns = namespace(printers={}, matched_ink=0, matched_status=0) %}
 
-        {# Status per printer #}
+        {# 8A: Status per printer #}
         {% for eid in status_entities %}
           {% set did = device_id(eid) %}
-          {% set device_name = device_attr(eid,'name_by_user') or device_attr(eid,'name') %}
-          {% set fallback_name = state_attr(eid,'friendly_name') or eid %}
-          {% set printer_name = device_name or fallback_name %}
-          {% set key = did if did else (printer_name | lower | regex_replace('[^\\w\\s]','') | regex_replace('\\s{2,}',' ') | trim) %}
+          {% set obj = eid.split('.')[1] %}
+          {% set parts = obj.split('_') %}
+          {% set fallback_key = (parts[0:2] | join('_')) if (parts | count) >= 2 else obj %}
+          {% set key = did if did else fallback_key %}
+
+          {% set dn = device_name(eid) %}
+          {% set fn = state_attr(eid,'friendly_name') or eid %}
+          {% set printer_name = (dn if dn else fn) %}
 
           {% if key not in ns.printers %}
             {% set ns.printers = dict(ns.printers, **{key: {'name': printer_name, 'status': '', 'low': {}, 'na': {}}}) %}
           {% endif %}
 
           {% set p = ns.printers[key] %}
-          {% set ns.printers = dict(ns.printers, **{key: dict(p, **{'status': states(eid)})}) %}
+          {% set ns.printers = dict(ns.printers, **{key: dict(p, **{'status': (states(eid) | string)})}) %}
           {% set ns.matched_status = ns.matched_status + 1 %}
         {% endfor %}
 
-        {# Blekk/Toner per printer #}
+        {# 8B: Blekk/Toner per printer #}
         {% for eid in ink_entities %}
           {% set ns.matched_ink = ns.matched_ink + 1 %}
 
           {% set did = device_id(eid) %}
-          {% set device_name = device_attr(eid,'name_by_user') or device_attr(eid,'name') %}
-          {% set friendly = state_attr(eid,'friendly_name') or eid %}
-          {% set printer_name = device_name or friendly %}
-          {% set key = did if did else (printer_name | lower | regex_replace('[^\\w\\s]','') | regex_replace('\\s{2,}',' ') | trim) %}
+          {% set obj = eid.split('.')[1] %}
+          {% set parts = obj.split('_') %}
+          {% set fallback_key = (parts[0:2] | join('_')) if (parts | count) >= 2 else obj %}
+          {% set key = did if did else fallback_key %}
+
+          {% set dn = device_name(eid) %}
+          {% set fn = state_attr(eid,'friendly_name') or eid %}
+          {% set printer_name = (dn if dn else fn) %}
 
           {% if key not in ns.printers %}
             {% set ns.printers = dict(ns.printers, **{key: {'name': printer_name, 'status': '', 'low': {}, 'na': {}}}) %}
@@ -249,8 +268,9 @@ action:
 
           {% set p = ns.printers[key] %}
 
-          {% set name_l = friendly | lower %}
-          {% set eid_l = eid | lower %}
+          {% set friendly = state_attr(eid,'friendly_name') or eid %}
+          {% set name_l = (friendly | lower) %}
+          {% set eid_l = (eid | lower) %}
 
           {% if 'svart' in name_l or 'black' in name_l or 'svart' in eid_l or 'black' in eid_l %}
             {% set color_norm = 'black' %}
@@ -267,9 +287,12 @@ action:
           {% else %}
             {% set color_norm = eid_l %}
             {% set color_label = (friendly
-              | regex_replace('(?i)\\b(printer|blekk|ink|toner|cartridge|kartusj|gjenvaerende|gjenstående|gjenstar|igjen|remaining|level|nivå|prosent|percent)\\b',' ')
+              | regex_replace('(?i)\\b(printer|blekk|ink|toner|cartridge|kartusj|gjenvaerende|gjenstående|gjenstar|igjen|remaining|level|nivå|prosent|percent|status)\\b',' ')
               | regex_replace('\\s{2,}',' ')
               | trim) %}
+            {% if color_label | trim == '' %}
+              {% set color_label = 'Ukjent' %}
+            {% endif %}
           {% endif %}
 
           {% set st = states(eid) %}
@@ -279,7 +302,7 @@ action:
               {% set low_map = p.low %}
               {% set existing = (low_map[color_norm]['value'] if color_norm in low_map else 999) %}
               {% if val < existing %}
-                {% set low_map2 = dict(low_map, **{color_norm: {'label': color_label, 'value': val}}) %}
+                {% set low_map2 = dict(low_map, **{color_norm: {'label': (color_label | string), 'value': val}}) %}
                 {% set ns.printers = dict(ns.printers, **{key: dict(p, **{'low': low_map2})}) %}
               {% endif %}
             {% endif %}
@@ -287,74 +310,100 @@ action:
             {% if include_na and st in ['unavailable','unknown'] %}
               {% set na_map = p.na %}
               {% if color_norm not in na_map %}
-                {% set na_map2 = dict(na_map, **{color_norm: color_label}) %}
+                {% set na_map2 = dict(na_map, **{color_norm: (color_label | string)}) %}
                 {% set ns.printers = dict(ns.printers, **{key: dict(p, **{'na': na_map2})}) %}
               {% endif %}
             {% endif %}
           {% endif %}
         {% endfor %}
 
-        {# Render melding #}
+        {# 8C: Render melding uten sort(attribute=...) #}
         {% set out = namespace(lines=[], problem_names=[]) %}
-        {% set plist = ns.printers.values() | list | sort(attribute='name') %}
 
-        {% for p in plist %}
-          {% set low_items = p.low.values() | list | sort(attribute='value') %}
-          {% set na_items = p.na | dictsort %}
-          {% if (low_items | count) > 0 or (na_items | count) > 0 %}
-            {% set out.problem_names = out.problem_names + [p.name] %}
-            {% set out.lines = out.lines + ['*' ~ p.name ~ '*'] %}
-            {% if (p.status | trim) != '' %}
-              {% set out.lines = out.lines + ['Status: ' ~ p.status] %}
+        {# sorter printere med tupler: (navn, key) #}
+        {% set pt = namespace(items=[]) %}
+        {% for k, p in ns.printers.items() %}
+          {% set pt.items = pt.items + [((p['name'] | string), k)] %}
+        {% endfor %}
+
+        {% for pname, k in (pt.items | sort) %}
+          {% set p = ns.printers[k] %}
+          {% set low_map = p['low'] %}
+          {% set na_map = p['na'] %}
+
+          {% if (low_map | count) > 0 or (na_map | count) > 0 %}
+            {% set out.problem_names = out.problem_names + [pname] %}
+            {% set out.lines = out.lines + ['*' ~ pname ~ '*'] %}
+
+            {% set sttxt = (p['status'] | default('', true) | string) %}
+            {% if sttxt | trim != '' %}
+              {% set out.lines = out.lines + ['Status: ' ~ sttxt] %}
             {% endif %}
-            {% for item in low_items %}
-              {% set out.lines = out.lines + ['• ' ~ item['label'] ~ ': ' ~ (item['value'] | round(0)) ~ '%'] %}
+
+            {# low: sorter via (value,label)-tupler #}
+            {% set lt = namespace(items=[]) %}
+            {% for _, item in low_map.items() %}
+              {% set lt.items = lt.items + [((item['value'] | float(999)), (item['label'] | string))] %}
             {% endfor %}
-            {% for _, label in na_items %}
-              {% set out.lines = out.lines + ['• ' ~ label ~ ': (n/a)'] %}
+            {% for v, lab in (lt.items | sort) %}
+              {% set out.lines = out.lines + ['• ' ~ lab ~ ': ' ~ (v | round(0)) ~ '%'] %}
             {% endfor %}
+
+            {# na: dictsort (alfabetisk) #}
+            {% for _, lab in (na_map | dictsort) %}
+              {% set out.lines = out.lines + ['• ' ~ (lab | string) ~ ': (n/a)'] %}
+            {% endfor %}
+
             {% set out.lines = out.lines + [''] %}
           {% endif %}
         {% endfor %}
 
         {% set notify = (out.problem_names | count) > 0 %}
         {% set title_name = (out.problem_names[0] if (out.problem_names | count) == 1 else 'Printer') %}
-        {% set title = "🟠 *" ~ title_name ~ " – Blekk/Toner (< " ~ (threshold_f | round(0)) ~ "%)*" %}
+        {% set title = "🟠 *" ~ (title_name | string) ~ " – Blekk/Toner (< " ~ (threshold_f | round(0)) ~ "%)*" %}
 
         {{ {
           "notify": notify,
           "title": title,
           "message": (out.lines | join('\n')) | trim,
           "debug": {
-            "trigger_id": trigger.id,
-            "trigger_entity": (trigger.entity_id if trigger.entity_id is defined else ''),
+            "trigger_id": (trigger.id | default('', true) | string),
+            "trigger_entity": ((trigger.entity_id | default('', true)) | string),
             "matched_ink": ns.matched_ink,
-            "matched_status": ns.matched_status
+            "matched_status": ns.matched_status,
+            "ink_count": (ink_entities | count),
+            "status_count": (status_entities | count)
           }
         } | to_json }}
 
-  # Steg 7 - Sjekk om vi skal varsle
-  - alias: "Steg 7 - Sjekk om vi skal varsle"
-    condition: template
-    value_template: "{{ report.notify }}"
+  - alias: "Steg 9 - Parse rapport (robust)"
+    variables:
+      report: >-
+        {% if report_raw is string %}
+          {{ report_raw | from_json(default={}) }}
+        {% else %}
+          {{ report_raw }}
+        {% endif %}
 
-  # Steg 8 - Bygg endelig melding
-  - alias: "Steg 8 - Bygg endelig melding"
+  - alias: "Steg 10 - Sjekk om vi skal varsle"
+    condition: template
+    value_template: "{{ report.notify | default(false) }}"
+
+  - alias: "Steg 11 - Bygg endelig meldingstekst"
     variables:
       final_message: >-
-        {% set base = report.message %}
+        {% set base = report.message | default('') %}
         {% if debug_on %}
           {% set d = report.debug %}
-          {{ base ~ "\n\n---\nDebug:\n- trigger: " ~ d.trigger_id ~ "\n- trigger_entity: " ~ d.trigger_entity ~ "\n- matched_ink: " ~ d.matched_ink ~ "\n- matched_status: " ~ d.matched_status }}
+          {{ base ~ "\n\n---\nDebug:\n- trigger: " ~ (d.trigger_id | default('')) ~ "\n- trigger_entity: " ~ (d.trigger_entity | default('')) ~ "\n- matched_ink: " ~ (d.matched_ink | default(0)) ~ "\n- matched_status: " ~ (d.matched_status | default(0)) ~ "\n- ink_count: " ~ (d.ink_count | default(0)) ~ "\n- status_count: " ~ (d.status_count | default(0)) }}
         {% else %}
           {{ base }}
         {% endif %}
 
-  # Steg 9 - Send varsel
-  - alias: "Steg 9 - Send varsel"
+  - alias: "Steg 12 - Send varsel"
     action: notify.send_message
     data:
-      title: "{{ report.title }}"
+      title: "{{ report.title | default('🟠 *Printer – Blekk/Toner*') }}"
       message: "{{ final_message }}"
     target:
       entity_id: !input notify_target
