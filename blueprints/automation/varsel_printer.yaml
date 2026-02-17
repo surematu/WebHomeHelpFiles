@@ -1,5 +1,5 @@
 blueprint:
-  name: Printer - Blekk/Toner lavt (Auto-detektert + stabilitet)
+  name: Varsel printer - Blekk/Toner lavt (WebHome)
   description: >
     Auto-detekterer printer/skriversensorer og sender varsel ved:
       - Lav blekk/toner under terskel (%)
