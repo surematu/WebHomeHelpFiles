@@ -20,7 +20,7 @@ blueprint:
     Blueprint versjon: 2026.02.00
   domain: automation
   author: WebHome
-  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batterienhet.yaml
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
   homeassistant:
     min_version: 2025.11.0
 
