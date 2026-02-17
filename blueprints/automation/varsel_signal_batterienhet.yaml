@@ -12,12 +12,13 @@ blueprint:
       - sensor.* med device_class: battery
       - binary_sensor.* med device_class: battery
 
-    Nytt:
-      - Ignorer entities og/eller devices
-      - Én samlet melding
-      - Filtrerer bort meningsløse linjer som tomt navn og "Battery"
+    Format:
+      - "- Navn (5h 39m)" (ingen batteri % og ingen signal)
 
-    Blueprint versjon: 2026.02.00
+    Terskel:
+      - Kan settes som duration (f.eks. 5 minutter for test), default 72 timer
+
+    Blueprint versjon: 2026.02.01
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -33,25 +34,18 @@ blueprint:
           domain: notify
           multiple: true
 
-    max_age_hours:
-      name: Maks tid siden sist signal (timer)
-      description: Varsle hvis enhet ikke er sett på mer enn dette antall timer.
-      default: 72
+    max_age:
+      name: Maks tid siden sist signal
+      description: >
+        Varsle hvis enhet ikke er sett på mer enn dette.
+        Tips for test: sett til 00:05:00 (5 minutter).
+      default:
+        hours: 72
       selector:
-        number:
-          min: 1
-          max: 720
-          step: 1
-          unit_of_measurement: "h"
+        duration:
 
     include_unavailable:
       name: Ta med unknown/unavailable i varsel
-      default: true
-      selector:
-        boolean:
-
-    include_signal_details:
-      name: Ta med signalinfo (linkquality/lqi/rssi) hvis tilgjengelig
       default: true
       selector:
         boolean:
@@ -128,40 +122,54 @@ action:
   # Steg 1 - Inputs -> tydelige variabler
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
-      max_age_hours: !input max_age_hours
+      max_age: !input max_age
       include_unavailable: !input include_unavailable
-      include_signal_details: !input include_signal_details
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
       debug_on: !input include_debug_details
 
-  # Steg 2 - Bygg rå liste over "stale" batteri-enheter (dedupe per normalisert navn)
+      # Bygg terskel i sekunder og en fin label (for tittel)
+      max_age_seconds: >-
+        {% set d = max_age %}
+        {{ (d.get('days',0)|int * 86400)
+         + (d.get('hours',0)|int * 3600)
+         + (d.get('minutes',0)|int * 60)
+         + (d.get('seconds',0)|int) }}
+      max_age_label: >-
+        {% set d = max_age %}
+        {% set days = d.get('days',0)|int %}
+        {% set hours = d.get('hours',0)|int %}
+        {% set mins = d.get('minutes',0)|int %}
+        {% set secs = d.get('seconds',0)|int %}
+        {% set parts = namespace(p=[]) %}
+        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
+        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
+        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
+        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
+        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
+
+  # Steg 2 - Finn batteri-enheter uten signal på lenge (rå)
   - alias: "Steg 2 - Finn batteri-enheter uten signal på lenge (rå)"
     variables:
       stale_list_raw: |-
-        {%- set threshold_s = (max_age_hours | float(0) * 3600) | int(0) -%}
+        {%- set threshold_s = (max_age_seconds | int(0)) -%}
         {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
         {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
-
-        {# map[norm] = {'base':..., 'age_s':..., 'extra':..., 'signal':..., 'src':..., 'state':...} #}
         {%- set ns = namespace(map={}, lines=[]) -%}
 
-        {# -----------------------------
-           Hjelpefunksjon: lag "base" + "norm" (samme stil som tidligere)
-           ----------------------------- #}
-
-        {# ===== 2A: Prosenter (sensor battery) ===== #}
+        {# ===== 2A: sensor battery ===== #}
         {%- for s in states.sensor
               | selectattr('attributes.device_class','defined')
               | selectattr('attributes.device_class','eq','battery') -%}
 
           {%- set eid = s.entity_id -%}
           {%- set did = device_id(eid) -%}
+
           {%- if eid in ignore_e or (did and did in ignore_d) -%}
             {# ignorert #}
           {%- else -%}
 
-            {# --- navn + dedupe-nøkkel --- #}
+            {# navn + dedupe #}
             {%- set base = s.name
                 | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
                 | replace(' Battery+', '')
@@ -175,7 +183,7 @@ action:
                 | regex_replace('\\s{2,}', ' ')
                 | trim -%}
 
-            {# --- finn best mulig "sist sett" timestamp --- #}
+            {# timestamp #}
             {%- set ts = 0 -%}
 
             {# 1) last_seen attribute #}
@@ -210,29 +218,7 @@ action:
 
             {%- if (is_stale) or (include_unavailable and is_unavail) -%}
 
-              {# extra: batteri % hvis numerisk, ellers n/a hvis unavail #}
-              {%- set extra = '' -%}
-              {%- if st | is_number -%}
-                {%- set extra = (st | float(0) | round(0)) ~ '%' -%}
-              {%- elif is_unavail -%}
-                {%- set extra = 'n/a' -%}
-              {%- endif -%}
-
-              {# signal: prøv å finne linkquality/lqi/rssi/signal på samme device #}
-              {%- set sig = namespace(txt='') -%}
-              {%- if include_signal_details and did -%}
-                {%- for x in states.sensor -%}
-                  {%- if sig.txt == '' and device_id(x.entity_id) == did -%}
-                    {%- set xl = x.entity_id | lower -%}
-                    {%- if (('linkquality' in xl) or ('lqi' in xl) or ('rssi' in xl) or ('signal' in xl)) and (x.state | is_number) -%}
-                      {%- set u = state_attr(x.entity_id,'unit_of_measurement') or '' -%}
-                      {%- set sig.txt = (x.state | string) ~ (u | string) -%}
-                    {%- endif -%}
-                  {%- endif -%}
-                {%- endfor -%}
-              {%- endif -%}
-
-              {# legg inn i map: behold "verste" (størst age_s), eller unavail prioritet #}
+              {# dedupe: behold verste (eldst), og la unavail "vinne" #}
               {%- if norm != '' -%}
                 {%- set keep = false -%}
                 {%- if norm not in ns.map -%}
@@ -252,8 +238,6 @@ action:
                     norm: {
                       'base': base,
                       'age_s': age_s,
-                      'extra': extra,
-                      'signal': sig.txt,
                       'src': 'sensor',
                       'state': st
                     }
@@ -266,17 +250,18 @@ action:
           {%- endif -%}
         {%- endfor -%}
 
-        {# ===== 2B: Digitale batterier (binary_sensor battery) ===== #}
+        {# ===== 2B: binary_sensor battery ===== #}
         {%- for b in states.binary_sensor
               | selectattr('attributes.device_class','eq','battery') -%}
 
           {%- set eid = b.entity_id -%}
           {%- set did = device_id(eid) -%}
+
           {%- if eid in ignore_e or (did and did in ignore_d) -%}
             {# ignorert #}
           {%- else -%}
 
-            {# navn (samme stil som din digital-liste) #}
+            {# navn (samme stil som dine digitale) #}
             {%- set base = b.name
                 | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
                 | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
@@ -293,7 +278,7 @@ action:
                 | regex_replace('\\s{2,}', ' ')
                 | trim -%}
 
-            {# sist sett: samme prioritet #}
+            {# timestamp #}
             {%- set ts = 0 -%}
             {%- set ls_attr = state_attr(eid, 'last_seen') -%}
             {%- if ls_attr is not none -%}
@@ -324,29 +309,7 @@ action:
 
             {%- if (is_stale) or (include_unavailable and is_unavail) -%}
 
-              {# extra: bare hvis den er "on"/unavail (unngå støy for off) #}
-              {%- set extra = '' -%}
-              {%- if st == 'on' -%}
-                {%- set extra = 'Low' -%}
-              {%- elif is_unavail -%}
-                {%- set extra = 'Unknown' -%}
-              {%- endif -%}
-
-              {# signal #}
-              {%- set sig = namespace(txt='') -%}
-              {%- if include_signal_details and did -%}
-                {%- for x in states.sensor -%}
-                  {%- if sig.txt == '' and device_id(x.entity_id) == did -%}
-                    {%- set xl = x.entity_id | lower -%}
-                    {%- if (('linkquality' in xl) or ('lqi' in xl) or ('rssi' in xl) or ('signal' in xl)) and (x.state | is_number) -%}
-                      {%- set u = state_attr(x.entity_id,'unit_of_measurement') or '' -%}
-                      {%- set sig.txt = (x.state | string) ~ (u | string) -%}
-                    {%- endif -%}
-                  {%- endif -%}
-                {%- endfor -%}
-              {%- endif -%}
-
-              {# dedupe: behold verste #}
+              {# dedupe: behold verste (eldst), og la unavail "vinne" #}
               {%- if norm != '' -%}
                 {%- set keep = false -%}
                 {%- if norm not in ns.map -%}
@@ -366,8 +329,6 @@ action:
                     norm: {
                       'base': base,
                       'age_s': age_s,
-                      'extra': extra,
-                      'signal': sig.txt,
                       'src': 'binary_sensor',
                       'state': st
                     }
@@ -383,14 +344,14 @@ action:
         {# ===== 2C: Render sortert (eldst først) ===== #}
         {%- set items = namespace(lst=[]) -%}
         {%- for norm, it in ns.map.items() -%}
-          {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string, it['extra']|string, it['signal']|string, it['src']|string, it['state']|string)] -%}
+          {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string, it['state']|string)] -%}
         {%- endfor -%}
 
-        {%- for age_s, base, extra, sig, src, st in (items.lst | sort(reverse=true)) -%}
-          {# formater tid #}
+        {%- for age_s, base, st in (items.lst | sort(reverse=true)) -%}
           {%- set d = (age_s // 86400) | int(0) -%}
           {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
           {%- set m = ((age_s % 3600) // 60) | int(0) -%}
+
           {%- if d > 0 -%}
             {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
           {%- elif h > 0 -%}
@@ -399,22 +360,13 @@ action:
             {%- set age_txt = m|string ~ 'm' -%}
           {%- endif -%}
 
-          {%- set parts = namespace(t='- ' ~ base) -%}
-          {%- if extra | trim != '' -%}
-            {%- set parts.t = parts.t ~ ' (' ~ extra ~ ')' -%}
-          {%- endif -%}
-          {%- set parts.t = parts.t ~ ' — sist sett ' ~ age_txt -%}
-
-          {%- if sig | trim != '' -%}
-            {%- set parts.t = parts.t ~ ' • signal ' ~ sig -%}
-          {%- endif -%}
-
-          {%- set ns.lines = ns.lines + [parts.t] -%}
+          {%- set line = '- ' ~ base ~ ' (' ~ age_txt ~ ')' -%}
+          {%- set ns.lines = ns.lines + [line] -%}
         {%- endfor -%}
 
         {{ ns.lines | join('\n') }}
 
-  # Steg 3 - Rydd bort meningsløse linjer før melding (tomt navn og "Battery")
+  # Steg 3 - Rydd bort meningsløse linjer (tomt navn og "Battery")
   - alias: "Steg 3 - Rydd bort meningsløse linjer"
     variables:
       stale_list_clean: >-
@@ -427,7 +379,6 @@ action:
             {% set name = (l
               | regex_replace('^-\\s*','')
               | regex_replace('\\s*\\(.*$','')
-              | regex_replace('\\s*—.*$','')
               | trim) %}
             {% if name != '' and (name | lower) != 'battery' %}
               {% set out.lines = out.lines + [l] %}
@@ -436,14 +387,15 @@ action:
         {% endfor %}
         {{ out.lines | join('\n') }}
 
-  # Steg 4 - Bygg endelig melding (én samlet)
+  # Steg 4 - Bygg endelig melding
   - alias: "Steg 4 - Bygg endelig melding"
     variables:
       combined_message: >-
         {% set parts = namespace(lines=[]) %}
+
         {% if (stale_list_clean | trim) != '' %}
           {% set parts.lines = parts.lines + [
-            "*Batteri-enheter uten signal > " ~ (max_age_hours | string) ~ "h:*",
+            "*Batteri-enheter uten signal > " ~ (max_age_label | string) ~ ":*",
             stale_list_clean,
             ""
           ] %}
@@ -454,13 +406,14 @@ action:
             "---",
             "Debug:",
             "- trigger: " ~ trigger.id,
-            "- max_age_hours: " ~ (max_age_hours | string),
+            "- max_age: " ~ (max_age_label | string),
+            "- max_age_seconds: " ~ (max_age_seconds | string),
             "- include_unavailable: " ~ (include_unavailable | string),
-            "- include_signal_details: " ~ (include_signal_details | string),
             "- ignored_entities: " ~ ((ignore_entities | count) | string),
             "- ignored_devices: " ~ ((ignore_devices | count) | string)
           ] %}
         {% endif %}
+
         {{ (parts.lines | join('\n')) | trim }}
 
   # Steg 5 - Send varsel hvis vi har noe å melde
