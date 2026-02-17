@@ -12,8 +12,9 @@ blueprint:
     Nytt:
       - Én samlet melding (analog + digital)
       - Ignore-liste for entities (og valgfri ignore-liste for devices)
+      - Filtrerer bort meningsløse linjer som "-  (n/a)" og "-  (Unknown)" samt "Battery (n/a/Unknown)"
 
-    Blueprint versjon: 2026.02.02
+    Blueprint versjon: 2026.02.03
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -118,7 +119,6 @@ trigger:
 condition: []
 
 action:
-  # Steg 1 - Inputs -> variabler
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
       threshold: !input threshold_percent
@@ -128,7 +128,6 @@ action:
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
 
-  # Steg 2 - Bygg liste: batteri-% (med dedupe + valgfri n/a) og ignore
   - alias: "Steg 2 - Bygg batteriliste (prosent + valgfri n/a)"
     variables:
       low_list_percent_and_na: |-
@@ -200,7 +199,6 @@ action:
 
         {{ ns.lines | join('\n') }}
 
-  # Steg 3 - Bygg liste: digitale batterisensorer (og ignore)
   - alias: "Steg 3 - Bygg digital batteriliste (binary_sensor)"
     variables:
       low_list_digital: |-
@@ -250,7 +248,6 @@ action:
           {{ ns.lines | join('\n') }}
         {%- endif -%}
 
-  # Steg 4 - Fjern duplikater: ikke vis digital hvis navnet allerede finnes i prosent/n/a-lista
   - alias: "Steg 4 - Fjern duplikater (digital vs prosent/n/a)"
     variables:
       low_list_digital_nodup: >-
@@ -285,18 +282,55 @@ action:
 
         {{ ns.lines | join('\n') }}
 
-  # Steg 5 - Bygg én samlet melding
+  - alias: "Steg 5A - Rydd bort meningsløse linjer før melding"
+    variables:
+      low_list_percent_and_na_clean: >-
+        {% set out = namespace(lines=[]) %}
+        {% for line in (low_list_percent_and_na | default('')).split('\n') %}
+          {% set l = line | trim %}
+          {% if l == '' %}
+          {% elif not (l.startswith('- ')) %}
+          {% else %}
+            {% set name = (l
+              | regex_replace('^-\\s*','')
+              | regex_replace('\\s*\\([^)]*\\)\\s*$','')
+              | trim) %}
+            {% if name != '' and (name | lower) != 'battery' %}
+              {% set out.lines = out.lines + [l] %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ out.lines | join('\n') }}
+
+      low_list_digital_clean: >-
+        {% set out = namespace(lines=[]) %}
+        {% for line in (low_list_digital_nodup | default('')).split('\n') %}
+          {% set l = line | trim %}
+          {% if l == '' %}
+          {% elif not (l.startswith('- ')) %}
+          {% else %}
+            {% set name = (l
+              | regex_replace('^-\\s*','')
+              | regex_replace('\\s*\\([^)]*\\)\\s*$','')
+              | trim) %}
+            {% if name != '' and (name | lower) != 'battery' %}
+              {% set out.lines = out.lines + [l] %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ out.lines | join('\n') }}
+
   - alias: "Steg 5 - Bygg samlet melding (analog + digital)"
     variables:
       combined_message: >-
         {% set parts = namespace(lines=[]) %}
 
-        {% if (low_list_percent_and_na | trim) != '' %}
-          {% set parts.lines = parts.lines + ["*Batteri % under " ~ (threshold | string) ~ "%:*", low_list_percent_and_na, ""] %}
+        {% if (low_list_percent_and_na_clean | trim) != '' %}
+          {% set parts.lines = parts.lines + ["*Batteri % under " ~ (threshold | string) ~ "%:*", low_list_percent_and_na_clean, ""] %}
         {% endif %}
 
-        {% if (low_list_digital_nodup | trim) != '' %}
-          {% set parts.lines = parts.lines + ["*Digital batteri lavt:*", low_list_digital_nodup, ""] %}
+        {% if (low_list_digital_clean | trim) != '' %}
+          {% set parts.lines = parts.lines + ["*Digital batteri lavt:*", low_list_digital_clean, ""] %}
         {% endif %}
 
         {% if debug_on %}
@@ -314,7 +348,6 @@ action:
 
         {{ (parts.lines | join('\n')) | trim }}
 
-  # Steg 6 - Send kun hvis vi faktisk har noe å melde
   - alias: "Steg 6 - Send samlet varsel"
     if:
       - condition: template
