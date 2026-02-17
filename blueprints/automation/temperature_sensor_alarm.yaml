@@ -7,7 +7,7 @@ blueprint:
       - goes 'unknown' for 10 minutes
 
     Blueprint versjon:
-    2026.02.00
+    2026.02.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/temperature_sensor_alarm.yaml.yaml
   author: WebHome
@@ -94,7 +94,7 @@ action:
 
   - service: notify.send_message
     data:
-      title: "🧊 *{{ sensor_name }}*"
+      title: "🧊 *{{ sensor_name }}* 🧊"
       message: >
         {% if trigger.id == 'alarm_1' %}
           Temp over {{ alarm_1_threshold }} °C for 10m.
