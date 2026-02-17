@@ -11,12 +11,12 @@ blueprint:
       - Valgfritt: Valgte wake-up entities går fra unavailable/unknown -> tilgjengelig,
         og har vært stabilt tilgjengelig i X minutter før sjekk.
 
-    Blueprint versjon: 2026.02.00
+    Blueprint versjon: 2026.02.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
   homeassistant:
-    min_version: 2024.10.01
+    min_version: 2024.10.00
 
   input:
     notify_target:
