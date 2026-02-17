@@ -14,7 +14,7 @@ blueprint:
       - Ignore-liste for entities (og valgfri ignore-liste for devices)
       - Filtrerer bort meningsløse linjer som "-  (n/a)" og "-  (Unknown)" samt "Battery (n/a/Unknown)"
 
-    Blueprint versjon: 2026.02.03
+    Blueprint versjon: 2026.02.04
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -70,7 +70,7 @@ blueprint:
 
     check_time:
       name: Tid for planlagt sjekk
-      default: "09:00:00"
+      default: "09:05:00"
       selector:
         time:
 
