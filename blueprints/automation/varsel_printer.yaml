@@ -11,7 +11,7 @@ blueprint:
       - Valgfritt: Valgte wake-up entities går fra unavailable/unknown -> tilgjengelig,
         og har vært stabilt tilgjengelig i X minutter før sjekk.
 
-    Blueprint versjon: 2026.02.04
+    Blueprint versjon: 2026.02.05
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -105,39 +105,40 @@ blueprint:
 
 mode: restart
 
-trigger:
-  - platform: time
+triggers:
+  - trigger: time
     at: !input check_time
     weekday: !input check_weekdays
     id: scheduled_check
 
-  - platform: homeassistant
+  - trigger: homeassistant
     event: start
     id: ha_start
 
-  - platform: state
+  - trigger: state
     entity_id: !input availability_trigger_entities
     from:
       - unavailable
       - unknown
     id: wakeup_available
 
-condition: []
+conditions: []
 
-action:
-  # Steg 1 - Inputs -> variabler
+actions:
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
-      notify_target: !input notify_target
       ink_threshold_percent: !input ink_threshold_percent
       printer_entity_keyword: !input printer_entity_keyword
-      availability_trigger_entities: !input availability_trigger_entities
       wakeup_stable_minutes: !input wakeup_stable_minutes
       notify_on_unavailable: !input notify_on_unavailable
       include_debug_details: !input include_debug_details
-      wakeup_entity_id: "{{ trigger.entity_id if trigger.id == 'wakeup_available' else '' }}"
+      wakeup_entity_id: >-
+        {% if trigger.id == 'wakeup_available' and trigger.entity_id is defined %}
+          {{ trigger.entity_id }}
+        {% else %}
+          {{ '' }}
+        {% endif %}
 
-  # Steg 2 - Hvis wakeup: bekreft at den faktisk er tilgjengelig nå
   - alias: "Steg 2 - Wake-up: bekreft tilgjengelig state"
     if:
       - condition: template
@@ -147,19 +148,15 @@ action:
         value_template: >
           {{ trigger.to_state is not none and trigger.to_state.state not in ['unavailable','unknown'] }}
 
-  # Steg 3 - Wake-up: vent til stabil online i X minutter
+  # Viktig: bruk wait_template (ikke templated entity_id i wait_for_trigger)
   - alias: "Steg 3 - Wake-up: vent på stabil online"
     if:
       - condition: template
         value_template: "{{ trigger.id == 'wakeup_available' and (wakeup_stable_minutes | int(0)) > 0 }}"
     then:
       - alias: "Steg 3A - Vent X min, men avbryt hvis den blir unavailable/unknown"
-        wait_for_trigger:
-          - platform: state
-            entity_id: "{{ wakeup_entity_id }}"
-            to:
-              - unavailable
-              - unknown
+        wait_template: >
+          {{ states(wakeup_entity_id) in ['unavailable','unknown'] }}
         timeout:
           minutes: "{{ wakeup_stable_minutes | int(0) }}"
         continue_on_timeout: true
@@ -167,16 +164,14 @@ action:
       - alias: "Steg 3B - Hvis den gikk offline før timeout: stopp"
         if:
           - condition: template
-            value_template: "{{ wait.trigger is not none }}"
+            value_template: "{{ wait.completed }}"
         then:
           - stop: "Wake-up entity ble utilgjengelig før stabilitetstiden var ferdig."
 
-  # Steg 4 - Liten ekstra ventetid (gir printer tid til å oppdatere blekk %)
-  - alias: "Steg 4 - Kort ekstra ventetid"
+  - alias: "Steg 4 - Kort ekstra ventetid (blekk % rekker å oppdatere)"
     delay:
       seconds: 10
 
-  # Steg 5 - Auto-finn blekk/toner-sensorer
   - alias: "Steg 5 - Auto-finn blekk/toner-sensorer"
     variables:
       ink_entities_json: >-
@@ -193,20 +188,18 @@ action:
             {% set uom = state_attr(eid,'unit_of_measurement') or '' %}
             {% set st = states(eid) %}
             {% set is_num = st | is_number %}
-            {% set val = st | float(999) if is_num else 999 %}
+            {% set val = (st | float(999)) if is_num else 999 %}
 
-            {# Treffer på ink/toner-ord i entity_id eller navn #}
-            {% set hit = false %}
+            {% set hit = namespace(v=false) %}
             {% for w in ink_words %}
               {% if w in eid_l or w in name_l %}
-                {% set hit = true %}
+                {% set hit.v = true %}
               {% endif %}
             {% endfor %}
 
-            {# Godta hvis: hit + (uom prosent OR numerisk 0-100) #}
             {% set looks_percent = (uom in ['%','％']) or (is_num and 0 <= val <= 100) %}
 
-            {% if hit and looks_percent and ('status' not in eid_l) %}
+            {% if hit.v and looks_percent and ('status' not in eid_l) %}
               {% set ns.ids = ns.ids + [eid] %}
             {% endif %}
           {% endif %}
@@ -218,7 +211,6 @@ action:
     variables:
       ink_entities: "{{ ink_entities_json | from_json }}"
 
-  # Steg 7 - Auto-finn status-sensor(er) (valgfritt)
   - alias: "Steg 7 - Auto-finn status-sensorer"
     variables:
       status_entities_json: >-
@@ -241,7 +233,6 @@ action:
     variables:
       status_entities: "{{ status_entities_json | from_json }}"
 
-  # Steg 9 - Bygg rapport
   - alias: "Steg 9 - Bygg rapport og avgjør om vi skal varsle"
     variables:
       report_json: >-
@@ -282,7 +273,6 @@ action:
 
           {% set p = ns.printers[key] %}
 
-          {# 9B.1: Farge/navn #}
           {% set name_l = friendly | lower %}
           {% set eid_l = eid | lower %}
 
@@ -306,7 +296,6 @@ action:
               | trim) %}
           {% endif %}
 
-          {# 9B.2: Verdi -> low / n/a #}
           {% set st = states(eid) %}
           {% if st | is_number %}
             {% set val = st | float(999) %}
