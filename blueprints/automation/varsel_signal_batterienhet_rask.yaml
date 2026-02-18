@@ -39,7 +39,7 @@ blueprint:
     og last_seen_threshold til 20 minutter, justeres logikken automatisk til å kun rapportere enheter
     sett mellom 20 minutter og 120 minutter siden.
 
-    Blueprint versjon: 2026.02.02
+    Blueprint versjon: 2026.02.03
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet_rask.yaml
@@ -59,20 +59,26 @@ blueprint:
       name: Minimum tid før enhet anses som foreldet
       description: >
         Minimum tid siden sist signal før enheten rapporteres.
-        Standard: 15 minutter. Dette er nedre grense for varsel-vinduet.
+        Standard: 2 timer. Dette er nedre grense for varsel-vinduet.
+        
+        Kan reduseres til 15 minutter hvis du kun har enheter som responderer raskt.
+        NB: Shelly WiFi-temperatursensorer responderer noen ganger ikke på 1-2 timer.
       default:
-        minutes: 15
+        hours: 2
       selector:
         duration:
 
     check_interval:
       name: Sjekkfrekvens
       description: >
-        Hvor ofte automatiseringen kjører. Standard: 1 time.
+        Hvor ofte automatiseringen kjører. Standard: 4 timer.
         Dette er øvre grense for varsel-vinduet.
         Må være større enn last_seen_threshold for å fungere riktig.
+        
+        Kan reduseres til 1 time hvis du kun har enheter som responderer raskt.
+        NB: Shelly WiFi-temperatursensorer responderer noen ganger ikke på 1-2 timer.
       default:
-        hours: 1
+        hours: 4
       selector:
         duration:
 
@@ -202,16 +208,16 @@ action:
 
             {# navn + dedupe-nøkkel (samme stil som tidligere) #}
             {%- set base = s.name
-                | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
+                | regex_replace('(?i)(?:\s|^)(battery|batteri|level)(?:\s|$)', ' ')
                 | replace(' Battery+', '')
-                | regex_replace('\\s{2,}', ' ')
-                | regex_replace('\\s*\\+\\s*$', '')
+                | regex_replace('\s{2,}', ' ')
+                | regex_replace('\s*\+\s*$', '')
                 | trim -%}
 
             {%- set norm = base
                 | lower
-                | regex_replace('[^\\w\\s:]', '')
-                | regex_replace('\\s{2,}', ' ')
+                | regex_replace('[^\w\s:]', '')
+                | regex_replace('\s{2,}', ' ')
                 | trim -%}
 
             {# Finn ts for device (nyeste aktivitet) #}
@@ -300,19 +306,19 @@ action:
 
             {# navn (samme stil som dine digitale) #}
             {%- set base = b.name
-                | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
-                | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
-                | regex_replace('(?i)\\bbattery\\b:?',' ')
-                | regex_replace('(?i)\\bbatteri\\b:?',' ')
-                | regex_replace('\\s*\\+\\s*$','')
-                | regex_replace('\\s*:\\s*$','')
-                | regex_replace('\\s{2,}',' ')
+                | regex_replace('(?i)\bbattery\s*low\b:?',' ')
+                | regex_replace('(?i)\bbatteri\s*lav\b:?',' ')
+                | regex_replace('(?i)\bbattery\b:?',' ')
+                | regex_replace('(?i)\bbatteri\b:?',' ')
+                | regex_replace('\s*\+\s*$','')
+                | regex_replace('\s*:\s*$','')
+                | regex_replace('\s{2,}',' ')
                 | trim -%}
 
             {%- set norm = base
                 | lower
-                | regex_replace('[^\\w\\s:]', '')
-                | regex_replace('\\s{2,}', ' ')
+                | regex_replace('[^\w\s:]', '')
+                | regex_replace('\s{2,}', ' ')
                 | trim -%}
 
             {# Finn ts for device (nyeste aktivitet) #}
@@ -427,7 +433,7 @@ action:
           {% else %}
             {% set name = (l
               | regex_replace('^-\\s*','')
-              | regex_replace('\\s*\\(.*$','')
+              | regex_replace('\s*\(.*$','')
               | trim) %}
             {% if name != '' and (name | lower) != 'battery' %}
               {% set out.lines = out.lines + [l] %}
