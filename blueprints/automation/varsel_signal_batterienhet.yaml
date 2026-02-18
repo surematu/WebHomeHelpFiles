@@ -21,7 +21,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.02.02
+    Blueprint versjon: 2026.02.03
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
