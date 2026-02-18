@@ -1,0 +1,482 @@
+blueprint:
+  name: Varsel - Batteri-enheter rask sjekk (WebHome)
+  description: >
+    Rask intervalltjekk for batteri-enheter uten signal.
+    
+    Denne blueprinten kjører med korte intervaller (standard: hver time) og rapporterer kun enheter
+    som nylig har falt utenfor kontakt, ved å bruke et smart varsel-vindu:
+    
+    Varsler kun når:
+      - last_seen_age >= last_seen_threshold OG
+      - last_seen_age < check_interval
+    
+    Eksempel med 1 times intervall og 15 minutters terskel:
+      - Enhet sett for 5 minutter siden → Ikke rapportert (under terskel)
+      - Enhet sett for 20 minutter siden → Rapportert (i varsel-vindu)
+      - Enhet sett for 60+ minutter siden → Ikke rapportert (ville blitt rapportert forrige time)
+    
+    Eksempel med 2 timers intervall og 30 minutters terskel:
+      - Enhet sett for 20 minutter siden → Ikke rapportert (under terskel)
+      - Enhet sett for 45 minutter siden → Rapportert (i varsel-vindu)
+      - Enhet sett for 120+ minutter siden → Ikke rapportert (ville blitt rapportert forrige sjekk)
+
+    Slik finner vi "sist sett" (mest robust):
+      - Vi tar NYESTE tidspunkt på hele device-et ved å se på alle entities på samme device:
+        * state_attr(entity,'last_seen') hvis finnes
+        * entity_id som inneholder "last_seen" (og parsbar timestamp i state)
+        * ellers fallback: entity.last_updated
+      -> Dette gjør at BLE/Zigbee-enheter som oppdaterer f.eks. "Signal Strength" ofte,
+         ikke feilaktig flagges bare fordi batteri-% ikke endrer seg.
+
+    Overvåker:
+      - sensor.* med device_class: battery
+      - binary_sensor.* med device_class: battery
+
+    Format:
+      - "- Navn (5h 39m)" (ingen batteri % og ingen signal)
+
+    Alle terskel- og intervallverdier er fullt dynamiske - hvis du setter check_interval til 2 timer
+    og last_seen_threshold til 20 minutter, justeres logikken automatisk til å kun rapportere enheter
+    sett mellom 20 minutter og 120 minutter siden.
+
+    Blueprint versjon: 2026.02.18
+  domain: automation
+  author: WebHome
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet_fast.yaml
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    notify_target:
+      name: Send varsel til
+      description: Velg én eller flere notify-tjenester
+      selector:
+        entity:
+          domain: notify
+          multiple: true
+
+    last_seen_threshold:
+      name: Minimum tid før enhet anses som foreldet
+      description: >
+        Minimum tid siden sist signal før enheten rapporteres.
+        Standard: 15 minutter. Dette er nedre grense for varsel-vinduet.
+      default:
+        minutes: 15
+      selector:
+        duration:
+
+    check_interval:
+      name: Sjekkfrekvens
+      description: >
+        Hvor ofte automatiseringen kjører. Standard: 1 time.
+        Dette er øvre grense for varsel-vinduet.
+        Må være større enn last_seen_threshold for å fungere riktig.
+      default:
+        hours: 1
+      selector:
+        duration:
+
+    include_unavailable:
+      name: Ta med unknown/unavailable i varsel
+      description: >
+        Hvis på: enheter der batteri-entity er unknown/unavailable blir også listet.
+        Hvis du får støy, sett denne til av.
+      default: true
+      selector:
+        boolean:
+
+    ignore_entities:
+      name: Ignorer entities (valgfritt)
+      description: Velg entities du vil skjule fra rapporten.
+      default: []
+      selector:
+        entity:
+          multiple: true
+
+    ignore_devices:
+      name: Ignorer devices (valgfritt)
+      description: Velg devices du vil skjule (skjuler alle batteri-entities knyttet til device).
+      default: []
+      selector:
+        device:
+          multiple: true
+
+    include_debug_details:
+      name: Legg til debug-detaljer i varselet
+      default: false
+      selector:
+        boolean:
+
+mode: restart
+
+trigger:
+  - platform: time_pattern
+    hours: /1
+    id: hourly_check
+
+condition: []
+
+action:
+  # Steg 1 - Inputs -> tydelige variabler
+  - alias: "Steg 1 - Sett grunnvariabler"
+    variables:
+      last_seen_threshold: !input last_seen_threshold
+      check_interval: !input check_interval
+      include_unavailable: !input include_unavailable
+      ignore_entities: !input ignore_entities
+      ignore_devices: !input ignore_devices
+      debug_on: !input include_debug_details
+
+      # Bygg terskel i sekunder (minimum tid før rapportering)
+      threshold_seconds: >-
+        {% set d = last_seen_threshold %}
+        {{ (d.get('days',0)|int * 86400)
+         + (d.get('hours',0)|int * 3600)
+         + (d.get('minutes',0)|int * 60)
+         + (d.get('seconds',0)|int) }}
+      
+      # Bygg intervall i sekunder (hvor ofte sjekk kjører)
+      interval_seconds: >-
+        {% set d = check_interval %}
+        {{ (d.get('days',0)|int * 86400)
+         + (d.get('hours',0)|int * 3600)
+         + (d.get('minutes',0)|int * 60)
+         + (d.get('seconds',0)|int) }}
+
+      # Labels for header
+      threshold_label: >-
+        {% set d = last_seen_threshold %}
+        {% set days = d.get('days',0)|int %}
+        {% set hours = d.get('hours',0)|int %}
+        {% set mins = d.get('minutes',0)|int %}
+        {% set secs = d.get('seconds',0)|int %}
+        {% set parts = namespace(p=[]) %}
+        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
+        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
+        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
+        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
+        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
+
+      interval_label: >-
+        {% set d = check_interval %}
+        {% set days = d.get('days',0)|int %}
+        {% set hours = d.get('hours',0)|int %}
+        {% set mins = d.get('minutes',0)|int %}
+        {% set secs = d.get('seconds',0)|int %}
+        {% set parts = namespace(p=[]) %}
+        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
+        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
+        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
+        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
+        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
+
+  # Steg 2 - Finn batteri-enheter i varsel-vinduet (rå)
+  - alias: "Steg 2 - Finn batteri-enheter i varsel-vinduet (rå)"
+    variables:
+      stale_list_raw: |-
+        {%- set threshold_s = (threshold_seconds | int(0)) -%}
+        {%- set interval_s = (interval_seconds | int(0)) -%}
+        {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+        {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+        {%- set ns = namespace(map={}, lines=[]) -%}
+
+        {# -------------------------------------------------
+           Hjelper: finn "nyeste aktivitet" for et device_id.
+           Vi tar max av:
+             - last_seen-attributt (hvis finnes)
+             - *last_seen*-sensorer (timestamp i state)
+             - last_updated på alle entities på device
+           ------------------------------------------------- #}
+
+        {# ===== 2A: sensor battery ===== #}
+        {%- for s in states.sensor
+              | selectattr('attributes.device_class','defined')
+              | selectattr('attributes.device_class','eq','battery') -%}
+
+          {%- set eid = s.entity_id -%}
+          {%- set did = device_id(eid) -%}
+
+          {%- if eid in ignore_e or (did and did in ignore_d) -%}
+            {# ignorert #}
+          {%- else -%}
+
+            {# navn + dedupe-nøkkel (samme stil som tidligere) #}
+            {%- set base = s.name
+                | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
+                | replace(' Battery+', '')
+                | regex_replace('\\s{2,}', ' ')
+                | regex_replace('\\s*\\+\\s*$', '')
+                | trim -%}
+
+            {%- set norm = base
+                | lower
+                | regex_replace('[^\\w\\s:]', '')
+                | regex_replace('\\s{2,}', ' ')
+                | trim -%}
+
+            {# Finn ts for device (nyeste aktivitet) #}
+            {%- set found = namespace(ts=0) -%}
+            {%- if did -%}
+              {%- for ent in device_entities(did) -%}
+                {%- set st_obj = states[ent] -%}
+                {%- if st_obj is not none -%}
+
+                  {# A) last_updated #}
+                  {%- set t_upd = as_timestamp(st_obj.last_updated, default=0) | float(0) -%}
+                  {%- if t_upd > found.ts -%}{%- set found.ts = t_upd -%}{%- endif -%}
+
+                  {# B) last_seen-attributt #}
+                  {%- set ls = state_attr(ent,'last_seen') -%}
+                  {%- if ls is not none -%}
+                    {%- set t_ls = as_timestamp(ls, default=0) | float(0) -%}
+                    {%- if t_ls > found.ts -%}{%- set found.ts = t_ls -%}{%- endif -%}
+                  {%- endif -%}
+
+                  {# C) last_seen-sensor med timestamp i state #}
+                  {%- if 'last_seen' in (ent | lower) -%}
+                    {%- set t2 = as_timestamp(states(ent), default=0) | float(0) -%}
+                    {%- if t2 > found.ts -%}{%- set found.ts = t2 -%}{%- endif -%}
+                  {%- endif -%}
+
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endif -%}
+
+            {%- set ts = found.ts | float(0) -%}
+            {%- if ts == 0 -%}
+              {%- set ts = as_timestamp(s.last_updated, default=0) | float(0) -%}
+            {%- endif -%}
+
+            {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+            {%- set st = s.state -%}
+            {%- set is_unavail = st in ['unknown','unavailable'] -%}
+            
+            {# Smart alert window: age_s >= threshold_s AND age_s < interval_s #}
+            {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+
+            {%- if (in_alert_window) or (include_unavailable and is_unavail) -%}
+
+              {# dedupe: behold verste (eldst), og la unavail "vinne" #}
+              {%- if norm != '' -%}
+                {%- set keep = false -%}
+                {%- if norm not in ns.map -%}
+                  {%- set keep = true -%}
+                {%- else -%}
+                  {%- set cur = ns.map[norm] -%}
+                  {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
+                  {%- if is_unavail and not cur_unavail -%}
+                    {%- set keep = true -%}
+                  {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                    {%- set keep = true -%}
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- if keep -%}
+                  {%- set ns.map = dict(ns.map, **{
+                    norm: {
+                      'base': base,
+                      'age_s': age_s,
+                      'state': st
+                    }
+                  }) -%}
+                {%- endif -%}
+              {%- endif -%}
+
+            {%- endif -%}
+
+          {%- endif -%}
+        {%- endfor -%}
+
+        {# ===== 2B: binary_sensor battery ===== #}
+        {%- for b in states.binary_sensor
+              | selectattr('attributes.device_class','eq','battery') -%}
+
+          {%- set eid = b.entity_id -%}
+          {%- set did = device_id(eid) -%}
+
+          {%- if eid in ignore_e or (did and did in ignore_d) -%}
+            {# ignorert #}
+          {%- else -%}
+
+            {# navn (samme stil som dine digitale) #}
+            {%- set base = b.name
+                | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
+                | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
+                | regex_replace('(?i)\\bbattery\\b:?',' ')
+                | regex_replace('(?i)\\bbatteri\\b:?',' ')
+                | regex_replace('\\s*\\+\\s*$','')
+                | regex_replace('\\s*:\\s*$','')
+                | regex_replace('\\s{2,}',' ')
+                | trim -%}
+
+            {%- set norm = base
+                | lower
+                | regex_replace('[^\\w\\s:]', '')
+                | regex_replace('\\s{2,}', ' ')
+                | trim -%}
+
+            {# Finn ts for device (nyeste aktivitet) #}
+            {%- set found = namespace(ts=0) -%}
+            {%- if did -%}
+              {%- for ent in device_entities(did) -%}
+                {%- set st_obj = states[ent] -%}
+                {%- if st_obj is not none -%}
+
+                  {# A) last_updated #}
+                  {%- set t_upd = as_timestamp(st_obj.last_updated, default=0) | float(0) -%}
+                  {%- if t_upd > found.ts -%}{%- set found.ts = t_upd -%}{%- endif -%}
+
+                  {# B) last_seen-attributt #}
+                  {%- set ls = state_attr(ent,'last_seen') -%}
+                  {%- if ls is not none -%}
+                    {%- set t_ls = as_timestamp(ls, default=0) | float(0) -%}
+                    {%- if t_ls > found.ts -%}{%- set found.ts = t_ls -%}{%- endif -%}
+                  {%- endif -%}
+
+                  {# C) last_seen-sensor med timestamp i state #}
+                  {%- if 'last_seen' in (ent | lower) -%}
+                    {%- set t2 = as_timestamp(states(ent), default=0) | float(0) -%}
+                    {%- if t2 > found.ts -%}{%- set found.ts = t2 -%}{%- endif -%}
+                  {%- endif -%}
+
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endif -%}
+
+            {%- set ts = found.ts | float(0) -%}
+            {%- if ts == 0 -%}
+              {%- set ts = as_timestamp(b.last_updated, default=0) | float(0) -%}
+            {%- endif -%}
+
+            {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+            {%- set st = b.state -%}
+            {%- set is_unavail = st in ['unknown','unavailable'] -%}
+            
+            {# Smart alert window: age_s >= threshold_s AND age_s < interval_s #}
+            {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+
+            {%- if (in_alert_window) or (include_unavailable and is_unavail) -%}
+
+              {# dedupe: behold verste (eldst), og la unavail "vinne" #}
+              {%- if norm != '' -%}
+                {%- set keep = false -%}
+                {%- if norm not in ns.map -%}
+                  {%- set keep = true -%}
+                {%- else -%}
+                  {%- set cur = ns.map[norm] -%}
+                  {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
+                  {%- if is_unavail and not cur_unavail -%}
+                    {%- set keep = true -%}
+                  {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                    {%- set keep = true -%}
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- if keep -%}
+                  {%- set ns.map = dict(ns.map, **{
+                    norm: {
+                      'base': base,
+                      'age_s': age_s,
+                      'state': st
+                    }
+                  }) -%}
+                {%- endif -%}
+              {%- endif -%}
+
+            {%- endif -%}
+
+          {%- endif -%}
+        {%- endfor -%}
+
+        {# ===== 2C: Render sortert (eldst først) ===== #}
+        {%- set items = namespace(lst=[]) -%}
+        {%- for norm, it in ns.map.items() -%}
+          {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string)] -%}
+        {%- endfor -%}
+
+        {%- for age_s, base in (items.lst | sort(reverse=true)) -%}
+          {%- set d = (age_s // 86400) | int(0) -%}
+          {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
+          {%- set m = ((age_s % 3600) // 60) | int(0) -%}
+
+          {%- if d > 0 -%}
+            {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
+          {%- elif h > 0 -%}
+            {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
+          {%- elif m > 0 -%}
+            {%- set age_txt = m|string ~ 'm' -%}
+          {%- else -%}
+            {%- set s = (age_s % 60) | int(0) -%}
+            {%- set age_txt = s|string ~ 's' -%}
+          {%- endif -%}
+
+          {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ age_txt ~ ')'] -%}
+        {%- endfor -%}
+
+        {{ ns.lines | join('\n') }}
+
+  # Steg 3 - Rydd bort meningsløse linjer (tomt navn og "Battery")
+  - alias: "Steg 3 - Rydd bort meningsløse linjer"
+    variables:
+      stale_list_clean: >-
+        {% set out = namespace(lines=[]) %}
+        {% for line in (stale_list_raw | default('')).split('\n') %}
+          {% set l = line | trim %}
+          {% if l == '' %}
+          {% elif not l.startswith('- ') %}
+          {% else %}
+            {% set name = (l
+              | regex_replace('^-\\s*','')
+              | regex_replace('\\s*\\(.*$','')
+              | trim) %}
+            {% if name != '' and (name | lower) != 'battery' %}
+              {% set out.lines = out.lines + [l] %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ out.lines | join('\n') }}
+
+  # Steg 4 - Bygg endelig melding
+  - alias: "Steg 4 - Bygg endelig melding"
+    variables:
+      combined_message: >-
+        {% set parts = namespace(lines=[]) %}
+
+        {% if (stale_list_clean | trim) != '' %}
+          {% set parts.lines = parts.lines + [
+            "*Batteri-enheter uten signal (terskel: " ~ (threshold_label | string) ~ ", intervall: " ~ (interval_label | string) ~ "):*",
+            stale_list_clean,
+            ""
+          ] %}
+        {% endif %}
+
+        {% if debug_on %}
+          {% set parts.lines = parts.lines + [
+            "---",
+            "Debug:",
+            "- trigger: " ~ trigger.id,
+            "- threshold: " ~ (threshold_label | string),
+            "- threshold_seconds: " ~ (threshold_seconds | string),
+            "- interval: " ~ (interval_label | string),
+            "- interval_seconds: " ~ (interval_seconds | string),
+            "- alert_window: " ~ (threshold_label | string) ~ " to " ~ (interval_label | string),
+            "- include_unavailable: " ~ (include_unavailable | string),
+            "- ignored_entities: " ~ ((ignore_entities | count) | string),
+            "- ignored_devices: " ~ ((ignore_devices | count) | string)
+          ] %}
+        {% endif %}
+
+        {{ (parts.lines | join('\n')) | trim }}
+
+  # Steg 5 - Send varsel hvis vi har noe å melde
+  - alias: "Steg 5 - Send varsel"
+    if:
+      - condition: template
+        value_template: "{{ combined_message | trim != '' }}"
+    then:
+      - action: notify.send_message
+        data:
+          title: "🟠 *Batteri-enheter tapte signal*"
+          message: "{{ combined_message }}"
+        target:
+          entity_id: !input notify_target
