@@ -88,11 +88,6 @@ blueprint:
           step: 1
           unit_of_measurement: "min"
 
-    notify_on_unavailable:
-      name: Inkluder unavailable/unknown i varsel
-      default: false
-      description: "Always false - unavailable/unknown entities are never included"
-
     include_debug_details:
       name: Legg til debug-detaljer i varselet
       default: false
