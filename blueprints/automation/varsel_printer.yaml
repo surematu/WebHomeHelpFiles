@@ -401,7 +401,8 @@ action:
         {% set base = report.message | default('') %}
         {% if debug_on %}
           {% set d = report.debug %}
-          {{ base ~ "\n\n---\nDebug:\n- trigger: " ~ (d.trigger_id | default('')) ~ "\n- trigger_entity: " ~ (d.trigger_entity | default('')) ~ "\n- matched_ink: " ~ (d.matched_ink | default(0)) ~ "\n[...]"
+          {% set debug_text = "\n\n---\nDebug:\n- trigger: " ~ (d.trigger_id | default('')) ~ "\n- trigger_entity: " ~ (d.trigger_entity | default('')) ~ "\n- matched_ink: " ~ (d.matched_ink | default(0)) %}
+          {{ base ~ debug_text }}
         {% else %}
           {{ base }}
         {% endif %}
