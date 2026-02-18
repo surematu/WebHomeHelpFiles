@@ -376,6 +376,7 @@ action:
           "message": (out.lines | join('\n')) | trim,
           "total_low_count": total_low.count,
           "total_na_count": total_na.count,
+          "total_ink_count": ns.matched_ink,
           "debug": {
             "trigger_id": (trigger.id | default('', true) | string),
             "trigger_entity": ((trigger.entity_id | default('', true)) | string),
@@ -402,7 +403,8 @@ action:
           {% set is_scheduled = (trigger.id | default('') == 'scheduled_check') %}
           {% set low_count = report.total_low_count | default(0) %}
           {% set na_count = report.total_na_count | default(0) %}
-          {{ is_scheduled and (na_count > 0) and (low_count == 0) }}
+          {% set ink_count = report.total_ink_count | default(0) %}
+          {{ is_scheduled and (ink_count > 0) and (na_count == ink_count) and (low_count == 0) }}
     then:
       - stop: "Scheduled check: Alle blekk/toner sensorer er N/A (printer offline/unavailable). Hopper over varsling."
 
