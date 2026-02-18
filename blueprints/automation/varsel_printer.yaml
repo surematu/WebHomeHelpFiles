@@ -11,7 +11,7 @@ blueprint:
       - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.02.9
+    Blueprint versjon: 2026.02.18
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -307,7 +307,8 @@ action:
               {% endif %}
             {% endif %}
           {% else %}
-            {% if include_na and st in ['unavailable','unknown'] %}
+            {% set is_scheduled = (trigger.id | default('') == 'scheduled_check') %}
+            {% if include_na and st in ['unavailable','unknown'] and not is_scheduled %}
               {% set na_map = p.na %}
               {% if color_norm not in na_map %}
                 {% set na_map2 = dict(na_map, **{color_norm: (color_label | string)}) %}
@@ -396,23 +397,11 @@ action:
           {{ report_raw }}
         {% endif %}
 
-  - alias: "Steg 10 - Skip hvis scheduled_check og alle blekk er N/A (printer offline)"
-    if:
-      - condition: template
-        value_template: >-
-          {% set is_scheduled = (trigger.id | default('') == 'scheduled_check') %}
-          {% set low_count = report.total_low_count | default(0) %}
-          {% set na_count = report.total_na_count | default(0) %}
-          {% set ink_count = report.total_ink_count | default(0) %}
-          {{ is_scheduled and (ink_count > 0) and (na_count == ink_count) and (low_count == 0) }}
-    then:
-      - stop: "Scheduled check: Alle blekk/toner sensorer er N/A (printer offline/unavailable). Hopper over varsling."
-
-  - alias: "Steg 11 - Sjekk om vi skal varsle"
+  - alias: "Steg 10 - Sjekk om vi skal varsle"
     condition: template
     value_template: "{{ report.notify | default(false) }}"
 
-  - alias: "Steg 12 - Bygg endelig meldingstekst"
+  - alias: "Steg 11 - Bygg endelig meldingstekst"
     variables:
       final_message: >-
         {% set base = report.message | default('') %}
@@ -423,7 +412,7 @@ action:
           {{ base }}
         {% endif %}
 
-  - alias: "Steg 13 - Send varsel"
+  - alias: "Steg 12 - Send varsel"
     action: notify.send_message
     data:
       title: "{{ report.title | default('🟠 *Printer – Blekk/Toner*') }}"
