@@ -1,4 +1,8 @@
-# Yaml configuration for VarSel Printer
-
-# Updated Blueprint version
-Blueprint versjon: 2026.2.12
+blueprint:
+  version: 2026.2.12
+  description: Example blueprint
+  steps:
+    - setup: 
+        command: echo Setting up
+    - deploy:
+        command: echo Deploying
