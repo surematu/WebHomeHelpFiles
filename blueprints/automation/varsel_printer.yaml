@@ -80,7 +80,7 @@ blueprint:
       description: >
         Når wake-up entity blir tilgjengelig: vent dette antallet minutter før blekk-sjekk.
         Med mode: restart vil blafring føre til at ventetiden starter på nytt.
-      default: 10
+      default: 5
       selector:
         number:
           min: 0
@@ -89,10 +89,9 @@ blueprint:
           unit_of_measurement: "min"
 
     notify_on_unavailable:
-      name: Inkluder unavailable/unknown i varsel (n/a)
-      default: true
-      selector:
-        boolean:
+      name: Inkluder unavailable/unknown i varsel
+      default: false
+      description: "Always false - unavailable/unknown entities are never included"
 
     include_debug_details:
       name: Legg til debug-detaljer i varselet
@@ -127,7 +126,7 @@ action:
       threshold: !input ink_threshold_percent
       kw: !input printer_entity_keyword
       stable_minutes: !input wakeup_stable_minutes
-      include_na: !input notify_on_unavailable
+      include_na: false
       debug_on: !input include_debug_details
 
   - alias: "Steg 2 - Wake-up: vent på stabil drift"
@@ -148,7 +147,7 @@ action:
 
   - alias: "Steg 3 - Kort ekstra ventetid (blekk % rekker å oppdatere)"
     delay:
-      seconds: 10
+      seconds: 5
 
   - alias: "Steg 4 - Finn blekk/toner-sensorer (rått)"
     variables:
@@ -287,8 +286,8 @@ action:
           {% else %}
             {% set color_norm = eid_l %}
             {% set color_label = (friendly
-              | regex_replace('(?i)\\b(printer|blekk|ink|toner|cartridge|kartusj|gjenvaerende|gjenstående|gjenstar|igjen|remaining|level|nivå|prosent|percent|status)\\b',' ')
-              | regex_replace('\\s{2,}',' ')
+              | regex_replace('(?i)\b(printer|blekk|ink|toner|cartridge|kartusj|gjenvaerende|gjenstående|gjenstar|igjen|remaining|level|nivå|prosent|percent|status)\b',' ')
+              | regex_replace('\s{2,}',' ')
               | trim) %}
             {% if color_label | trim == '' %}
               {% set color_label = 'Ukjent' %}
@@ -308,7 +307,7 @@ action:
             {% endif %}
           {% else %}
             {% set is_scheduled = (trigger.id | default('') == 'scheduled_check') %}
-            {% if include_na and st in ['unavailable','unknown'] and not is_scheduled %}
+            {% if false and st in ['unavailable','unknown'] and not is_scheduled %}
               {% set na_map = p.na %}
               {% if color_norm not in na_map %}
                 {% set na_map2 = dict(na_map, **{color_norm: (color_label | string)}) %}
@@ -407,7 +406,7 @@ action:
         {% set base = report.message | default('') %}
         {% if debug_on %}
           {% set d = report.debug %}
-          {{ base ~ "\n\n---\nDebug:\n- trigger: " ~ (d.trigger_id | default('')) ~ "\n- trigger_entity: " ~ (d.trigger_entity | default('')) ~ "\n- matched_ink: " ~ (d.matched_ink | default(0)) ~ "\n- matched_status: " ~ (d.matched_status | default(0)) ~ "\n- ink_count: " ~ (d.ink_count | default(0)) ~ "\n- status_count: " ~ (d.status_count | default(0)) }}
+          {{ base ~ "\n\n---\nDebug:\n- trigger: " ~ (d.trigger_id | default('')) ~ "\n- trigger_entity: " ~ (d.trigger_entity | default('')) ~ "\n- matched_ink: " ~ (d.matched_ink | default(0)) ~ "\n[...]"
         {% else %}
           {{ base }}
         {% endif %}
