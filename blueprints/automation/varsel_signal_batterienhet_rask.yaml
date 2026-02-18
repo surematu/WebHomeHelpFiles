@@ -254,7 +254,7 @@ action:
             {# Smart alert window: age_s >= threshold_s AND age_s < interval_s #}
             {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
 
-            {%- if (in_alert_window) or (include_unavailable and is_unavail) -%}
+            {%- if (in_alert_window) or (include_unavailable and is_unavail and age_s < interval_s) -%}
 
               {# dedupe: behold verste (eldst), og la unavail "vinne" #}
               {%- if norm != '' -%}
@@ -355,7 +355,7 @@ action:
             {# Smart alert window: age_s >= threshold_s AND age_s < interval_s #}
             {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
 
-            {%- if (in_alert_window) or (include_unavailable and is_unavail) -%}
+            {%- if (in_alert_window) or (include_unavailable and is_unavail and age_s < interval_s) -%}
 
               {# dedupe: behold verste (eldst), og la unavail "vinne" #}
               {%- if norm != '' -%}
