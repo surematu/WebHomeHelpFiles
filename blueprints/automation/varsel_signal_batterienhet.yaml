@@ -21,7 +21,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.02.02
+    Blueprint versjon: 2026.02.03
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -382,8 +382,11 @@ action:
             {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
           {%- elif h > 0 -%}
             {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
-          {%- else -%}
+          {%- elif m > 0 -%}
             {%- set age_txt = m|string ~ 'm' -%}
+          {%- else -%}
+            {%- set s = (age_s % 60) | int(0) -%}
+            {%- set age_txt = s|string ~ 's' -%}
           {%- endif -%}
 
           {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ age_txt ~ ')'] -%}
