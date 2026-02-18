@@ -1,5 +1,5 @@
 blueprint:
-  name: Varmepumpe – pådrag til settpunkt, med min-pådrag og valgfri vifteboost (WebHome)
+  name: Varmepumpe (Rom) Robot (WebHome)
   description: >
     Regulerer varmepumpe-settpunkt lineært mellom:
       - Offset ved 0% pådrag (default -3°C fra basis)
@@ -15,7 +15,7 @@ blueprint:
 
     Vifte-logikk styres av tekstinput: 0 = ingen vifteregulering, 1 = vifte boost.
 
-    Blueprint versjon: 2026.02.05
+    Blueprint versjon: 2026.02.06
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
