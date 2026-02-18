@@ -11,7 +11,7 @@ blueprint:
       - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.02.8
+    Blueprint versjon: 2026.02.9
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -362,10 +362,21 @@ action:
         {% set title_name = (out.problem_names[0] if (out.problem_names | count) == 1 else 'Printer') %}
         {% set title = "🟠 *" ~ (title_name | string) ~ " – Blekk/Toner (< " ~ (threshold_f | round(0)) ~ "%)*" %}
 
+        {# Count total low and na entries for offline detection #}
+        {% set total_low = namespace(count=0) %}
+        {% set total_na = namespace(count=0) %}
+        {% for k, p in ns.printers.items() %}
+          {% set total_low.count = total_low.count + (p['low'] | count) %}
+          {% set total_na.count = total_na.count + (p['na'] | count) %}
+        {% endfor %}
+
         {{ {
           "notify": notify,
           "title": title,
           "message": (out.lines | join('\n')) | trim,
+          "total_low_count": total_low.count,
+          "total_na_count": total_na.count,
+          "total_ink_count": ns.matched_ink,
           "debug": {
             "trigger_id": (trigger.id | default('', true) | string),
             "trigger_entity": ((trigger.entity_id | default('', true)) | string),
@@ -385,11 +396,23 @@ action:
           {{ report_raw }}
         {% endif %}
 
-  - alias: "Steg 10 - Sjekk om vi skal varsle"
+  - alias: "Steg 10 - Skip hvis scheduled_check og alle blekk er N/A (printer offline)"
+    if:
+      - condition: template
+        value_template: >-
+          {% set is_scheduled = (trigger.id | default('') == 'scheduled_check') %}
+          {% set low_count = report.total_low_count | default(0) %}
+          {% set na_count = report.total_na_count | default(0) %}
+          {% set ink_count = report.total_ink_count | default(0) %}
+          {{ is_scheduled and (ink_count > 0) and (na_count == ink_count) and (low_count == 0) }}
+    then:
+      - stop: "Scheduled check: Alle blekk/toner sensorer er N/A (printer offline/unavailable). Hopper over varsling."
+
+  - alias: "Steg 11 - Sjekk om vi skal varsle"
     condition: template
     value_template: "{{ report.notify | default(false) }}"
 
-  - alias: "Steg 11 - Bygg endelig meldingstekst"
+  - alias: "Steg 12 - Bygg endelig meldingstekst"
     variables:
       final_message: >-
         {% set base = report.message | default('') %}
@@ -400,7 +423,7 @@ action:
           {{ base }}
         {% endif %}
 
-  - alias: "Steg 12 - Send varsel"
+  - alias: "Steg 13 - Send varsel"
     action: notify.send_message
     data:
       title: "{{ report.title | default('🟠 *Printer – Blekk/Toner*') }}"
