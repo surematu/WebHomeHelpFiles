@@ -382,8 +382,11 @@ action:
             {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
           {%- elif h > 0 -%}
             {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
-          {%- else -%}
+          {%- elif m > 0 -%}
             {%- set age_txt = m|string ~ 'm' -%}
+          {%- else -%}
+            {%- set s = (age_s % 60) | int(0) -%}
+            {%- set age_txt = s|string ~ 's' -%}
           {%- endif -%}
 
           {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ age_txt ~ ')'] -%}
