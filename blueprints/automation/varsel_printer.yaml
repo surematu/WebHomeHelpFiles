@@ -7,11 +7,10 @@ blueprint:
 
     Triggere:
       - Planlagt sjekk (default: onsdag 09:00)
-      - Etter HA restart
       - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.2.14
+    Blueprint versjon: 2026.2.15
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -101,10 +100,6 @@ trigger:
     at: !input check_time
     weekday: !input check_weekdays
     id: scheduled_check
-
-  - platform: homeassistant
-    event: start
-    id: ha_start
 
   - platform: state
     entity_id: !input availability_trigger_entities
