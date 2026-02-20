@@ -21,7 +21,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.02.03
+    Blueprint versjon: 2026.02.04
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -40,8 +40,9 @@ blueprint:
     max_age:
       name: Maks tid siden sist signal
       description: >
-        Varsle hvis enhet ikke er sett på mer enn dette.
-        Tips for test: sett til 00:05:00 (5 minutter).
+        Varsle hvis enhet ikke er sett på mer enn dette. (Default 72 timer.)
+        Kan reduseres til 15 minutter hvis du kun har enheter som responderer raskt.
+        NB: Shelly WiFi-temperatursensorer responderer noen ganger ikke på 1-2 timer.
       default:
         hours: 72
       selector:
