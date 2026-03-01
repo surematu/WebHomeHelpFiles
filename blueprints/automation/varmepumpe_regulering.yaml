@@ -21,7 +21,7 @@ blueprint:
       - Bytt til cool når rom_temp >= rom_settpunkt + kjoling_pa_delta (default 1.5°C)
       - Bytt tilbake til heat når rom_temp <= rom_settpunkt + kjoling_av_delta (default 0.5°C, hysterese)
 
-    Blueprint versjon: 2026.03.00
+    Blueprint versjon: 2026.03.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -204,7 +204,7 @@ actions:
       rom_preset_mode: "{{ (state_attr(rom_e, 'preset_mode') | string | lower) }}"
       pumpe_settpunkt_na_rundet: "{{ (state_attr(pumpe_e, 'temperature') | float(0)) | round(0) | int }}"
       pumpe_vifte_na: "{{ (state_attr(pumpe_e, 'fan_mode') | string | lower) }}"
-      pumpe_mode_na: "{{ state_attr(pumpe_e, 'hvac_mode') | string | lower }}"
+      pumpe_mode_na: "{{ states(pumpe_e) | string | lower }}"
       styringsmodus: "{{ 'regulated_override' if (state_attr(rom_e, 'regulated_target_temperature') is not none) else 'power_curve' }}"
 
   # Steg 2: comfort (om finnes) + basissettpunkt
