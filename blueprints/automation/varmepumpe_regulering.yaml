@@ -21,7 +21,7 @@ blueprint:
       - Bytt til cool når rom_temp >= rom_settpunkt + kjoling_pa_delta (default 1.5°C)
       - Bytt tilbake til heat når rom_temp <= rom_settpunkt + kjoling_av_delta (default 0.5°C, hysterese)
 
-    Blueprint versjon: 2026.03.01
+    Blueprint versjon: 2026.03.02
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -263,22 +263,27 @@ actions:
   - variables:
       vifte_aktiv: "{{ (vifte_raw | string | trim) == '1' }}"
       pumpe_vifte_stottes: "{{ state_attr(pumpe_e, 'fan_modes') is not none }}"
-      onsket_vifte: >-
-        {% if not vifte_aktiv or not pumpe_vifte_stottes %}
-          {{ pumpe_vifte_na }}
-        {% else %}
-          {% if rom_preset_mode == 'frost' %}
-            high
-          {% elif (effektivt_padrag | float(0)) < 20 %}
-            medium
-          {% elif (effektivt_padrag | float(0)) > 50 %}
-            high
-          {% else %}
-            {{ pumpe_vifte_na }}
-          {% endif %}
-        {% endif %}
-      skal_oppdatere_vifte: >-
-        {{ vifte_aktiv and pumpe_vifte_stottes and (onsket_vifte | string) != (pumpe_vifte_na | string) }}
+
+  - if:
+      - condition: template
+        value_template: "{{ not vifte_aktiv or not pumpe_vifte_stottes }}"
+    then:
+      - variables:
+          onsket_vifte: "{{ pumpe_vifte_na }}"
+          skal_oppdatere_vifte: false
+    else:
+      - variables:
+          onsket_vifte: >-
+            {% if rom_preset_mode == 'frost' %}
+              high
+            {% elif (effektivt_padrag | float(0)) < 20 %}
+              medium
+            {% elif (effektivt_padrag | float(0)) > 50 %}
+              high
+            {% else %}
+              {{ pumpe_vifte_na }}
+            {% endif %}
+          skal_oppdatere_vifte: "{{ (onsket_vifte | string) != (pumpe_vifte_na | string) }}"
 
   # Steg 6: kjøling (valgfri)
   - if:
