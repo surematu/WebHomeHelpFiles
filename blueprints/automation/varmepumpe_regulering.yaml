@@ -15,7 +15,13 @@ blueprint:
 
     Vifte-logikk styres av tekstinput: 0 = ingen vifteregulering, 1 = vifte boost.
 
-    Blueprint versjon: 2026.02.07
+    Kjøling (valgfri):
+    Aktiver kjøling for å la varmepumpa automatisk bytte mellom heat og cool basert på
+    romtemperatur relativt til rom-settpunktet.
+      - Bytt til cool når rom_temp >= rom_settpunkt + kjoling_pa_delta (default 1.5°C)
+      - Bytt tilbake til heat når rom_temp <= rom_settpunkt + kjoling_av_delta (default 0.5°C, hysterese)
+
+    Blueprint versjon: 2026.03.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -124,6 +130,44 @@ blueprint:
       selector:
         boolean: {}
 
+    kjoling_aktiv:
+      name: Aktiver kjøling (valgfri)
+      description: >
+        Hvis aktivert, kan varmepumpa automatisk bytte mellom heat og cool
+        basert på romtemperatur relativt til rom-settpunktet.
+        Hvis deaktivert, brukes alltid heat-modus (eksisterende oppførsel).
+      default: false
+      selector:
+        boolean: {}
+
+    kjoling_pa_delta:
+      name: Kjøling PÅ – delta over settpunkt (°C)
+      description: >
+        Setter hvac_mode til cool når rom_temp >= rom_settpunkt + denne verdien.
+        Default 1.5°C.
+      default: 1.5
+      selector:
+        number:
+          min: 0.5
+          max: 5
+          step: 0.5
+          mode: slider
+          unit_of_measurement: "°C"
+
+    kjoling_av_delta:
+      name: Kjøling AV – delta over settpunkt (°C) (hysterese)
+      description: >
+        Setter hvac_mode tilbake til heat når rom_temp <= rom_settpunkt + denne verdien.
+        Må være lavere enn kjoling_pa_delta for å unngå modus-flapping. Default 0.5°C.
+      default: 0.5
+      selector:
+        number:
+          min: 0
+          max: 3
+          step: 0.5
+          mode: slider
+          unit_of_measurement: "°C"
+
 mode: restart
 
 triggers:
@@ -150,6 +194,9 @@ actions:
       pumpe_abs_min: !input pumpe_temp_min
       pumpe_abs_maks: !input pumpe_temp_maks
       debug: !input debug_logg
+      kjoling_aktiv: !input kjoling_aktiv
+      kjoling_pa_delta: !input kjoling_pa_delta
+      kjoling_av_delta: !input kjoling_av_delta
 
   # Steg 1: les råverdier + attributt-eksistens
   - variables:
@@ -164,6 +211,7 @@ actions:
       rom_preset_mode: "{{ (state_attr(rom_e, 'preset_mode') | string | lower) }}"
       pumpe_settpunkt_na_rundet: "{{ (state_attr(pumpe_e, 'temperature') | float(0)) | round(0) | int }}"
       pumpe_vifte_na: "{{ (state_attr(pumpe_e, 'fan_mode') | string | lower) }}"
+      pumpe_mode_na: "{{ state_attr(pumpe_e, 'hvac_mode') | string | lower }}"
       styringsmodus: "{{ 'regulated_override' if (state_attr(rom_e, 'regulated_target_temperature') is not none) else 'power_curve' }}"
 
   # Steg 2: comfort (om finnes) + basissettpunkt
@@ -239,6 +287,32 @@ actions:
       skal_oppdatere_vifte: >-
         {{ vifte_aktiv and pumpe_vifte_stottes and (onsket_vifte | string) != (pumpe_vifte_na | string) }}
 
+  # Steg 5b: kjøling (valgfri)
+  - variables:
+      onsket_mode: >-
+        {% if not kjoling_aktiv %}
+          heat
+        {% else %}
+          {% set delta_on = kjoling_pa_delta | float(1.5) %}
+          {% set delta_off = kjoling_av_delta | float(0.5) %}
+          {% set temp = rom_temp | float(0) %}
+          {% set setp = rom_settpunkt | float(0) %}
+          {% if pumpe_mode_na == 'cool' %}
+            {% if temp <= setp + delta_off %}
+              heat
+            {% else %}
+              cool
+            {% endif %}
+          {% else %}
+            {% if temp >= setp + delta_on %}
+              cool
+            {% else %}
+              heat
+            {% endif %}
+          {% endif %}
+        {% endif %}
+      skal_oppdatere_mode: "{{ kjoling_aktiv and (onsket_mode | string | trim) != (pumpe_mode_na | string | trim) }}"
+
   # Steg 6: debug
   - if:
       - condition: template
@@ -259,7 +333,8 @@ actions:
             target_raw={{pumpe_target_raw}}, target_rundet={{pumpe_target_rundet}},
             ramp_step={{max_step}}, target_rampet={{pumpe_target_rampet}},
             pumpe_settpunkt_na_rundet={{pumpe_settpunkt_na_rundet}},
-            vifte_aktiv={{vifte_aktiv}}, onsket_vifte={{onsket_vifte}}, pumpe_vifte_na={{pumpe_vifte_na}}
+            vifte_aktiv={{vifte_aktiv}}, onsket_vifte={{onsket_vifte}}, pumpe_vifte_na={{pumpe_vifte_na}},
+            kjoling_aktiv={{kjoling_aktiv}}, pumpe_mode_na={{pumpe_mode_na}}, onsket_mode={{onsket_mode}}, skal_oppdatere_mode={{skal_oppdatere_mode}}
 
   # Steg 7: sett verdier kun ved behov
   - if:
@@ -269,7 +344,19 @@ actions:
             value_template: "{{ skal_oppdatere_temp }}"
           - condition: template
             value_template: "{{ skal_oppdatere_vifte }}"
+          - condition: template
+            value_template: "{{ skal_oppdatere_mode }}"
     then:
+      - if:
+          - condition: template
+            value_template: "{{ skal_oppdatere_mode }}"
+        then:
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: !input pumpe_climate
+            data:
+              hvac_mode: "{{ onsket_mode }}"
+
       - if:
           - condition: template
             value_template: "{{ skal_oppdatere_temp }}"
@@ -278,7 +365,7 @@ actions:
             target:
               entity_id: !input pumpe_climate
             data:
-              hvac_mode: heat
+              hvac_mode: "{{ onsket_mode }}"
               temperature: "{{ pumpe_target_rampet }}"
 
       - if:
