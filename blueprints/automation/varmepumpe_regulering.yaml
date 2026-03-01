@@ -21,7 +21,7 @@ blueprint:
       - Bytt til cool når rom_temp >= rom_settpunkt + kjoling_pa_delta (default 1.5°C)
       - Bytt tilbake til heat når rom_temp <= rom_settpunkt + kjoling_av_delta (default 0.5°C, hysterese)
 
-    Blueprint versjon: 2026.03.01
+    Blueprint versjon: 2026.02.08
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -124,12 +124,6 @@ blueprint:
           mode: box
           unit_of_measurement: "°C"
 
-    debug_logg:
-      name: (Avansert) Debug logging til System Log
-      default: false
-      selector:
-        boolean: {}
-
     kjoling_aktiv:
       name: Aktiver kjøling (valgfri)
       description: >
@@ -193,7 +187,6 @@ actions:
       vifte_raw: !input vifte_tekstverdi
       pumpe_abs_min: !input pumpe_temp_min
       pumpe_abs_maks: !input pumpe_temp_maks
-      debug: !input debug_logg
       kjoling_aktiv: !input kjoling_aktiv
       kjoling_pa_delta: !input kjoling_pa_delta
       kjoling_av_delta: !input kjoling_av_delta
@@ -312,29 +305,6 @@ actions:
           {% endif %}
         {% endif %}
       skal_oppdatere_mode: "{{ kjoling_aktiv and (onsket_mode | string | trim) != (pumpe_mode_na | string | trim) }}"
-
-  # Steg 6: debug
-  - if:
-      - condition: template
-        value_template: "{{ debug }}"
-    then:
-      - action: system_log.write
-        data:
-          level: info
-          message: >-
-            VP debug:
-            styringsmodus={{styringsmodus}},
-            har_regulated_target={{har_regulated_target}}, regulated_target={{regulated_target}},
-            har_power_percent={{har_power_percent}}, rom_padrag_raw={{rom_padrag_raw}},
-            rom_settpunkt={{rom_settpunkt}}, rom_temp={{rom_temp}},
-            min_padrag={{min_padrag_beregnet}}, effektivt_padrag={{effektivt_padrag}},
-            basis_settpunkt={{basis_settpunkt}},
-            offset_min={{offset_min}}, offset_maks={{offset_maks}},
-            target_raw={{pumpe_target_raw}}, target_rundet={{pumpe_target_rundet}},
-            ramp_step={{max_step}}, target_rampet={{pumpe_target_rampet}},
-            pumpe_settpunkt_na_rundet={{pumpe_settpunkt_na_rundet}},
-            vifte_aktiv={{vifte_aktiv}}, onsket_vifte={{onsket_vifte}}, pumpe_vifte_na={{pumpe_vifte_na}},
-            kjoling_aktiv={{kjoling_aktiv}}, pumpe_mode_na={{pumpe_mode_na}}, onsket_mode={{onsket_mode}}, skal_oppdatere_mode={{skal_oppdatere_mode}}
 
   # Steg 7: sett verdier kun ved behov
   - if:
