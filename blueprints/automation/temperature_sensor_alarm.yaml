@@ -7,34 +7,37 @@ blueprint:
       - goes 'unknown' for 15 minutes
 
     Blueprint versjon:
-    2026.03.00
+    2026.03.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/temperature_sensor_alarm.yaml
   author: WebHome
   homeassistant:
     min_version: 2025.11.0
 
+  input:
     temp_sensor:
       name: Temperature Sensor
       selector:
         entity:
-          domain: sensor
-          device_class: temperature
+          filter:
+            - domain: sensor
+              device_class: temperature
 
     custom_sensor_name:
       name: Custom Sensor Name
       description: Override default name in the alert title (optional)
       default: ""
       selector:
-        text:
+        text: {}
 
     notify_target:
       name: Notify Target
       description: Choose one or more notification services (e.g., mobile app or cloud)
       selector:
         entity:
-          domain: notify
           multiple: true
+          filter:
+            - domain: notify
 
     alarm_1_threshold:
       name: "Alarm 1: Temp above"
@@ -58,29 +61,29 @@ blueprint:
 
 mode: restart
 
-trigger:
-  - platform: numeric_state
+triggers:
+  - trigger: numeric_state
     entity_id: !input temp_sensor
     above: !input alarm_1_threshold
     for:
       minutes: 15
     id: alarm_1
 
-  - platform: numeric_state
+  - trigger: numeric_state
     entity_id: !input temp_sensor
     above: !input alarm_2_threshold
     for:
       minutes: 60
     id: alarm_2
 
-  - platform: state
+  - trigger: state
     entity_id: !input temp_sensor
     to: "unknown"
     for:
       minutes: 15
     id: unknown
 
-action:
+actions:
   - variables:
       custom_sensor_name: !input custom_sensor_name
       sensor_name: >
@@ -92,16 +95,15 @@ action:
       alarm_1_threshold: !input alarm_1_threshold
       alarm_2_threshold: !input alarm_2_threshold
 
-  - service: notify.send_message
+  - action: notify.send_message
     data:
+      entity_id: !input notify_target
       title: "🧊 *{{ sensor_name }}* 🧊"
       message: >
         {% if trigger.id == 'alarm_1' %}
-          Temp over {{ alarm_1_threshold }} °C for 15m.
+          Temp over {{ alarm_1_threshold }} °C for 15m.
         {% elif trigger.id == 'alarm_2' %}
-          Temp over {{ alarm_2_threshold }} °C for 60m.
+          Temp over {{ alarm_2_threshold }} °C for 60m.
         {% elif trigger.id == 'unknown' %}
           Temp ukjent for 15m.
         {% endif %}
-    target:
-      entity_id: !input notify_target
