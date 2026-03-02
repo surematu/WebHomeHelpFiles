@@ -9,7 +9,7 @@ blueprint:
     Blueprint versjon:
     2026.03.00
   domain: automation
-  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/temperature_sensor_alarm.yaml.yaml
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/temperature_sensor_alarm.yaml
   author: WebHome
   homeassistant:
     min_version: 2025.11.0
