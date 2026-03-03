@@ -20,8 +20,10 @@ blueprint:
     romtemperatur relativt til rom-settpunktet.
       - Bytt til cool når rom_temp >= rom_settpunkt + kjoling_pa_delta (default 1.5°C)
       - Bytt tilbake til heat når rom_temp <= rom_settpunkt + kjoling_av_delta (default 0.5°C, hysterese)
+      - Kjøling sperres alltid når rom_settpunkt < rom_comfort_settpunkt (f.eks. eco/natt-senking),
+        og varmepumpa tvinges da til heat uansett romtemperatur.
 
-    Blueprint versjon: 2026.03.01
+    Blueprint versjon: 2026.03.02
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -300,7 +302,10 @@ actions:
             {% set delta_off = kjoling_av_delta | float(0.5) %}
             {% set temp = rom_temp | float(0) %}
             {% set setp = rom_settpunkt | float(0) %}
-            {% if pumpe_mode_na == 'cool' %}
+            {% set comfort = rom_comfort_settpunkt | float(setp) %}
+            {% if setp < comfort %}
+              heat
+            {% elif pumpe_mode_na == 'cool' %}
               {% if temp <= setp + delta_off %}
                 heat
               {% else %}
