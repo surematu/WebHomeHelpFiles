@@ -7,11 +7,10 @@ blueprint:
       - Vi tar NYESTE tidspunkt på hele device-et ved å se på alle entities på samme device:
         * state_attr(entity,'last_seen') hvis finnes
         * entity_id som inneholder "last_seen" (og parsbar timestamp i state)
-        * ellers fallback: entity.last_updated (fanger ENHVER oppdatering – state
-          eller attributter – og er mer sensitiv enn last_changed som kun endres
-          når selve state-verdien endres)
-      -> Dette gjør at BLE/Zigbee-enheter som oppdaterer f.eks. "Signal Strength" ofte,
-         ikke feilaktig flagges bare fordi batteri-% ikke endrer seg.
+        * ellers fallback: entity.last_changed (endres kun når selve state-verdien
+          endres – en enhet som "henger" med uendret state vil dermed flagges)
+      -> Merk: en enhet som jevnlig oppdaterer attributter (f.eks. Signal Strength)
+         uten at state endrer seg vil likevel flagges hvis state ikke har endret seg.
 
     device_activity_index (intern variabel, Steg 2A → 2B):
       - Kan enten være en JSON-streng ({{ ... | to_json }}) eller et
@@ -28,7 +27,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.03.01
+    Blueprint versjon: 2026.03.02
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -202,12 +201,12 @@ action:
             {%- set st_obj = states[ent] -%}
             {%- if st_obj is not none -%}
 
-              {# A) last_updated (fallback) #}
-              {%- set t_upd = as_timestamp(st_obj.last_updated, default=0) | float(0) -%}
+              {# A) last_changed (fallback) #}
+              {%- set t_upd = as_timestamp(st_obj.last_changed, default=0) | float(0) -%}
               {%- if t_upd > w.ts -%}
                 {%- set w.ts = t_upd -%}
                 {%- set w.ent = ent -%}
-                {%- set w.src = 'meta:last_updated' -%}
+                {%- set w.src = 'meta:last_changed' -%}
               {%- endif -%}
 
               {# B) last_seen-attributt (vinner hvis nyere) #}
@@ -283,11 +282,11 @@ action:
                 | regex_replace('\\s{2,}', ' ')
                 | trim -%}
 
-            {# Hent ts/age fra indeks, eller fall tilbake til entity.last_updated #}
+            {# Hent ts/age fra indeks, eller fall tilbake til entity.last_changed #}
             {%- if did and did in idx -%}
               {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
             {%- else -%}
-              {%- set ts = as_timestamp(s.last_updated, default=0) | float(0) -%}
+              {%- set ts = as_timestamp(s.last_changed, default=0) | float(0) -%}
               {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
             {%- endif -%}
 
@@ -356,11 +355,11 @@ action:
                 | regex_replace('\\s{2,}', ' ')
                 | trim -%}
 
-            {# Hent ts/age fra indeks, eller fall tilbake til entity.last_updated #}
+            {# Hent ts/age fra indeks, eller fall tilbake til entity.last_changed #}
             {%- if did and did in idx -%}
               {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
             {%- else -%}
-              {%- set ts = as_timestamp(b.last_updated, default=0) | float(0) -%}
+              {%- set ts = as_timestamp(b.last_changed, default=0) | float(0) -%}
               {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
             {%- endif -%}
 
@@ -452,8 +451,8 @@ action:
               {%- set w = idx[did] -%}
               {%- set age_s = w['winner_age_s'] | int(0) -%}
             {%- else -%}
-              {%- set age_s = (as_timestamp(now()) - as_timestamp(s.last_updated, default=0) | float(0)) | int(0) -%}
-              {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_updated', 'winner_age_s': age_s} -%}
+              {%- set age_s = (as_timestamp(now()) - as_timestamp(s.last_changed, default=0) | float(0)) | int(0) -%}
+              {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
             {%- endif -%}
             {%- set st = s.state -%}
             {%- if age_s >= threshold_s or (include_unavailable and st in ['unknown','unavailable']) -%}
@@ -479,8 +478,8 @@ action:
               {%- set w = idx[did] -%}
               {%- set age_s = w['winner_age_s'] | int(0) -%}
             {%- else -%}
-              {%- set age_s = (as_timestamp(now()) - as_timestamp(b.last_updated, default=0) | float(0)) | int(0) -%}
-              {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_updated', 'winner_age_s': age_s} -%}
+              {%- set age_s = (as_timestamp(now()) - as_timestamp(b.last_changed, default=0) | float(0)) | int(0) -%}
+              {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
             {%- endif -%}
             {%- set st = b.state -%}
             {%- if age_s >= threshold_s or (include_unavailable and st in ['unknown','unavailable']) -%}
