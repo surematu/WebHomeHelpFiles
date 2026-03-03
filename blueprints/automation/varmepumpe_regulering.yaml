@@ -23,7 +23,7 @@ blueprint:
       - Kjøling sperres alltid når rom_settpunkt < rom_comfort_settpunkt (f.eks. eco/natt-senking),
         og varmepumpa tvinges da til heat uansett romtemperatur.
 
-    Blueprint versjon: 2026.03.02
+    Blueprint versjon: 2026.03.03
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -297,27 +297,18 @@ actions:
           skal_oppdatere_mode: "{{ pumpe_mode_na != 'heat' }}"
     else:
       - variables:
-          onsket_mode: >-
+          CoolNotBlocket: >-
+            {% set setp = rom_settpunkt | float(0) %}
+            {% set comfort = rom_comfort_settpunkt | float(setp) %}
+            {{ setp >= comfort }}
+          WantCoolCauseHightTemp: >-
             {% set delta_on = kjoling_pa_delta | float(1.5) %}
             {% set delta_off = kjoling_av_delta | float(0.5) %}
             {% set temp = rom_temp | float(0) %}
             {% set setp = rom_settpunkt | float(0) %}
-            {% set comfort = rom_comfort_settpunkt | float(setp) %}
-            {% if setp < comfort %}
-              heat
-            {% elif pumpe_mode_na == 'cool' %}
-              {% if temp <= setp + delta_off %}
-                heat
-              {% else %}
-                cool
-              {% endif %}
-            {% else %}
-              {% if temp >= setp + delta_on %}
-                cool
-              {% else %}
-                heat
-              {% endif %}
-            {% endif %}
+            {{ (temp > setp + delta_off) if pumpe_mode_na == 'cool' else (temp >= setp + delta_on) }}
+      - variables:
+          onsket_mode: "{{ 'cool' if (CoolNotBlocket and WantCoolCauseHightTemp) else 'heat' }}"
           skal_oppdatere_mode: "{{ (onsket_mode | string | trim) != (pumpe_mode_na | string | trim) }}"
 
   # Steg 7: sett verdier kun ved behov
