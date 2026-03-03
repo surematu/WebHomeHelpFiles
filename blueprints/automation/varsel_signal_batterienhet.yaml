@@ -7,7 +7,8 @@ blueprint:
       - Vi tar NYESTE tidspunkt på hele device-et ved å se på alle entities på samme device:
         * state_attr(entity,'last_seen') hvis finnes
         * entity_id som inneholder "last_seen" (og parsbar timestamp i state)
-        * ellers fallback: entity.last_updated
+        * ellers fallback: entity.last_changed  (ikke last_updated, da last_updated
+          også endres ved attribute-oppdateringer uten at state faktisk endrer seg)
       -> Dette gjør at BLE/Zigbee-enheter som oppdaterer f.eks. "Signal Strength" ofte,
          ikke feilaktig flagges bare fordi batteri-% ikke endrer seg.
 
@@ -21,7 +22,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.03.00
+    Blueprint versjon: 2026.03.01
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -195,12 +196,12 @@ action:
             {%- set st_obj = states[ent] -%}
             {%- if st_obj is not none -%}
 
-              {# A) last_updated (fallback) #}
-              {%- set t_upd = as_timestamp(st_obj.last_updated, default=0) | float(0) -%}
+              {# A) last_changed (baseline – reflects actual state changes, not just attribute writes) #}
+              {%- set t_upd = as_timestamp(st_obj.last_changed, default=0) | float(0) -%}
               {%- if t_upd > w.ts -%}
                 {%- set w.ts = t_upd -%}
                 {%- set w.ent = ent -%}
-                {%- set w.src = 'meta:last_updated' -%}
+                {%- set w.src = 'meta:last_changed' -%}
               {%- endif -%}
 
               {# B) last_seen-attributt (vinner hvis nyere) #}
@@ -249,9 +250,19 @@ action:
         {%- set threshold_s = (max_age_seconds | int(0)) -%}
         {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
         {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
-        {%- set idx = (device_activity_index | default('{}')) | from_json -%}
-
-        {# ===== sensor battery ===== #}
+        {#
+          device_activity_index: produced by Steg 2A as a to_json string.
+          Depending on the HA version / template engine, it may arrive already
+          parsed as a mapping – handle both cases, and fall back to {} on any
+          other input (empty string, undefined, etc.) to avoid a ValueError.
+        #}
+        {%- if device_activity_index is mapping -%}
+          {%- set idx = device_activity_index -%}
+        {%- elif device_activity_index is string and (device_activity_index | trim) != '' -%}
+          {%- set idx = device_activity_index | from_json -%}
+        {%- else -%}
+          {%- set idx = {} -%}
+        {%- endif -%}
         {%- for s in states.sensor
               | selectattr('attributes.device_class','defined')
               | selectattr('attributes.device_class','eq','battery') -%}
@@ -277,11 +288,11 @@ action:
                 | regex_replace('\\s{2,}', ' ')
                 | trim -%}
 
-            {# Hent ts/age fra indeks, eller fall tilbake til entity.last_updated #}
+            {# Hent ts/age fra indeks, eller fall tilbake til entity.last_changed #}
             {%- if did and did in idx -%}
               {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
             {%- else -%}
-              {%- set ts = as_timestamp(s.last_updated, default=0) | float(0) -%}
+              {%- set ts = as_timestamp(s.last_changed, default=0) | float(0) -%}
               {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
             {%- endif -%}
 
