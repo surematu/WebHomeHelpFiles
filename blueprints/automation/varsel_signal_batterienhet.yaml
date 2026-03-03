@@ -27,7 +27,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.03.02
+    Blueprint versjon: 2026.03.03
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -53,15 +53,6 @@ blueprint:
         hours: 72
       selector:
         duration:
-
-    include_unavailable:
-      name: Ta med unknown/unavailable i varsel
-      description: >
-        Hvis på: enheter der batteri-entity er unknown/unavailable blir også listet.
-        Hvis du får støy, sett denne til av.
-      default: true
-      selector:
-        boolean:
 
     ignore_entities:
       name: Ignorer entities (valgfritt)
@@ -136,7 +127,6 @@ action:
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
       max_age: !input max_age
-      include_unavailable: !input include_unavailable
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
       debug_on: !input include_debug_details
@@ -291,22 +281,18 @@ action:
             {%- endif -%}
 
             {%- set st = s.state -%}
-            {%- set is_unavail = st in ['unknown','unavailable'] -%}
             {%- set is_stale = age_s >= threshold_s -%}
 
-            {%- if (is_stale) or (include_unavailable and is_unavail) -%}
+            {%- if is_stale -%}
 
-              {# dedupe: behold verste (eldst), og la unavail "vinne" #}
+              {# dedupe: behold verste (eldst) #}
               {%- if norm != '' -%}
                 {%- set keep = false -%}
                 {%- if norm not in ns.map -%}
                   {%- set keep = true -%}
                 {%- else -%}
                   {%- set cur = ns.map[norm] -%}
-                  {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
-                  {%- if is_unavail and not cur_unavail -%}
-                    {%- set keep = true -%}
-                  {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                  {%- if (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
                     {%- set keep = true -%}
                   {%- endif -%}
                 {%- endif -%}
@@ -364,22 +350,18 @@ action:
             {%- endif -%}
 
             {%- set st = b.state -%}
-            {%- set is_unavail = st in ['unknown','unavailable'] -%}
             {%- set is_stale = age_s >= threshold_s -%}
 
-            {%- if (is_stale) or (include_unavailable and is_unavail) -%}
+            {%- if is_stale -%}
 
-              {# dedupe: behold verste (eldst), og la unavail "vinne" #}
+              {# dedupe: behold verste (eldst) #}
               {%- if norm != '' -%}
                 {%- set keep = false -%}
                 {%- if norm not in ns.map -%}
                   {%- set keep = true -%}
                 {%- else -%}
                   {%- set cur = ns.map[norm] -%}
-                  {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
-                  {%- if is_unavail and not cur_unavail -%}
-                    {%- set keep = true -%}
-                  {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                  {%- if (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
                     {%- set keep = true -%}
                   {%- endif -%}
                 {%- endif -%}
@@ -455,7 +437,7 @@ action:
               {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
             {%- endif -%}
             {%- set st = s.state -%}
-            {%- if age_s >= threshold_s or (include_unavailable and st in ['unknown','unavailable']) -%}
+            {%- if age_s >= threshold_s -%}
               {%- set ns.out = ns.out + [{
                 'entity_id': eid,
                 'name': s.name,
@@ -482,7 +464,7 @@ action:
               {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
             {%- endif -%}
             {%- set st = b.state -%}
-            {%- if age_s >= threshold_s or (include_unavailable and st in ['unknown','unavailable']) -%}
+            {%- if age_s >= threshold_s -%}
               {%- set ns.out = ns.out + [{
                 'entity_id': eid,
                 'name': b.name,
@@ -540,7 +522,6 @@ action:
             "- trigger: " ~ trigger.id,
             "- max_age: " ~ (max_age_label | string),
             "- max_age_seconds: " ~ (max_age_seconds | string),
-            "- include_unavailable: " ~ (include_unavailable | string),
             "- ignored_entities: " ~ ((ignore_entities | count) | string),
             "- ignored_devices: " ~ ((ignore_devices | count) | string)
           ] %}
