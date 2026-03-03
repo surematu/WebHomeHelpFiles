@@ -21,7 +21,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.02.04
+    Blueprint versjon: 2026.03.00
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -155,24 +155,103 @@ action:
         {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
         {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
 
-  # Steg 2 - Finn batteri-enheter uten signal på lenge (rå)
-  - alias: "Steg 2 - Finn batteri-enheter uten signal på lenge (rå)"
+  # Steg 2A - Bygg per-device aktivitetsindeks (synlig i trace/debug)
+  # For hvert device med en batteri-entity: finn hvilken entity som gir
+  # den nyeste aktiviteten (winner_entity/source/ts/age_s).
+  - alias: "Steg 2A - Bygg per-device aktivitetsindeks"
+    variables:
+      device_activity_index: |-
+        {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+        {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+        {%- set ns = namespace(idx={}, seen=[]) -%}
+
+        {# Samle unike device_ids fra batteri-entities (sensor + binary_sensor) #}
+        {%- for s in states.sensor
+              | selectattr('attributes.device_class','defined')
+              | selectattr('attributes.device_class','eq','battery') -%}
+          {%- set did = device_id(s.entity_id) -%}
+          {%- if s.entity_id not in ignore_e
+              and did is not none
+              and did not in ignore_d
+              and did not in ns.seen -%}
+            {%- set ns.seen = ns.seen + [did] -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {%- for b in states.binary_sensor
+              | selectattr('attributes.device_class','eq','battery') -%}
+          {%- set did = device_id(b.entity_id) -%}
+          {%- if b.entity_id not in ignore_e
+              and did is not none
+              and did not in ignore_d
+              and did not in ns.seen -%}
+            {%- set ns.seen = ns.seen + [did] -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {# For hvert device_id: finn vinnende entity (nyeste aktivitet) #}
+        {%- for did in ns.seen -%}
+          {%- set w = namespace(ts=0, ent='', src='') -%}
+          {%- for ent in device_entities(did) -%}
+            {%- set st_obj = states[ent] -%}
+            {%- if st_obj is not none -%}
+
+              {# A) last_updated (fallback) #}
+              {%- set t_upd = as_timestamp(st_obj.last_updated, default=0) | float(0) -%}
+              {%- if t_upd > w.ts -%}
+                {%- set w.ts = t_upd -%}
+                {%- set w.ent = ent -%}
+                {%- set w.src = 'meta:last_updated' -%}
+              {%- endif -%}
+
+              {# B) last_seen-attributt (vinner hvis nyere) #}
+              {%- set ls = state_attr(ent,'last_seen') -%}
+              {%- if ls is not none -%}
+                {%- set t_ls = as_timestamp(ls, default=0) | float(0) -%}
+                {%- if t_ls > w.ts -%}
+                  {%- set w.ts = t_ls -%}
+                  {%- set w.ent = ent -%}
+                  {%- set w.src = 'attr:last_seen' -%}
+                {%- endif -%}
+              {%- endif -%}
+
+              {# C) last_seen-sensor med timestamp i state (vinner hvis nyere) #}
+              {%- if 'last_seen' in (ent | lower) -%}
+                {%- set t2 = as_timestamp(states(ent), default=0) | float(0) -%}
+                {%- if t2 > w.ts -%}
+                  {%- set w.ts = t2 -%}
+                  {%- set w.ent = ent -%}
+                  {%- set w.src = 'state:last_seen_entity' -%}
+                {%- endif -%}
+              {%- endif -%}
+
+            {%- endif -%}
+          {%- endfor -%}
+          {%- set age_s = (as_timestamp(now()) - w.ts) | int(0) -%}
+          {%- set ns.idx = dict(ns.idx, **{
+            did: {
+              'winner_entity': w.ent,
+              'winner_source': w.src,
+              'winner_ts': w.ts,
+              'winner_age_s': age_s
+            }
+          }) -%}
+        {%- endfor -%}
+        {{ ns.idx | to_json }}
+        {# Merk: output er JSON; størrelse er proporsjonal med antall unike devices. #}
+
+  # Steg 2B - Finn batteri-enheter uten signal på lenge (rå)
+  # Bruker device_activity_index fra 2A i stedet for å re-skanne device_entities.
+  # stale_debug_winners viser for hvert inkludert element hvilken entity/kilde
+  # som ga den nyeste aktiviteten – alltid synlig i trace-utdata.
+  - alias: "Steg 2B - Finn batteri-enheter uten signal på lenge (rå)"
     variables:
       stale_list_raw: |-
         {%- set threshold_s = (max_age_seconds | int(0)) -%}
         {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
         {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
-        {%- set ns = namespace(map={}, lines=[]) -%}
+        {%- set idx = (device_activity_index | default('{}')) | from_json -%}
 
-        {# -------------------------------------------------
-           Hjelper: finn "nyeste aktivitet" for et device_id.
-           Vi tar max av:
-             - last_seen-attributt (hvis finnes)
-             - *last_seen*-sensorer (timestamp i state)
-             - last_updated på alle entities på device
-           ------------------------------------------------- #}
-
-        {# ===== 2A: sensor battery ===== #}
+        {# ===== sensor battery ===== #}
         {%- for s in states.sensor
               | selectattr('attributes.device_class','defined')
               | selectattr('attributes.device_class','eq','battery') -%}
@@ -198,40 +277,14 @@ action:
                 | regex_replace('\\s{2,}', ' ')
                 | trim -%}
 
-            {# Finn ts for device (nyeste aktivitet) #}
-            {%- set found = namespace(ts=0) -%}
-            {%- if did -%}
-              {%- for ent in device_entities(did) -%}
-                {%- set st_obj = states[ent] -%}
-                {%- if st_obj is not none -%}
-
-                  {# A) last_updated #}
-                  {%- set t_upd = as_timestamp(st_obj.last_updated, default=0) | float(0) -%}
-                  {%- if t_upd > found.ts -%}{%- set found.ts = t_upd -%}{%- endif -%}
-
-                  {# B) last_seen-attributt #}
-                  {%- set ls = state_attr(ent,'last_seen') -%}
-                  {%- if ls is not none -%}
-                    {%- set t_ls = as_timestamp(ls, default=0) | float(0) -%}
-                    {%- if t_ls > found.ts -%}{%- set found.ts = t_ls -%}{%- endif -%}
-                  {%- endif -%}
-
-                  {# C) last_seen-sensor med timestamp i state #}
-                  {%- if 'last_seen' in (ent | lower) -%}
-                    {%- set t2 = as_timestamp(states(ent), default=0) | float(0) -%}
-                    {%- if t2 > found.ts -%}{%- set found.ts = t2 -%}{%- endif -%}
-                  {%- endif -%}
-
-                {%- endif -%}
-              {%- endfor -%}
-            {%- endif -%}
-
-            {%- set ts = found.ts | float(0) -%}
-            {%- if ts == 0 -%}
+            {# Hent ts/age fra indeks, eller fall tilbake til entity.last_updated #}
+            {%- if did and did in idx -%}
+              {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
+            {%- else -%}
               {%- set ts = as_timestamp(s.last_updated, default=0) | float(0) -%}
+              {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
             {%- endif -%}
 
-            {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
             {%- set st = s.state -%}
             {%- set is_unavail = st in ['unknown','unavailable'] -%}
             {%- set is_stale = age_s >= threshold_s -%}
@@ -269,7 +322,7 @@ action:
           {%- endif -%}
         {%- endfor -%}
 
-        {# ===== 2B: binary_sensor battery ===== #}
+        {# ===== binary_sensor battery ===== #}
         {%- for b in states.binary_sensor
               | selectattr('attributes.device_class','eq','battery') -%}
 
@@ -297,40 +350,14 @@ action:
                 | regex_replace('\\s{2,}', ' ')
                 | trim -%}
 
-            {# Finn ts for device (nyeste aktivitet) #}
-            {%- set found = namespace(ts=0) -%}
-            {%- if did -%}
-              {%- for ent in device_entities(did) -%}
-                {%- set st_obj = states[ent] -%}
-                {%- if st_obj is not none -%}
-
-                  {# A) last_updated #}
-                  {%- set t_upd = as_timestamp(st_obj.last_updated, default=0) | float(0) -%}
-                  {%- if t_upd > found.ts -%}{%- set found.ts = t_upd -%}{%- endif -%}
-
-                  {# B) last_seen-attributt #}
-                  {%- set ls = state_attr(ent,'last_seen') -%}
-                  {%- if ls is not none -%}
-                    {%- set t_ls = as_timestamp(ls, default=0) | float(0) -%}
-                    {%- if t_ls > found.ts -%}{%- set found.ts = t_ls -%}{%- endif -%}
-                  {%- endif -%}
-
-                  {# C) last_seen-sensor med timestamp i state #}
-                  {%- if 'last_seen' in (ent | lower) -%}
-                    {%- set t2 = as_timestamp(states(ent), default=0) | float(0) -%}
-                    {%- if t2 > found.ts -%}{%- set found.ts = t2 -%}{%- endif -%}
-                  {%- endif -%}
-
-                {%- endif -%}
-              {%- endfor -%}
-            {%- endif -%}
-
-            {%- set ts = found.ts | float(0) -%}
-            {%- if ts == 0 -%}
+            {# Hent ts/age fra indeks, eller fall tilbake til entity.last_updated #}
+            {%- if did and did in idx -%}
+              {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
+            {%- else -%}
               {%- set ts = as_timestamp(b.last_updated, default=0) | float(0) -%}
+              {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
             {%- endif -%}
 
-            {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
             {%- set st = b.state -%}
             {%- set is_unavail = st in ['unknown','unavailable'] -%}
             {%- set is_stale = age_s >= threshold_s -%}
@@ -368,7 +395,7 @@ action:
           {%- endif -%}
         {%- endfor -%}
 
-        {# ===== 2C: Render sortert (eldst først) ===== #}
+        {# ===== Render sortert (eldst først) ===== #}
         {%- set items = namespace(lst=[]) -%}
         {%- for norm, it in ns.map.items() -%}
           {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string)] -%}
@@ -394,6 +421,76 @@ action:
         {%- endfor -%}
 
         {{ ns.lines | join('\n') }}
+
+      stale_debug_winners: |-
+        {#
+          Alltid synlig i trace-utdata (uavhengig av include_debug_details).
+          Viser for hvert inkludert batteri-element hvilken entity/kilde
+          som ga den nyeste aktiviteten (winner_*).
+          Eksempel: en tablet rapportert som "3m" – winner_entity avslører
+          hvilken sensor som holder enheten tilsynelatende aktiv.
+        #}
+        {%- set threshold_s = (max_age_seconds | int(0)) -%}
+        {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+        {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+        {%- set idx = (device_activity_index | default('{}')) | from_json -%}
+
+        {%- for s in states.sensor
+              | selectattr('attributes.device_class','defined')
+              | selectattr('attributes.device_class','eq','battery') -%}
+          {%- set eid = s.entity_id -%}
+          {%- set did = device_id(eid) -%}
+          {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
+            {%- if did and did in idx -%}
+              {%- set w = idx[did] -%}
+              {%- set age_s = w['winner_age_s'] | int(0) -%}
+            {%- else -%}
+              {%- set age_s = (as_timestamp(now()) - as_timestamp(s.last_updated, default=0) | float(0)) | int(0) -%}
+              {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_updated', 'winner_age_s': age_s} -%}
+            {%- endif -%}
+            {%- set st = s.state -%}
+            {%- if age_s >= threshold_s or (include_unavailable and st in ['unknown','unavailable']) -%}
+              {%- set ns.out = ns.out + [{
+                'entity_id': eid,
+                'name': s.name,
+                'state': st,
+                'age_s': age_s,
+                'winner_entity': w['winner_entity'],
+                'winner_source': w['winner_source'],
+                'winner_age_s': w['winner_age_s']
+              }] -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {%- for b in states.binary_sensor
+              | selectattr('attributes.device_class','eq','battery') -%}
+          {%- set eid = b.entity_id -%}
+          {%- set did = device_id(eid) -%}
+          {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
+            {%- if did and did in idx -%}
+              {%- set w = idx[did] -%}
+              {%- set age_s = w['winner_age_s'] | int(0) -%}
+            {%- else -%}
+              {%- set age_s = (as_timestamp(now()) - as_timestamp(b.last_updated, default=0) | float(0)) | int(0) -%}
+              {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_updated', 'winner_age_s': age_s} -%}
+            {%- endif -%}
+            {%- set st = b.state -%}
+            {%- if age_s >= threshold_s or (include_unavailable and st in ['unknown','unavailable']) -%}
+              {%- set ns.out = ns.out + [{
+                'entity_id': eid,
+                'name': b.name,
+                'state': st,
+                'age_s': age_s,
+                'winner_entity': w['winner_entity'],
+                'winner_source': w['winner_source'],
+                'winner_age_s': w['winner_age_s']
+              }] -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {{ ns.out | to_json }}
 
   # Steg 3 - Rydd bort meningsløse linjer (tomt navn og "Battery")
   - alias: "Steg 3 - Rydd bort meningsløse linjer"
