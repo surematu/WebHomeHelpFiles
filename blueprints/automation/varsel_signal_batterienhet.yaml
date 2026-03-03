@@ -27,7 +27,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.03.03
+    Blueprint versjon: 2026.03.03-fix1
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -101,12 +101,6 @@ blueprint:
       selector:
         boolean:
 
-    include_debug_details:
-      name: Legg til debug-detaljer i varselet
-      default: false
-      selector:
-        boolean:
-
 mode: restart
 
 trigger:
@@ -129,7 +123,6 @@ action:
       max_age: !input max_age
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
-      debug_on: !input include_debug_details
 
       # Bygg terskel i sekunder og en fin label (for header)
       max_age_seconds: >-
@@ -247,6 +240,7 @@ action:
         {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
         {%- set _raw_idx = device_activity_index | default({}) -%}
         {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
+        {%- set ns = namespace(map={}, lines=[]) -%}
         {%- for s in states.sensor
               | selectattr('attributes.device_class','defined')
               | selectattr('attributes.device_class','eq','battery') -%}
@@ -411,7 +405,7 @@ action:
 
       stale_debug_winners: |-
         {#
-          Alltid synlig i trace-utdata (uavhengig av include_debug_details).
+          Alltid synlig i trace-utdata.
           Viser for hvert inkludert batteri-element hvilken entity/kilde
           som ga den nyeste aktiviteten (winner_*).
           Eksempel: en tablet rapportert som "3m" – winner_entity avslører
@@ -422,6 +416,7 @@ action:
         {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
         {%- set _raw_idx = device_activity_index | default({}) -%}
         {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
+        {%- set ns = namespace(out=[]) -%}
 
         {%- for s in states.sensor
               | selectattr('attributes.device_class','defined')
@@ -512,18 +507,6 @@ action:
             "*Batteri-enheter uten signal > " ~ (max_age_label | string) ~ ":*",
             stale_list_clean,
             ""
-          ] %}
-        {% endif %}
-
-        {% if debug_on %}
-          {% set parts.lines = parts.lines + [
-            "---",
-            "Debug:",
-            "- trigger: " ~ trigger.id,
-            "- max_age: " ~ (max_age_label | string),
-            "- max_age_seconds: " ~ (max_age_seconds | string),
-            "- ignored_entities: " ~ ((ignore_entities | count) | string),
-            "- ignored_devices: " ~ ((ignore_devices | count) | string)
           ] %}
         {% endif %}
 
