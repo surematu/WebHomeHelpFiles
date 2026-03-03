@@ -23,7 +23,7 @@ blueprint:
       - Kjøling sperres alltid når rom_settpunkt < rom_comfort_settpunkt (f.eks. eco/natt-senking),
         og varmepumpa tvinges da til heat uansett romtemperatur.
 
-    Blueprint versjon: 2026.03.03
+    Blueprint versjon: 2026.03.04
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -297,7 +297,7 @@ actions:
           skal_oppdatere_mode: "{{ pumpe_mode_na != 'heat' }}"
     else:
       - variables:
-          CoolNotBlocket: >-
+          WantCool_SetpointComfOrHihger: >-
             {% set setp = rom_settpunkt | float(0) %}
             {% set comfort = rom_comfort_settpunkt | float(setp) %}
             {{ setp >= comfort }}
@@ -308,7 +308,7 @@ actions:
             {% set setp = rom_settpunkt | float(0) %}
             {{ (temp > setp + delta_off) if pumpe_mode_na == 'cool' else (temp >= setp + delta_on) }}
       - variables:
-          onsket_mode: "{{ 'cool' if (CoolNotBlocket and WantCoolCauseHightTemp) else 'heat' }}"
+          onsket_mode: "{{ 'cool' if (WantCool_SetpointComfOrHihger and WantCoolCauseHightTemp) else 'heat' }}"
           skal_oppdatere_mode: "{{ (onsket_mode | string | trim) != (pumpe_mode_na | string | trim) }}"
 
   # Steg 7: sett verdier kun ved behov
