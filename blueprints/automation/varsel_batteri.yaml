@@ -4,7 +4,7 @@ blueprint:
     Sender varsel om lavt batteri basert på:
       1) sensor.* med device_class: battery (prosent)
          - deduper per "renset" navn og beholder laveste verdi
-         - kan inkludere non-numeric/unavailable som (n/a)
+         - kun numeriske verdier under terskel inkluderes
       2) binary_sensor.* med device_class: battery (digital battery low)
          - tar med de som ikke er 'off'
          - fjerner duplikater som allerede er i liste (1)
@@ -12,9 +12,9 @@ blueprint:
     Nytt:
       - Én samlet melding (analog + digital)
       - Ignore-liste for entities (og valgfri ignore-liste for devices)
-      - Filtrerer bort meningsløse linjer som "-  (n/a)" og "-  (Unknown)" samt "Battery (n/a/Unknown)"
+      - Filtrerer bort meningsløse linjer
 
-    Blueprint versjon: 2026.02.04
+    Blueprint versjon: 2026.3.0
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -39,12 +39,6 @@ blueprint:
           max: 100
           step: 1
           unit_of_measurement: "%"
-
-    include_unavailable_as_na:
-      name: Ta med unknown/unavailable/non-numeric som (n/a)
-      default: true
-      selector:
-        boolean:
 
     include_digital_battery_sensors:
       name: "Ta med digitale batterisensorer (binary_sensor device_class: battery)"
@@ -97,12 +91,6 @@ blueprint:
       selector:
         boolean:
 
-    include_debug_details:
-      name: Legg til debug-detaljer i varselet
-      default: false
-      selector:
-        boolean:
-
 mode: restart
 
 trigger:
@@ -122,16 +110,14 @@ action:
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
       threshold: !input threshold_percent
-      include_na: !input include_unavailable_as_na
       include_digital: !input include_digital_battery_sensors
-      debug_on: !input include_debug_details
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
 
-  - alias: "Steg 2 - Bygg batteriliste (prosent + valgfri n/a)"
+  - alias: "Steg 2 - Bygg batteriliste (prosent)"
     variables:
-      low_list_percent_and_na: |-
-        {%- set ns = namespace(map={}, names={}, missing={}, lines=[]) -%}
+      low_list_percent: |-
+        {%- set ns = namespace(map={}, names={}, lines=[]) -%}
         {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
         {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
 
@@ -175,26 +161,14 @@ action:
                 {%- set ns.map = dict(ns.map, **{norm: val}) -%}
                 {%- set ns.names = dict(ns.names, **{norm: base}) -%}
               {%- endif -%}
-
-            {#--- Unavailable/non-numeric: record as missing if enabled ---#}
-            {%- elif (not is_num) and include_na -%}
-              {%- if norm not in ns.map and norm not in ns.missing -%}
-                {%- set ns.missing = dict(ns.missing, **{norm: true}) -%}
-                {%- set ns.names = dict(ns.names, **{norm: base}) -%}
-              {%- endif -%}
             {%- endif -%}
 
           {%- endif -%}
         {%- endfor -%}
 
-        {#--- First: numeric lows sorted ascending ---#}
+        {#--- Numeric lows sorted ascending ---#}
         {%- for norm, v in ns.map | dictsort(by='value') -%}
           {%- set ns.lines = ns.lines + ['- ' ~ ns.names[norm] ~ ' (' ~ (v | round(0)) ~ '%)'] -%}
-        {%- endfor -%}
-
-        {#--- Then: unavailable entries (alphabetical) ---#}
-        {%- for norm, _ in ns.missing | dictsort -%}
-          {%- set ns.lines = ns.lines + ['- ' ~ ns.names[norm] ~ ' (n/a)'] -%}
         {%- endfor -%}
 
         {{ ns.lines | join('\n') }}
@@ -248,12 +222,12 @@ action:
           {{ ns.lines | join('\n') }}
         {%- endif -%}
 
-  - alias: "Steg 4 - Fjern duplikater (digital vs prosent/n/a)"
+  - alias: "Steg 4 - Fjern duplikater (digital vs prosent)"
     variables:
       low_list_digital_nodup: >-
         {%- set ns = namespace(lines=[]) -%}
 
-        {%- set low_names = (low_list_percent_and_na | default(''))
+        {%- set low_names = (low_list_percent | default(''))
             .split('\n')
             | map('trim')
             | select('match','^- ')
@@ -284,9 +258,9 @@ action:
 
   - alias: "Steg 5A - Rydd bort meningsløse linjer før melding"
     variables:
-      low_list_percent_and_na_clean: >-
+      low_list_percent_clean: >-
         {% set out = namespace(lines=[]) %}
-        {% for line in (low_list_percent_and_na | default('')).split('\n') %}
+        {% for line in (low_list_percent | default('')).split('\n') %}
           {% set l = line | trim %}
           {% if l == '' %}
           {% elif not (l.startswith('- ')) %}
@@ -325,25 +299,12 @@ action:
       combined_message: >-
         {% set parts = namespace(lines=[]) %}
 
-        {% if (low_list_percent_and_na_clean | trim) != '' %}
-          {% set parts.lines = parts.lines + ["*Batteri % under " ~ (threshold | string) ~ "%:*", low_list_percent_and_na_clean, ""] %}
+        {% if (low_list_percent_clean | trim) != '' %}
+          {% set parts.lines = parts.lines + ["*Batteri % under " ~ (threshold | string) ~ "%:*", low_list_percent_clean, ""] %}
         {% endif %}
 
         {% if (low_list_digital_clean | trim) != '' %}
           {% set parts.lines = parts.lines + ["*Digital batteri lavt:*", low_list_digital_clean, ""] %}
-        {% endif %}
-
-        {% if debug_on %}
-          {% set parts.lines = parts.lines + [
-            "---",
-            "Debug:",
-            "- trigger: " ~ trigger.id,
-            "- threshold: " ~ (threshold | string),
-            "- include_na: " ~ (include_na | string),
-            "- include_digital: " ~ (include_digital | string),
-            "- ignored_entities: " ~ ((ignore_entities | count) | string),
-            "- ignored_devices: " ~ ((ignore_devices | count) | string)
-          ] %}
         {% endif %}
 
         {{ (parts.lines | join('\n')) | trim }}
