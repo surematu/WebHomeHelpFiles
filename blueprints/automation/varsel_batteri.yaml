@@ -91,12 +91,6 @@ blueprint:
       selector:
         boolean:
 
-    include_debug_details:
-      name: Legg til debug-detaljer i varselet
-      default: false
-      selector:
-        boolean:
-
 mode: restart
 
 trigger:
@@ -117,7 +111,6 @@ action:
     variables:
       threshold: !input threshold_percent
       include_digital: !input include_digital_battery_sensors
-      debug_on: !input include_debug_details
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
 
@@ -312,18 +305,6 @@ action:
 
         {% if (low_list_digital_clean | trim) != '' %}
           {% set parts.lines = parts.lines + ["*Digital batteri lavt:*", low_list_digital_clean, ""] %}
-        {% endif %}
-
-        {% if debug_on %}
-          {% set parts.lines = parts.lines + [
-            "---",
-            "Debug:",
-            "- trigger: " ~ trigger.id,
-            "- threshold: " ~ (threshold | string),
-            "- include_digital: " ~ (include_digital | string),
-            "- ignored_entities: " ~ ((ignore_entities | count) | string),
-            "- ignored_devices: " ~ ((ignore_devices | count) | string)
-          ] %}
         {% endif %}
 
         {{ (parts.lines | join('\n')) | trim }}
