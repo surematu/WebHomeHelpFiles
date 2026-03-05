@@ -6,14 +6,15 @@ blueprint:
       - Offset ved 100% pådrag (default +3°C fra basis)
     Basissettpunkt = max(rom_settpunkt, comfort_temp hvis finnes).
     Min-pådrag: ((rom_settpunkt + 1) - rom_temp) * faktor, klippet 0-100,
-    og brukes som minimum for power_percent slik at varmepumpa ikke "girer ned" når rommet ligger under.
+    og brukes som minimum for pådrag slik at varmepumpa ikke "girer ned" når rommet ligger under.
 
-    Overstyring:
-    Hvis attributtet regulated_target_temperature finnes på rom-klimaet, settes ønsket varmepumpe-settpunkt til:
-      regulated_target_temperature + offset_maks
-    (Deretter klippes, rundes og rampes maks 1°C pr kjøring.)
+    Pådrag-signal (0-100%):
+    - Bruker power_percent hvis tilgjengelig.
+    - Ellers, hvis regulated_target_temperature finnes, beregnes pådrag lineært fra
+      (rom_settpunkt + padrag_offset_min) => 0% til (rom_settpunkt + padrag_offset_maks) => 100%.
+    - Ellers brukes 50% som standard.
 
-    Vifte-logikk styres av tekstinput: 0 = ingen vifteregulering, 1 = vifte boost.
+    Vifte-logikk styres av boolean-input: false = ingen vifteregulering, true = vifte boost.
 
     Kjøling (valgfri):
     Aktiver kjøling for å la varmepumpa automatisk bytte mellom heat og cool basert på
@@ -23,7 +24,7 @@ blueprint:
       - Kjøling sperres alltid når rom_settpunkt < rom_comfort_settpunkt (f.eks. eco/natt-senking),
         og varmepumpa tvinges da til heat uansett romtemperatur.
 
-    Blueprint versjon: 2026.03.04
+    Blueprint versjon: 2026.03.05
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -97,12 +98,42 @@ blueprint:
           step: 1
           mode: box
 
-    vifte_tekstverdi:
-      name: Tekstverdi viftemodus (0/1)
-      description: "0 = ingen vifteregulering. 1 = vifte boost ved høyt pådrag (bruker viftelogikk)."
-      default: "0"
+    vifte_boost:
+      name: Vifte boost (på/av)
+      description: "false = ingen vifteregulering. true = vifte boost ved høyt pådrag (bruker viftelogikk)."
+      default: false
       selector:
-        text: {}
+        boolean: {}
+
+    padrag_regulated_offset_min:
+      name: Pådrag fra regulated_target – offset minimum (°C)
+      description: >
+        Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
+        Offset relativt til rom_settpunkt som tilsvarer 0% pådrag.
+        Eksempel: -1 betyr at regulated_target = rom_settpunkt - 1 => 0% pådrag.
+      default: -1
+      selector:
+        number:
+          min: -5
+          max: 0
+          step: 0.5
+          mode: slider
+          unit_of_measurement: "°C"
+
+    padrag_regulated_offset_maks:
+      name: Pådrag fra regulated_target – offset maksimum (°C)
+      description: >
+        Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
+        Offset relativt til rom_settpunkt som tilsvarer 100% pådrag.
+        Eksempel: 1 betyr at regulated_target = rom_settpunkt + 1 => 100% pådrag.
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 5
+          step: 0.5
+          mode: slider
+          unit_of_measurement: "°C"
 
     pumpe_temp_min:
       name: (Avansert) Absolutt min temperatur på varmepumpe
@@ -186,19 +217,19 @@ actions:
       offset_maks: !input grader_over_maks
       max_step: !input maks_endring_per_kjoring
       faktor_min: !input faktor_min_padrag
-      vifte_raw: !input vifte_tekstverdi
+      vifte_aktiv: !input vifte_boost
+      padrag_reg_offset_min: !input padrag_regulated_offset_min
+      padrag_reg_offset_maks: !input padrag_regulated_offset_maks
       pumpe_abs_min: !input pumpe_temp_min
       pumpe_abs_maks: !input pumpe_temp_maks
       kjoling_aktiv: !input kjoling_aktiv
       kjoling_pa_delta: !input kjoling_pa_delta
       kjoling_av_delta: !input kjoling_av_delta
 
-  # Steg 1: les råverdier + attributt-eksistens
+  # Steg 1A: les råverdier + attributt-eksistens
   - variables:
       har_regulated_target: "{{ state_attr(rom_e, 'regulated_target_temperature') is not none }}"
-      regulated_target: "{{ state_attr(rom_e, 'regulated_target_temperature') | float(0) }}"
       har_power_percent: "{{ state_attr(rom_e, 'power_percent') is not none }}"
-      rom_padrag_raw: "{{ (state_attr(rom_e, 'power_percent') | float(0)) if har_power_percent else 0 }}"
       rom_settpunkt: "{{ state_attr(rom_e, 'temperature') | float(20) }}"
       rom_temp: >-
         {{ state_attr(rom_e, 'current_temperature')
@@ -207,7 +238,38 @@ actions:
       pumpe_settpunkt_na_rundet: "{{ (state_attr(pumpe_e, 'temperature') | float(0)) | round(0) | int }}"
       pumpe_vifte_na: "{{ (state_attr(pumpe_e, 'fan_mode') | string | lower) }}"
       pumpe_mode_na: "{{ states(pumpe_e) | string | lower }}"
-      styringsmodus: "{{ 'regulated_override' if (state_attr(rom_e, 'regulated_target_temperature') is not none) else 'power_curve' }}"
+
+  # Steg 1B: beregn padrag_0_100 (0–100% pådrag-signal)
+  # Case A: power_percent finnes => bruk direkte
+  # Case B: regulated_target_temperature finnes => beregn lineært fra offset-range
+  # Case C: ingen => bruk 50%
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ har_power_percent }}"
+        sequence:
+          - variables:
+              padrag_0_100: "{{ state_attr(rom_e, 'power_percent') | float(50) }}"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ har_regulated_target }}"
+        sequence:
+          - variables:
+              padrag_0_100: >-
+                {% set rt = state_attr(rom_e, 'regulated_target_temperature') | float(rom_settpunkt) %}
+                {% set omin = padrag_reg_offset_min | float(-1) %}
+                {% set omax = padrag_reg_offset_maks | float(1) %}
+                {% if omin == omax %}
+                  50
+                {% else %}
+                  {% set raw = (rt - (rom_settpunkt + omin)) / (omax - omin) * 100 %}
+                  {{ [[raw, 0] | max, 100] | min }}
+                {% endif %}
+
+    default:
+      - variables:
+          padrag_0_100: 50
 
   # Steg 2: comfort (om finnes) + basissettpunkt
   - variables:
@@ -220,7 +282,7 @@ actions:
         {% endif %}
       basis_settpunkt: "{{ [rom_settpunkt, rom_comfort_settpunkt] | max }}"
 
-  # Steg 3: min-pådrag (rom_settpunkt + 1 som referanse)
+  # Steg 3: min-pådrag (rom_settpunkt + 1 som referanse) + effektivt pådrag
   - variables:
       rom_ref_settpunkt: "{{ rom_settpunkt + 1 }}"
       temp_delta_under_ref: "{{ (rom_ref_settpunkt - rom_temp) | float(0) }}"
@@ -229,21 +291,17 @@ actions:
         {% set v = (delta if delta > 0 else 0) * (faktor_min | float(0)) %}
         {{ [v, 100] | min }}
       effektivt_padrag: >-
-        {% set p = rom_padrag_raw | float(0) %}
+        {% set p = padrag_0_100 | float(50) %}
         {% set m = min_padrag_beregnet | float(0) %}
         {{ [ [p, m] | max, 100 ] | min }}
 
-  # Steg 4: beregn ønsket settpunkt (override hvis regulated_target_temperature finnes)
+  # Steg 4: beregn ønsket settpunkt (power-kurve med effektivt_padrag)
   - variables:
       pumpe_target_raw: >-
-        {% if har_regulated_target %}
-          {{ (regulated_target | float(basis_settpunkt)) + (offset_maks | float(0)) }}
-        {% else %}
-          {% set p = effektivt_padrag | float(0) %}
-          {% set omin = offset_min | float(0) %}
-          {% set omax = offset_maks | float(0) %}
-          {{ (basis_settpunkt | float(0)) + omin + (p / 100) * (omax - omin) }}
-        {% endif %}
+        {% set p = effektivt_padrag | float(0) %}
+        {% set omin = offset_min | float(0) %}
+        {% set omax = offset_maks | float(0) %}
+        {{ (basis_settpunkt | float(0)) + omin + (p / 100) * (omax - omin) }}
       pumpe_target_klippet: >-
         {% set t = pumpe_target_raw | float(basis_settpunkt) %}
         {{ [ [t, pumpe_abs_min | float(10)] | max, pumpe_abs_maks | float(29) ] | min }}
@@ -261,9 +319,8 @@ actions:
         {% endif %}
       skal_oppdatere_temp: "{{ (pumpe_target_rampet | int) != (pumpe_settpunkt_na_rundet | int) }}"
 
-  # Steg 5: vifte (valgfri)
+  # Steg 5: vifte (valgfri) – vifte_aktiv er satt i Steg 0
   - variables:
-      vifte_aktiv: "{{ (vifte_raw | string | trim) == '1' }}"
       pumpe_vifte_stottes: "{{ state_attr(pumpe_e, 'fan_modes') is not none }}"
 
   - if:
