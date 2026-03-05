@@ -243,23 +243,33 @@ actions:
   # Case A: power_percent finnes => bruk direkte
   # Case B: regulated_target_temperature finnes => beregn lineært fra offset-range
   # Case C: ingen => bruk 50%
-  - variables:
-      padrag_0_100: >-
-        {% if har_power_percent %}
-          {{ state_attr(rom_e, 'power_percent') | float(50) }}
-        {% elif har_regulated_target %}
-          {% set rt = state_attr(rom_e, 'regulated_target_temperature') | float(rom_settpunkt) %}
-          {% set omin = padrag_reg_offset_min | float(-1) %}
-          {% set omax = padrag_reg_offset_maks | float(1) %}
-          {% if omin == omax %}
-            50
-          {% else %}
-            {% set raw = (rt - (rom_settpunkt + omin)) / (omax - omin) * 100 %}
-            {{ [[raw, 0] | max, 100] | min }}
-          {% endif %}
-        {% else %}
-          50
-        {% endif %}
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ har_power_percent }}"
+        sequence:
+          - variables:
+              padrag_0_100: "{{ state_attr(rom_e, 'power_percent') | float(50) }}"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ har_regulated_target }}"
+        sequence:
+          - variables:
+              padrag_0_100: >-
+                {% set rt = state_attr(rom_e, 'regulated_target_temperature') | float(rom_settpunkt) %}
+                {% set omin = padrag_reg_offset_min | float(-1) %}
+                {% set omax = padrag_reg_offset_maks | float(1) %}
+                {% if omin == omax %}
+                  50
+                {% else %}
+                  {% set raw = (rt - (rom_settpunkt + omin)) / (omax - omin) * 100 %}
+                  {{ [[raw, 0] | max, 100] | min }}
+                {% endif %}
+
+    default:
+      - variables:
+          padrag_0_100: 50
 
   # Steg 2: comfort (om finnes) + basissettpunkt
   - variables:
