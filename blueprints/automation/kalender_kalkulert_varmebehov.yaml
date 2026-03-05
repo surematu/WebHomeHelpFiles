@@ -258,7 +258,7 @@ actions:
       # BB: 18.02.2026: Utetemp -7 snitt neste 24h - Fra 15  -20 grader (snitt inne), tok 10 timer. Dvs 5  grad/10tim = 0,5 grad/time.
       # BB: 22.02.2026: Utetemp -4 snitt neste 24h - Fra 15.5-19 grader (snitt inne), tok  8 timer. Dvs 4,5grad/ 8tim = 0,6 grad/time.
       # VT: 18.02.2026: Utetemp -9 snitt neste 24h - Fra 14  -23 grader (      inne), tok 19 timer. Dvs 9  grad/19tim = 0,5 grad/time.
-      # VT: 03.03.2026: Utetemp  2 snitt neste 24h - Fra 13  -22 grader (      inne), tok 10 timer. Dvs 9  grad/10tim = 0,9 grad/time.
+      # VT: 03.03.2026: Utetemp  2 snitt neste 24h - Fra 13  -22 grader (      inne), tok 10 timer. Dvs 9  grad/10tim = 0,9 grad/time. (Med fullt pådrag, ingen effektregulering)
       tempchange_degreePerHour: |-
         {% set t = io_outdoor_temp_comming | float(999) %}
         {% if t <= -13 %}
