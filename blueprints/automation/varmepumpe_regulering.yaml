@@ -24,7 +24,7 @@ blueprint:
       - Kjøling sperres alltid når rom_settpunkt < rom_comfort_settpunkt (f.eks. eco/natt-senking),
         og varmepumpa tvinges da til heat uansett romtemperatur.
 
-    Blueprint versjon: 2026.03.05
+    Blueprint versjon: 2026.03.06
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
