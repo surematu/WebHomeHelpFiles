@@ -239,8 +239,8 @@ blueprint:
           name: Kjøling PÅ – delta over settpunkt (°C)
           description: >
             Setter hvac_mode til cool når iclimate_varme_rt_pv >= iclimate_varme_rt_spk + denne verdien.
-            Default 1.5°C.
-          default: 1.5
+            Default 2°C.
+          default: 2
           selector:
             number:
               min: 0.5
