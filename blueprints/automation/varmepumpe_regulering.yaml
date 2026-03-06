@@ -124,6 +124,45 @@ blueprint:
               mode: slider
               unit_of_measurement: "°C"
 
+        min_padrag_comfort:
+          name: Minimum pådrag ved preset comfort (%)
+          description: >
+            Setter et minimum pådrag (0–100%) når rom-climate har preset comfort.
+            Default 0 gir eksisterende oppførsel uendret.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              mode: slider
+
+        min_padrag_eco:
+          name: Minimum pådrag ved preset eco (%)
+          description: >
+            Setter et minimum pådrag (0–100%) når rom-climate har preset eco.
+            Default 0 gir eksisterende oppførsel uendret.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              mode: slider
+
+        min_padrag_boost:
+          name: Minimum pådrag ved preset boost (%)
+          description: >
+            Setter et minimum pådrag (0–100%) når rom-climate har preset boost.
+            Default 0 gir eksisterende oppførsel uendret.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              mode: slider
+
     varmepumpe_ava:
       name: Varmepumpe (Avansert)
       icon: mdi:heat-pump
@@ -250,6 +289,9 @@ actions:
       ix_kjoling_aktiv: !input ix_kjoling_aktiv
       inum_kjoling_pa_delta: !input inum_kjoling_pa_delta
       inum_kjoling_av_delta: !input inum_kjoling_av_delta
+      inum_min_padrag_comfort: !input min_padrag_comfort
+      inum_min_padrag_eco: !input min_padrag_eco
+      inum_min_padrag_boost: !input min_padrag_boost
 
   # Steg 1: les råverdier + attributt-eksistens
   - variables:
@@ -305,14 +347,26 @@ actions:
 
   # Steg 3: min-pådrag (iclimate_varme_rt_spk som referanse) + effektivt pådrag
   - variables:
-      varmepumpe_output_power_min: >-
+      varmepumpe_output_power_min_cause_min_faktor: >-
         {% set pv_below_spk = iclimate_varme_rt_pv_below_spk | float(0) %}
         {% set v = (pv_below_spk if pv_below_spk > 0 else 0) * (inum_faktor_min | float(0)) %}
         {{ [v, 100] | min }}
+      varmepumpe_output_power_min_cause_mode: >-
+        {% set pm = iclimate_varme_presetmode | string | lower %}
+        {% if pm == 'comfort' %}
+          {{ inum_min_padrag_comfort | float(0) }}
+        {% elif pm == 'eco' %}
+          {{ inum_min_padrag_eco | float(0) }}
+        {% elif pm == 'boost' %}
+          {{ inum_min_padrag_boost | float(0) }}
+        {% else %}
+          0
+        {% endif %}
       varmepumpe_output_power: >-
         {% set p = varme_cur_power_calculated | float(50) %}
-        {% set m = varmepumpe_output_power_min | float(0) %}
-        {{ [ [p, m] | max, 100 ] | min }}
+        {% set m1 = varmepumpe_output_power_min_cause_min_faktor | float(0) %}
+        {% set m2 = varmepumpe_output_power_min_cause_mode | float(0) %}
+        {{ [ [p, m1, m2] | max, 100 ] | min }}
 
   # Steg 4: beregn ønsket settpunkt (power-kurve med varmepumpe_output_power)
   - variables:
