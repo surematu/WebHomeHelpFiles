@@ -24,7 +24,7 @@ blueprint:
       - Kjøling sperres alltid når iclimate_varme_rt_spk < iclimate_varme_rt_sp_comfort_spkifnocomfort (f.eks. eco/natt-senking),
         og varmepumpa tvinges da til heat uansett romtemperatur.
 
-    Blueprint versjon: 2026.03.12
+    Blueprint versjon: 2026.03.13
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -124,10 +124,15 @@ blueprint:
               mode: slider
               unit_of_measurement: "°C"
 
-        min_padrag_comfort:
-          name: Minimum pådrag ved preset comfort (%)
+    varmepumpe_ava:
+      name: Varmepumpe (Avansert)
+      icon: mdi:heat-pump
+      collapsed: true
+      input:
+        min_padrag_eco:
+          name: Minimum pådrag ved preset eco (%)
           description: >
-            Setter et minimum pådrag (0–100%) når rom-climate har preset comfort.
+            Setter et minimum pådrag (0–100%) når rom-climate har preset eco.
             Default 0 gir eksisterende oppførsel uendret.
           default: 0
           selector:
@@ -137,10 +142,10 @@ blueprint:
               step: 1
               mode: slider
 
-        min_padrag_eco:
-          name: Minimum pådrag ved preset eco (%)
+        min_padrag_comfort:
+          name: Minimum pådrag ved preset comfort (%)
           description: >
-            Setter et minimum pådrag (0–100%) når rom-climate har preset eco.
+            Setter et minimum pådrag (0–100%) når rom-climate har preset comfort.
             Default 0 gir eksisterende oppførsel uendret.
           default: 0
           selector:
@@ -162,12 +167,7 @@ blueprint:
               max: 100
               step: 1
               mode: slider
-
-    varmepumpe_ava:
-      name: Varmepumpe (Avansert)
-      icon: mdi:heat-pump
-      collapsed: true
-      input:
+      
         pumpe_temp_min:
           name: Absolutt min temperatur på varmepumpe
           default: 10
