@@ -247,9 +247,9 @@ actions:
       padrag_reg_offset_maks: !input padrag_regulated_offset_maks
       inum_varmepumpe_abs_min: !input pumpe_temp_min
       inum_varmepumpe_abs_max: !input pumpe_temp_maks
-      ix_kjoling_aktiv: !input kjoling_aktiv
-      inum_kjoling_pa_delta: !input kjoling_pa_delta
-      inum_kjoling_av_delta: !input kjoling_av_delta
+      ix_kjoling_aktiv: !input ix_kjoling_aktiv
+      inum_kjoling_pa_delta: !input inum_kjoling_pa_delta
+      inum_kjoling_av_delta: !input inum_kjoling_av_delta
 
   # Steg 1: les råverdier + attributt-eksistens
   - variables:
