@@ -5,7 +5,7 @@ blueprint:
       - Offset ved 0% pådrag (default -3°C fra basis)
       - Offset ved 100% pådrag (default +3°C fra basis)
     Basissettpunkt = max(rom_settpunkt, comfort_temp hvis finnes).
-    Min-pådrag: ((rom_settpunkt + 1) - rom_temp) * faktor, klippet 0-100,
+    Min-pådrag: (rom_settpunkt - rom_temp) * faktor, klippet 0-100,
     og brukes som minimum for pådrag slik at varmepumpa ikke "girer ned" når rommet ligger under.
 
     Pådrag-signal (0-100%):
@@ -32,168 +32,188 @@ blueprint:
     min_version: 2025.11.0
 
   input:
-    rom_climate:
-      name: Climate – varmeregulering i rom
-      selector:
-        entity:
-          domain: climate
+    varmepumpe:
+      name: Varmepumpe
+      icon: mdi:heat-pump
+      collapsed: true
+      input:
+        pumpe_climate:
+          name: Climate – varmepumpe (styring)
+          selector:
+            entity:
+              domain: climate
 
-    pumpe_climate:
-      name: Climate – varmepumpe (styring)
-      selector:
-        entity:
-          domain: climate
+        pumpe_temp_min:
+          name: (Avansert) Absolutt min temperatur på varmepumpe
+          default: 10
+          selector:
+            number:
+              min: 5
+              max: 25
+              step: 1
+              mode: box
+              unit_of_measurement: "°C"
 
-    grader_under_min:
-      name: Offset ved 0% pådrag (min-settpunkt)
-      description: >
-        Offset i °C relativt til basis_settpunkt når effektivt_padrag=0.
-        Default -3 betyr basis-3. Sett f.eks 1–4 for basis+1 til basis+4.
-      default: -3
-      selector:
-        number:
-          min: -10
-          max: 10
-          step: 0.5
-          mode: slider
-          unit_of_measurement: "°C"
+        pumpe_temp_maks:
+          name: (Avansert) Absolutt maks temperatur på varmepumpe
+          default: 29
+          selector:
+            number:
+              min: 15
+              max: 35
+              step: 1
+              mode: box
+              unit_of_measurement: "°C"
 
-    grader_over_maks:
-      name: Offset ved 100% pådrag (maks-settpunkt)
-      description: >
-        Offset i °C relativt til basis_settpunkt når effektivt_padrag=100.
-        Default 3 betyr basis+3.
-      default: 3
-      selector:
-        number:
-          min: -10
-          max: 10
-          step: 0.5
-          mode: slider
-          unit_of_measurement: "°C"
+    varme:
+      name: Varme
+      icon: mdi:fire
+      collapsed: true
+      input:
+        rom_climate:
+          name: Climate – varmeregulering i rom
+          selector:
+            entity:
+              domain: climate
 
-    maks_endring_per_kjoring:
-      name: Maks endring per kjøring (°C)
-      description: "Begrenser hvor mye varmepumpe-settpunktet kan endres per kjøring. Default 1°C."
-      default: 1
-      selector:
-        number:
-          min: 0
-          max: 5
-          step: 1
-          mode: slider
-          unit_of_measurement: "°C"
+        grader_under_min:
+          name: Offset ved 0% pådrag (min-settpunkt)
+          description: >
+            Offset i °C relativt til basis_settpunkt når effektivt_padrag=0.
+            Default -3 betyr basis-3. Sett f.eks 1–4 for basis+1 til basis+4.
+          default: -3
+          selector:
+            number:
+              min: -10
+              max: 10
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
 
-    faktor_min_padrag:
-      name: Faktor for minimum pådrag
-      description: >
-        Min-pådrag = ( (rom_settpunkt + 1) - rom_temp ) * faktor.
-        Eksempel: rom_settpunkt=22 -> bruker 23. rom_temp=21 gir delta=2.
-        Faktor=50 => min-pådrag=100.
-      default: 50
-      selector:
-        number:
-          min: 0
-          max: 200
-          step: 1
-          mode: box
+        grader_over_maks:
+          name: Offset ved 100% pådrag (maks-settpunkt)
+          description: >
+            Offset i °C relativt til basis_settpunkt når effektivt_padrag=100.
+            Default 3 betyr basis+3.
+          default: 3
+          selector:
+            number:
+              min: -10
+              max: 10
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
 
-    vifte_boost:
-      name: Vifte boost (på/av)
-      description: "false = ingen vifteregulering. true = vifte boost ved høyt pådrag (bruker viftelogikk)."
-      default: false
-      selector:
-        boolean: {}
+        maks_endring_per_kjoring:
+          name: Maks endring per kjøring (°C)
+          description: "Begrenser hvor mye varmepumpe-settpunktet kan endres per kjøring. Default 1°C."
+          default: 1
+          selector:
+            number:
+              min: 0
+              max: 5
+              step: 1
+              mode: slider
+              unit_of_measurement: "°C"
 
-    padrag_regulated_offset_min:
-      name: Pådrag fra regulated_target – offset minimum (°C)
-      description: >
-        Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
-        Offset relativt til rom_settpunkt som tilsvarer 0% pådrag.
-        Eksempel: -1 betyr at regulated_target = rom_settpunkt - 1 => 0% pådrag.
-      default: -1
-      selector:
-        number:
-          min: -5
-          max: 0
-          step: 0.5
-          mode: slider
-          unit_of_measurement: "°C"
+        faktor_min_padrag:
+          name: Faktor for minimum pådrag
+          description: >
+            Min-pådrag = (rom_settpunkt - rom_temp) * faktor.
+            Eksempel: rom_settpunkt=22, rom_temp=20 gir delta=2.
+            Faktor=50 => min-pådrag=100.
+          default: 50
+          selector:
+            number:
+              min: 0
+              max: 200
+              step: 1
+              mode: box
 
-    padrag_regulated_offset_maks:
-      name: Pådrag fra regulated_target – offset maksimum (°C)
-      description: >
-        Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
-        Offset relativt til rom_settpunkt som tilsvarer 100% pådrag.
-        Eksempel: 1 betyr at regulated_target = rom_settpunkt + 1 => 100% pådrag.
-      default: 1
-      selector:
-        number:
-          min: 0
-          max: 5
-          step: 0.5
-          mode: slider
-          unit_of_measurement: "°C"
+        padrag_regulated_offset_min:
+          name: Pådrag fra regulated_target – offset minimum (°C)
+          description: >
+            Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
+            Offset relativt til rom_settpunkt som tilsvarer 0% pådrag.
+            Eksempel: -1 betyr at regulated_target = rom_settpunkt - 1 => 0% pådrag.
+          default: -1
+          selector:
+            number:
+              min: -5
+              max: 0
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
 
-    pumpe_temp_min:
-      name: (Avansert) Absolutt min temperatur på varmepumpe
-      default: 10
-      selector:
-        number:
-          min: 5
-          max: 25
-          step: 1
-          mode: box
-          unit_of_measurement: "°C"
+        padrag_regulated_offset_maks:
+          name: Pådrag fra regulated_target – offset maksimum (°C)
+          description: >
+            Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
+            Offset relativt til rom_settpunkt som tilsvarer 100% pådrag.
+            Eksempel: 1 betyr at regulated_target = rom_settpunkt + 1 => 100% pådrag.
+          default: 1
+          selector:
+            number:
+              min: 0
+              max: 5
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
 
-    pumpe_temp_maks:
-      name: (Avansert) Absolutt maks temperatur på varmepumpe
-      default: 29
-      selector:
-        number:
-          min: 15
-          max: 35
-          step: 1
-          mode: box
-          unit_of_measurement: "°C"
+    vifte:
+      name: Vifte
+      icon: mdi:fan
+      collapsed: true
+      input:
+        vifte_boost:
+          name: Vifte boost (på/av)
+          description: "false = ingen vifteregulering. true = vifte boost ved høyt pådrag (bruker viftelogikk)."
+          default: false
+          selector:
+            boolean: {}
 
-    kjoling_aktiv:
-      name: Aktiver kjøling (valgfri)
-      description: >
-        Hvis aktivert, kan varmepumpa automatisk bytte mellom heat og cool
-        basert på romtemperatur relativt til rom-settpunktet.
-        Hvis deaktivert, brukes alltid heat-modus (eksisterende oppførsel).
-      default: false
-      selector:
-        boolean: {}
+    kjoling:
+      name: Kjøling
+      icon: mdi:snowflake
+      collapsed: true
+      input:
+        kjoling_aktiv:
+          name: Aktiver kjøling (valgfri)
+          description: >
+            Hvis aktivert, kan varmepumpa automatisk bytte mellom heat og cool
+            basert på romtemperatur relativt til rom-settpunktet.
+            Hvis deaktivert, brukes alltid heat-modus (eksisterende oppførsel).
+          default: false
+          selector:
+            boolean: {}
 
-    kjoling_pa_delta:
-      name: Kjøling PÅ – delta over settpunkt (°C)
-      description: >
-        Setter hvac_mode til cool når rom_temp >= rom_settpunkt + denne verdien.
-        Default 1.5°C.
-      default: 1.5
-      selector:
-        number:
-          min: 0.5
-          max: 5
-          step: 0.5
-          mode: slider
-          unit_of_measurement: "°C"
+        kjoling_pa_delta:
+          name: Kjøling PÅ – delta over settpunkt (°C)
+          description: >
+            Setter hvac_mode til cool når rom_temp >= rom_settpunkt + denne verdien.
+            Default 1.5°C.
+          default: 1.5
+          selector:
+            number:
+              min: 0.5
+              max: 5
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
 
-    kjoling_av_delta:
-      name: Kjøling AV – delta over settpunkt (°C) (hysterese)
-      description: >
-        Setter hvac_mode tilbake til heat når rom_temp <= rom_settpunkt + denne verdien.
-        Må være lavere enn kjoling_pa_delta for å unngå modus-flapping. Default 0.5°C.
-      default: 0.5
-      selector:
-        number:
-          min: 0
-          max: 3
-          step: 0.5
-          mode: slider
-          unit_of_measurement: "°C"
+        kjoling_av_delta:
+          name: Kjøling AV – delta over settpunkt (°C) (hysterese)
+          description: >
+            Setter hvac_mode tilbake til heat når rom_temp <= rom_settpunkt + denne verdien.
+            Må være lavere enn kjoling_pa_delta for å unngå modus-flapping. Default 0.5°C.
+          default: 0.5
+          selector:
+            number:
+              min: 0
+              max: 3
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
 
 mode: restart
 
@@ -282,12 +302,11 @@ actions:
         {% endif %}
       basis_settpunkt: "{{ [rom_settpunkt, rom_comfort_settpunkt] | max }}"
 
-  # Steg 3: min-pådrag (rom_settpunkt + 1 som referanse) + effektivt pådrag
+  # Steg 3: min-pådrag (rom_settpunkt som referanse) + effektivt pådrag
   - variables:
-      rom_ref_settpunkt: "{{ rom_settpunkt + 1 }}"
-      temp_delta_under_ref: "{{ (rom_ref_settpunkt - rom_temp) | float(0) }}"
+      temp_delta_under_setp: "{{ (rom_settpunkt - rom_temp) | float(0) }}"
       min_padrag_beregnet: >-
-        {% set delta = temp_delta_under_ref | float(0) %}
+        {% set delta = temp_delta_under_setp | float(0) %}
         {% set v = (delta if delta > 0 else 0) * (faktor_min | float(0)) %}
         {{ [v, 100] | min }}
       effektivt_padrag: >-
@@ -320,20 +339,16 @@ actions:
       skal_oppdatere_temp: "{{ (pumpe_target_rampet | int) != (pumpe_settpunkt_na_rundet | int) }}"
 
   # Steg 5: vifte (valgfri) – vifte_aktiv er satt i Steg 0
-  - variables:
-      pumpe_vifte_stottes: "{{ state_attr(pumpe_e, 'fan_modes') is not none }}"
-
   - if:
       - condition: template
-        value_template: "{{ not vifte_aktiv or not pumpe_vifte_stottes }}"
+        value_template: "{{ vifte_aktiv }}"
     then:
       - variables:
-          onsket_vifte: "{{ pumpe_vifte_na }}"
-          skal_oppdatere_vifte: false
-    else:
-      - variables:
+          pumpe_vifte_stottes: "{{ state_attr(pumpe_e, 'fan_modes') is not none }}"
           onsket_vifte: >-
-            {% if rom_preset_mode == 'frost' %}
+            {% if not pumpe_vifte_stottes %}
+              {{ pumpe_vifte_na }}
+            {% elif rom_preset_mode == 'frost' %}
               high
             {% elif (effektivt_padrag | float(0)) < 20 %}
               medium
@@ -342,17 +357,17 @@ actions:
             {% else %}
               {{ pumpe_vifte_na }}
             {% endif %}
-          skal_oppdatere_vifte: "{{ (onsket_vifte | string) != (pumpe_vifte_na | string) }}"
+          skal_oppdatere_vifte: "{{ pumpe_vifte_stottes and (onsket_vifte | string) != (pumpe_vifte_na | string) }}"
+    else:
+      - variables:
+          onsket_vifte: "{{ pumpe_vifte_na }}"
+          skal_oppdatere_vifte: false
 
   # Steg 6: kjøling (valgfri)
   - if:
       - condition: template
-        value_template: "{{ not kjoling_aktiv }}"
+        value_template: "{{ kjoling_aktiv }}"
     then:
-      - variables:
-          onsket_mode: heat
-          skal_oppdatere_mode: "{{ pumpe_mode_na != 'heat' }}"
-    else:
       - variables:
           WantCool_SetpointComfOrHihger: >-
             {% set setp = rom_settpunkt | float(0) %}
@@ -367,6 +382,10 @@ actions:
       - variables:
           onsket_mode: "{{ 'cool' if (WantCool_SetpointComfOrHihger and WantCoolCauseHightTemp) else 'heat' }}"
           skal_oppdatere_mode: "{{ (onsket_mode | string | trim) != (pumpe_mode_na | string | trim) }}"
+    else:
+      - variables:
+          onsket_mode: heat
+          skal_oppdatere_mode: "{{ pumpe_mode_na != 'heat' }}"
 
   # Steg 7: sett verdier kun ved behov
   - if:
