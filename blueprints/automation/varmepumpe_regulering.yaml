@@ -19,12 +19,12 @@ blueprint:
     Kjøling (valgfri):
     Aktiver kjøling for å la varmepumpa automatisk bytte mellom heat og cool basert på
     romtemperatur relativt til rom-settpunktet.
-      - Bytt til cool når iclimate_varme_rt_pv >= iclimate_varme_rt_spk + kjoling_pa_delta (default 1.5°C)
-      - Bytt tilbake til heat når iclimate_varme_rt_pv <= iclimate_varme_rt_spk + kjoling_av_delta (default 0.5°C, hysterese)
+      - Bytt til cool når iclimate_varme_rt_pv >= iclimate_varme_rt_spk + inum_kjoling_pa_delta (default 1.5°C)
+      - Bytt tilbake til heat når iclimate_varme_rt_pv <= iclimate_varme_rt_spk + inum_kjoling_av_delta (default 0.5°C, hysterese)
       - Kjøling sperres alltid når iclimate_varme_rt_spk < iclimate_varme_rt_sp_comfort_spkifnocomfort (f.eks. eco/natt-senking),
         og varmepumpa tvinges da til heat uansett romtemperatur.
 
-    Blueprint versjon: 2026.03.09
+    Blueprint versjon: 2026.03.10
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -99,7 +99,7 @@ blueprint:
         grader_under_min:
           name: Grader i forhold til settpunkt ved 0% pådrag (grader_under_min)
           description: >
-            Offset i °C relativt til varme_rt_max_spk_comfort når effektivt_padrag=0.
+            Offset i °C relativt til iclimate_varme_rt_max_spk_spcomfort når varmepumpe_output_power=0.
             Default -3 betyr basis-3. Sett f.eks 1–4 for basis+1 til basis+4.
           default: -3
           selector:
@@ -113,7 +113,7 @@ blueprint:
         grader_over_maks:
           name: Grader i forhold til settpunkt ved 100% pådrag (grader_over_maks)
           description: >
-            Offset i °C relativt til varme_rt_max_spk_comfort når effektivt_padrag=100.
+            Offset i °C relativt til iclimate_varme_rt_max_spk_spcomfort når varmepumpe_output_power=100.
             Default 3 betyr basis+3.
           default: 3
           selector:
@@ -182,7 +182,7 @@ blueprint:
       icon: mdi:snowflake
       collapsed: true
       input:
-        kjoling_aktiv:
+        ix_kjoling_aktiv:
           name: Aktiver kjøling (valgfri)
           description: >
             Hvis aktivert, kan varmepumpa automatisk bytte mellom heat og cool
@@ -192,7 +192,7 @@ blueprint:
           selector:
             boolean: {}
 
-        kjoling_pa_delta:
+        inum_kjoling_pa_delta:
           name: Kjøling PÅ – delta over settpunkt (°C)
           description: >
             Setter hvac_mode til cool når iclimate_varme_rt_pv >= iclimate_varme_rt_spk + denne verdien.
@@ -206,11 +206,11 @@ blueprint:
               mode: slider
               unit_of_measurement: "°C"
 
-        kjoling_av_delta:
+        inum_kjoling_av_delta:
           name: Kjøling AV – delta over settpunkt (°C) (hysterese)
           description: >
             Setter hvac_mode tilbake til heat når iclimate_varme_rt_pv <= iclimate_varme_rt_spk + denne verdien.
-            Må være lavere enn kjoling_pa_delta for å unngå modus-flapping. Default 0.5°C.
+            Må være lavere enn inum_kjoling_pa_delta for å unngå modus-flapping. Default 0.5°C.
           default: 0.5
           selector:
             number:
@@ -238,18 +238,18 @@ actions:
   - variables:
       iclimate_varme: !input rom_climate
       iclimate_varmepumpe: !input pumpe_climate
-      offset_min: !input grader_under_min
-      offset_maks: !input grader_over_maks
-      max_step: !input maks_endring_per_kjoring
-      faktor_min: !input faktor_min_padrag
-      vifte_aktiv: !input vifte_boost
+      inum_offset_min: !input grader_under_min
+      inum_offset_maks: !input grader_over_maks
+      inum_max_step: !input maks_endring_per_kjoring
+      inum_faktor_min: !input faktor_min_padrag
+      ix_vifte_aktiv: !input vifte_boost
       padrag_reg_offset_min: !input padrag_regulated_offset_min
       padrag_reg_offset_maks: !input padrag_regulated_offset_maks
-      pumpe_abs_min: !input pumpe_temp_min
-      pumpe_abs_maks: !input pumpe_temp_maks
-      kjoling_aktiv: !input kjoling_aktiv
-      kjoling_pa_delta: !input kjoling_pa_delta
-      kjoling_av_delta: !input kjoling_av_delta
+      inum_varmepumpe_abs_min: !input pumpe_temp_min
+      inum_varmepumpe_abs_max: !input pumpe_temp_maks
+      ix_kjoling_aktiv: !input kjoling_aktiv
+      inum_kjoling_pa_delta: !input kjoling_pa_delta
+      inum_kjoling_av_delta: !input kjoling_av_delta
 
   # Steg 1: les råverdier + attributt-eksistens
   - variables:
@@ -257,6 +257,7 @@ actions:
         {{ state_attr(iclimate_varme, 'current_temperature')
            | float(state_attr(iclimate_varme, 'temperature') | float(20)) }}
       iclimate_varme_rt_spk: "{{ state_attr(iclimate_varme, 'temperature') | float(20) }}"
+      iclimate_varme_rt_pv_below_spk: "{{ (iclimate_varme_rt_spk - iclimate_varme_rt_pv) | float(0) }}"
       iclimate_varme_rt_sp_comfort_spkifnocomfort: >-
         {% set presets = state_attr(iclimate_varme, 'preset_temperatures') %}
         {% if presets is mapping and 'comfort_temp' in presets %}
@@ -304,45 +305,45 @@ actions:
 
   # Steg 3: min-pådrag (iclimate_varme_rt_spk som referanse) + effektivt pådrag
   - variables:
-      temp_delta_under_setp: "{{ (iclimate_varme_rt_spk - iclimate_varme_rt_pv) | float(0) }}"
-      min_padrag_beregnet: >-
-        {% set delta = temp_delta_under_setp | float(0) %}
-        {% set v = (delta if delta > 0 else 0) * (faktor_min | float(0)) %}
+      varmepumpe_output_power_min: >-
+        {% set pv_below_spk = iclimate_varme_rt_pv_below_spk | float(0) %}
+        {% set v = (pv_below_spk if pv_below_spk > 0 else 0) * (inum_faktor_min | float(0)) %}
         {{ [v, 100] | min }}
-      effektivt_padrag: >-
+      varmepumpe_output_power: >-
         {% set p = varme_cur_power_calculated | float(50) %}
-        {% set m = min_padrag_beregnet | float(0) %}
+        {% set m = varmepumpe_output_power_min | float(0) %}
         {{ [ [p, m] | max, 100 ] | min }}
 
-  # Steg 4: beregn ønsket settpunkt (power-kurve med effektivt_padrag)
+  # Steg 4: beregn ønsket settpunkt (power-kurve med varmepumpe_output_power)
   - variables:
-      varme_rt_max_spk_comfort: "{{ [iclimate_varme_rt_spk, iclimate_varme_rt_sp_comfort_spkifnocomfort] | max }}"
-      pumpe_target_raw: >-
-        {% set p = effektivt_padrag | float(0) %}
-        {% set omin = offset_min | float(0) %}
-        {% set omax = offset_maks | float(0) %}
-        {{ (varme_rt_max_spk_comfort | float(0)) + omin + (p / 100) * (omax - omin) }}
-      pumpe_target_klippet: >-
-        {% set t = pumpe_target_raw | float(varme_rt_max_spk_comfort) %}
-        {{ [ [t, pumpe_abs_min | float(10)] | max, pumpe_abs_maks | float(29) ] | min }}
-      pumpe_target_rundet: "{{ (pumpe_target_klippet | float) | round(0) | int }}"
+      iclimate_varme_rt_max_spk_spcomfort: "{{ [iclimate_varme_rt_spk, iclimate_varme_rt_sp_comfort_spkifnocomfort] | max }}"
+      varmepumpe_req_spk_raw: >-
+        {% set p = varmepumpe_output_power | float(0) %}
+        {% set omin = inum_offset_min | float(0) %}
+        {% set omax = inum_offset_maks | float(0) %}
+        {{ (iclimate_varme_rt_max_spk_spcomfort | float(0)) + omin + (p / 100) * (omax - omin) }}
+      varmepumpe_req_spk_incl_abs_limit: >-
+        {% set t = varmepumpe_req_spk_raw | float(iclimate_varme_rt_max_spk_spcomfort) %}
+        {{ [ [t, inum_varmepumpe_abs_min | float(10)] | max, inum_varmepumpe_abs_max | float(29) ] | min }}
+      # Rundes til nærmeste halve. 20.5, 20 osv.
+      varmepumpe_req_spk_rounded_nearest_half: "{{ ((varmepumpe_req_spk_incl_abs_limit | float(0)) * 2) | round(0) / 2 }}"
 
       # RAMP: maks endring per kjøring
-      pumpe_target_rampet: >-
-        {% set ønsket = pumpe_target_rundet | int %}
+      qnum_varmepumpe_req_spk: >-
+        {% set ønsket = varmepumpe_req_spk_rounded_nearest_half | int %}
         {% set nå = iclimate_varmepumpe_rt_spk | int %}
-        {% set step = max_step | int %}
+        {% set step = inum_max_step | int %}
         {% if step <= 0 %}
           {{ ønsket }}
         {% else %}
           {{ [nå - step, [ønsket, nå + step] | min] | max }}
         {% endif %}
-      skal_oppdatere_temp: "{{ (pumpe_target_rampet | int) != (iclimate_varmepumpe_rt_spk | int) }}"
+      qx_varmepumpe_spk_update_needed: "{{ (qnum_varmepumpe_req_spk | int) != (iclimate_varmepumpe_rt_spk | int) }}"
 
-  # Steg 5: vifte (valgfri) – vifte_aktiv er satt i Steg 0
+  # Steg 5: vifte (valgfri) – ix_vifte_aktiv er satt i Steg 0
   - if:
       - condition: template
-        value_template: "{{ vifte_aktiv }}"
+        value_template: "{{ ix_vifte_aktiv }}"
     then:
       - variables:
           pumpe_vifte_stottes: "{{ state_attr(iclimate_varmepumpe, 'fan_modes') is not none }}"
@@ -351,9 +352,9 @@ actions:
               {{ iclimate_varmepumpe_fanmode }}
             {% elif iclimate_varme_presetmode == 'frost' %}
               high
-            {% elif (effektivt_padrag | float(0)) < 20 %}
+            {% elif (varmepumpe_output_power | float(0)) < 20 %}
               medium
-            {% elif (effektivt_padrag | float(0)) > 50 %}
+            {% elif (varmepumpe_output_power | float(0)) > 50 %}
               high
             {% else %}
               {{ iclimate_varmepumpe_fanmode }}
@@ -367,7 +368,7 @@ actions:
   # Steg 6: kjøling (valgfri)
   - if:
       - condition: template
-        value_template: "{{ kjoling_aktiv }}"
+        value_template: "{{ ix_kjoling_aktiv }}"
     then:
       - variables:
           WantCool_SetpointComfOrHihger: >-
@@ -375,8 +376,8 @@ actions:
             {% set comfort = iclimate_varme_rt_sp_comfort_spkifnocomfort | float(setp) %}
             {{ setp >= comfort }}
           WantCoolCauseHightTemp: >-
-            {% set delta_on = kjoling_pa_delta | float(1.5) %}
-            {% set delta_off = kjoling_av_delta | float(0.5) %}
+            {% set delta_on = inum_kjoling_pa_delta | float(1.5) %}
+            {% set delta_off = inum_kjoling_av_delta | float(0.5) %}
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
             {{ (temp > setp + delta_off) if iclimate_varmepumpe_mode == 'cool' else (temp >= setp + delta_on) }}
@@ -393,7 +394,7 @@ actions:
       - condition: or
         conditions:
           - condition: template
-            value_template: "{{ skal_oppdatere_temp }}"
+            value_template: "{{ qx_varmepumpe_spk_update_needed }}"
           - condition: template
             value_template: "{{ skal_oppdatere_vifte }}"
           - condition: template
@@ -411,14 +412,14 @@ actions:
 
       - if:
           - condition: template
-            value_template: "{{ skal_oppdatere_temp }}"
+            value_template: "{{ qx_varmepumpe_spk_update_needed }}"
         then:
           - action: climate.set_temperature
             target:
               entity_id: !input pumpe_climate
             data:
               hvac_mode: "{{ onsket_mode }}"
-              temperature: "{{ pumpe_target_rampet }}"
+              temperature: "{{ qnum_varmepumpe_req_spk }}"
 
       - if:
           - condition: template
