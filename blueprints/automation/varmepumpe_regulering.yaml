@@ -24,7 +24,7 @@ blueprint:
       - Kjøling sperres alltid når rom_settpunkt < rom_comfort_settpunkt (f.eks. eco/natt-senking),
         og varmepumpa tvinges da til heat uansett romtemperatur.
 
-    Blueprint versjon: 2026.03.07
+    Blueprint versjon: 2026.03.08
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -44,7 +44,7 @@ blueprint:
               domain: climate
 
         padrag_regulated_offset_min:
-          name: Pådrag fra regulated_target – offset minimum (°C)
+          name: 0% pådrag hvis regulatedSetpoint er så mange grader i forhold til settpunkt varme (padrag_regulated_offset_min)
           description: >
             Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
             Offset relativt til rom_settpunkt som tilsvarer 0% pådrag.
@@ -59,7 +59,7 @@ blueprint:
               unit_of_measurement: "°C"
 
         padrag_regulated_offset_maks:
-          name: Pådrag fra regulated_target – offset maksimum (°C)
+          name: 100% pådrag hvis regulatedSetpoint er så mange grader i forhold til settpunkt varme (padrag_regulated_offset_maks)
           description: >
             Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
             Offset relativt til rom_settpunkt som tilsvarer 100% pådrag.
@@ -92,12 +92,12 @@ blueprint:
             number:
               min: 0
               max: 5
-              step: 1
+              step: 0.5
               mode: slider
               unit_of_measurement: "°C"
 
         grader_under_min:
-          name: Offset ved 0% pådrag (min-settpunkt)
+          name: Grader i forhold til settpunkt ved 0% pådrag (grader_under_min)
           description: >
             Offset i °C relativt til basis_settpunkt når effektivt_padrag=0.
             Default -3 betyr basis-3. Sett f.eks 1–4 for basis+1 til basis+4.
@@ -111,7 +111,7 @@ blueprint:
               unit_of_measurement: "°C"
 
         grader_over_maks:
-          name: Offset ved 100% pådrag (maks-settpunkt)
+          name: Grader i forhold til settpunkt ved 100% pådrag (grader_over_maks)
           description: >
             Offset i °C relativt til basis_settpunkt når effektivt_padrag=100.
             Default 3 betyr basis+3.
@@ -122,6 +122,33 @@ blueprint:
               max: 10
               step: 0.5
               mode: slider
+              unit_of_measurement: "°C"
+
+    varmepumpe_ava:
+      name: Varmepumpe (Avansert)
+      icon: mdi:heat-pump
+      collapsed: true
+      input:
+        pumpe_temp_min:
+          name: Absolutt min temperatur på varmepumpe
+          default: 10
+          selector:
+            number:
+              min: 5
+              max: 25
+              step: 1
+              mode: box
+              unit_of_measurement: "°C"
+
+        pumpe_temp_maks:
+          name: Absolutt maks temperatur på varmepumpe
+          default: 29
+          selector:
+            number:
+              min: 15
+              max: 35
+              step: 1
+              mode: box
               unit_of_measurement: "°C"
 
         faktor_min_padrag:
@@ -137,28 +164,6 @@ blueprint:
               max: 200
               step: 1
               mode: box
-
-        pumpe_temp_min:
-          name: (Avansert) Absolutt min temperatur på varmepumpe
-          default: 10
-          selector:
-            number:
-              min: 5
-              max: 25
-              step: 1
-              mode: box
-              unit_of_measurement: "°C"
-
-        pumpe_temp_maks:
-          name: (Avansert) Absolutt maks temperatur på varmepumpe
-          default: 29
-          selector:
-            number:
-              min: 15
-              max: 35
-              step: 1
-              mode: box
-              unit_of_measurement: "°C"
 
     vifte:
       name: Vifte
