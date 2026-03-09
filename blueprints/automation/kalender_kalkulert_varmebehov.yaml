@@ -13,7 +13,7 @@ blueprint:
     -Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
 
     Blueprint versjon:
-    2026.02.13
+    2026.3.0
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kalender_kalkulert_varmebehov.yaml
   author: WebHome
@@ -255,10 +255,17 @@ actions:
 
   - alias: Beregn oppvarmingshastighet og nødvendig tid
     variables:
-      # BB: 18.02.2026: Utetemp -7 snitt neste 24h - Fra 15  -20 grader (snitt inne), tok 10 timer. Dvs 5  grad/10tim = 0,5 grad/time.
-      # BB: 22.02.2026: Utetemp -4 snitt neste 24h - Fra 15.5-19 grader (snitt inne), tok  8 timer. Dvs 4,5grad/ 8tim = 0,6 grad/time.
-      # VT: 18.02.2026: Utetemp -9 snitt neste 24h - Fra 14  -23 grader (      inne), tok 19 timer. Dvs 9  grad/19tim = 0,5 grad/time.
-      # VT: 03.03.2026: Utetemp  2 snitt neste 24h - Fra 13  -22 grader (      inne), tok 10 timer. Dvs 9  grad/10tim = 0,9 grad/time. (Med fullt pådrag, ingen effektregulering)
+    # Utetemp er snitt neste 24h
+    # {% if t <= -13 %}
+    # {% if t <= -9 %}
+      # BB: 18.02.2026 - Ute -7°C - 15  -20 grader (snitt inne), 5   °C / 10  h = 0,5 grad/time.
+      # VT: 18.02.2026 - Ute -9°C - 14  -23 grader (      inne), 9   °C / 19  h = 0,5 grad/time.
+    # {% elif t <= -5 %}
+      # BB: 22.02.2026 - Ute -4°C - 15.5-19 grader (snitt inne), 4,5 °C / 8   h = 0,6 grad/time.
+    # {% elif t <= 0 %}
+      # BB: 05.03.2026 - Ute  1°C - 15.5-19 grader (snitt inne), 3,5 °C / 6.5 h = 0,5 grad/time. (Effektbegrenset + 4h før stabilisert)
+      # VT: 03.03.2026 - Ute  2°C - 13  -22 grader (      inne), 9   °C / 10  h = 0,9 grad/time.
+    # {% elif t <= 5 %}
       tempchange_degreePerHour: |-
         {% set t = io_outdoor_temp_comming | float(999) %}
         {% if t <= -13 %}
@@ -268,11 +275,11 @@ actions:
         {% elif t <= -5 %}
           0.5
         {% elif t <= 0 %}
-          0.55
+          0.5
         {% elif t <= 5 %}
           0.6
         {% else %}
-          0.65
+          0.2
         {% endif %}
 
       tempchange_degreeIncreaseReq: >-
