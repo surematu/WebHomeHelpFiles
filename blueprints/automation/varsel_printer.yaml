@@ -10,7 +10,7 @@ blueprint:
       - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.2.15
+    Blueprint versjon: 2026.3.0
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -405,7 +405,7 @@ action:
   - alias: "Steg 12 - Send varsel"
     action: notify.send_message
     data:
-      title: "{{ report.title | default('🟠 *Printer – Blekk/Toner*') }}"
+      title: "{{ report.title | default('🟠 *Printer – Blekk* 🟠') }}"
       message: "{{ final_message }}"
     target:
       entity_id: !input notify_target
