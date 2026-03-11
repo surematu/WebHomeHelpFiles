@@ -265,6 +265,7 @@ actions:
     # {% elif t <= 0 %}
       # BB: 05.03.2026 - Ute  1°C - 15.5-19 grader (snitt inne), 3,5 °C / 6.5 h = 0,5 grad/time. (Effektbegrenset + 4h før stabilisert)
       # VT: 03.03.2026 - Ute  2°C - 13  -22 grader (      inne), 9   °C / 10  h = 0,9 grad/time.
+      # BB: 10.03.2026 - Ute  1°C - 17  -19 grader (snitt inne), 2 °C   / 6   h = 0,3 grad/time. (Effektbegrenset + 3h før stabilisert)
     # {% elif t <= 5 %}
       tempchange_degreePerHour: |-
         {% set t = io_outdoor_temp_comming | float(999) %}
