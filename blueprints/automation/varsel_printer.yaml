@@ -10,7 +10,7 @@ blueprint:
       - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.3.0
+    Blueprint versjon: 2026.3.1
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -27,7 +27,7 @@ blueprint:
 
     ink_threshold_percent:
       name: Varsle når blekk/toner er under (%)
-      default: 20
+      default: 10
       selector:
         number:
           min: 1
