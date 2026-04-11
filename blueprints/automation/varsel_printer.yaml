@@ -10,7 +10,7 @@ blueprint:
       - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.3.1
+    Blueprint versjon: 2026.4.0
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -79,11 +79,11 @@ blueprint:
       description: >
         Når wake-up entity blir tilgjengelig: vent dette antallet minutter før blekk-sjekk.
         Med mode: restart vil blafring føre til at ventetiden starter på nytt.
-      default: 5
+      default: 360
       selector:
         number:
           min: 0
-          max: 60
+          max: 720
           step: 1
           unit_of_measurement: "min"
 
