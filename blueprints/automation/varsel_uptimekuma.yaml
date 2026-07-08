@@ -32,7 +32,7 @@ blueprint:
     Oppetid vises som "(dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.09
+    Blueprint versjon: 2026.07.10
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -116,6 +116,17 @@ mode: restart
 
 trigger_variables:
   urgent_device_ids: !input urgent_sensors
+  urgent_status_entities: >-
+    {%- set dids = urgent_device_ids if urgent_device_ids is list else ([urgent_device_ids] if urgent_device_ids else []) -%}
+    {%- set ns = namespace(entities=[]) -%}
+    {%- for did in dids -%}
+      {%- for e in device_entities(did) -%}
+        {%- if (state_attr(e, 'friendly_name') | default('', true) | string).endswith(' Status') -%}
+          {%- set ns.entities = ns.entities + [e] -%}
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endfor -%}
+    {{ ns.entities if ns.entities else ['sensor.nonexistent_uptimekuma_placeholder'] }}
 
 trigger:
   - platform: time_pattern
@@ -128,17 +139,7 @@ trigger:
     id: scheduled_check
 
   - platform: state
-    entity_id: >
-      {%- set dids = urgent_device_ids if urgent_device_ids is list else ([urgent_device_ids] if urgent_device_ids else []) -%}
-      {%- set ns = namespace(entities=[]) -%}
-      {%- for did in dids -%}
-        {%- for e in device_entities(did) -%}
-          {%- if (state_attr(e, 'friendly_name') | default('', true) | string).endswith(' Status') -%}
-            {%- set ns.entities = ns.entities + [e] -%}
-          {%- endif -%}
-        {%- endfor -%}
-      {%- endfor -%}
-      {{ ns.entities }}
+    entity_id: "{{ urgent_status_entities }}"
     from: "Up"
     to:
       - "Down"
