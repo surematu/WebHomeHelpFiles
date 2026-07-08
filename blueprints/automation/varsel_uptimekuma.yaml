@@ -22,7 +22,7 @@ blueprint:
     "Ny i siste time" beregnes ved å bruke tidspunkt for siste state-endring på Status-entity
     (last_changed), og sjekke om den er innenfor valgt intervall (standard 1 time).
 
-    Blueprint versjon: 2026.07.01
+    Blueprint versjon: 2026.07.02
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -215,7 +215,7 @@ action:
   - alias: "Steg 3 - Bygg nedeliste"
     variables:
       report_payload: |-
-        {%- set d = devices | from_json -%}
+        {%- set d = devices if devices is mapping else devices | from_json -%}
         {%- set ns = namespace(down_all=[], down_new=[]) -%}
 
         {%- for dev in d.all_devices -%}
@@ -243,8 +243,8 @@ action:
   - alias: "Steg 4 - Bygg melding"
     variables:
       combined_message: >-
-        {% set p = report_payload | from_json %}
-        {% set dev_list = devices | from_json %}
+        {% set p = report_payload if report_payload is mapping else report_payload | from_json %}
+        {% set dev_list = devices if devices is mapping else devices | from_json %}
         {% set lines = namespace(v=[]) %}
 
         {% if p.should_notify %}
