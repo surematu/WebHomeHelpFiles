@@ -2,7 +2,7 @@ blueprint:
   name: Varsel - UptimeKuma Rapport (WebHome Automation)
   description: >
     Overvåker Uptime Kuma-enheter automatisk (ingen manuell entity-velging nødvendig)
-    ved å oppdage devices som har en entity med navn "Uptime (30 days)".
+    ved å oppdage devices som har en entity hvis friendly_name slutter på "Uptime (30 days)".
 
     Logikk:
       - Kjøres hver time.
@@ -22,7 +22,7 @@ blueprint:
     "Ny i siste time" beregnes ved å bruke tidspunkt for siste state-endring på Status-entity
     (last_changed), og sjekke om den er innenfor valgt intervall (standard 1 time).
 
-    Blueprint versjon: 2026.07.02
+    Blueprint versjon: 2026.07.03
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -126,10 +126,10 @@ action:
               debug=[]
             ) -%}
 
-        {# Finn kandidater: entities med friendly_name == "Uptime (30 days)" #}
+        {# Finn kandidater: entities der friendly_name slutter på "Uptime (30 days)" #}
         {%- for s in states.sensor -%}
           {%- set fname = state_attr(s.entity_id, 'friendly_name') | default(s.name, true) -%}
-          {%- if fname == 'Uptime (30 days)' -%}
+          {%- if fname.endswith('Uptime (30 days)') -%}
             {%- set did = device_id(s.entity_id) -%}
             {%- if did and did not in ns.seen_devices -%}
               {%- set ns.seen_devices = ns.seen_devices + [did] -%}
@@ -146,10 +146,10 @@ action:
                 {%- set st_obj = states[e] -%}
                 {%- if st_obj is not none -%}
                   {%- set fn = state_attr(e, 'friendly_name') | default(st_obj.name, true) -%}
-                  {%- if fn == 'Status' and found.status_eid == '' -%}
+                  {%- if fn.endswith(' Status') and found.status_eid == '' -%}
                     {%- set found.status_eid = e -%}
                   {%- endif -%}
-                  {%- if fn == 'Uptime (30 days)' and found.uptime30_eid == '' -%}
+                  {%- if fn.endswith('Uptime (30 days)') and found.uptime30_eid == '' -%}
                     {%- set found.uptime30_eid = e -%}
                   {%- endif -%}
                 {%- endif -%}
