@@ -21,8 +21,7 @@ blueprint:
         * Rapporter alle nede-enheter uansett når de gikk ned.
 
     Kritiske enheter (øyeblikkelig varsel):
-      - Velg enheter (ikke entiteter) som skal utløse varselet øyeblikkelig.
-      - Status-sensoren på enheten brukes automatisk.
+      - Velg status-sensorene som skal utløse varselet øyeblikkelig.
       - Tittelen vil vise enhetsnavnet som utløste varselet.
       - Beskrivelsen inkluderer alle nede-enheter som normalt.
 
@@ -32,7 +31,7 @@ blueprint:
     Oppetid vises som "(dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.10
+    Blueprint versjon: 2026.07.11
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -95,16 +94,19 @@ blueprint:
           mode: box
 
     urgent_sensors:
-      name: Kritiske enheter (øyeblikkelig varsel)
+      name: Kritiske status-sensorer (øyeblikkelig varsel)
       description: >
-        Velg Uptime Kuma-enheter som skal utløse varselet øyeblikkelig
+        Velg Uptime Kuma Status-sensorene som skal utløse varselet øyeblikkelig
         når de går ned (status endres fra "Up"). Tittelen vil vise enhetsnavnet
         som utløste varselet. Beskrivelsen inkluderer alle nede-enheter som normalt.
         La feltet stå tomt for å ikke bruke denne funksjonen.
       default: []
       selector:
-        device:
+        entity:
           multiple: true
+          filter:
+            - domain: sensor
+              device_class: enum
 
     include_debug_details:
       name: Legg til debug-detaljer i varselet
@@ -113,20 +115,6 @@ blueprint:
         boolean:
 
 mode: restart
-
-trigger_variables:
-  urgent_device_ids: !input urgent_sensors
-  urgent_status_entities: >-
-    {%- set dids = urgent_device_ids if urgent_device_ids is list else ([urgent_device_ids] if urgent_device_ids else []) -%}
-    {%- set ns = namespace(entities=[]) -%}
-    {%- for did in dids -%}
-      {%- for e in device_entities(did) -%}
-        {%- if (state_attr(e, 'friendly_name') | default('', true) | string).endswith(' Status') -%}
-          {%- set ns.entities = ns.entities + [e] -%}
-        {%- endif -%}
-      {%- endfor -%}
-    {%- endfor -%}
-    {{ ns.entities if ns.entities else ['sensor.nonexistent_uptimekuma_placeholder'] }}
 
 trigger:
   - platform: time_pattern
@@ -139,7 +127,7 @@ trigger:
     id: scheduled_check
 
   - platform: state
-    entity_id: "{{ urgent_status_entities }}"
+    entity_id: !input urgent_sensors
     from: "Up"
     to:
       - "Down"
