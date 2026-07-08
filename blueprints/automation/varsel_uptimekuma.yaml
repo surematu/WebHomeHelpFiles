@@ -43,14 +43,14 @@ blueprint:
     pushover_destination:
       name: Pushover destination
       description: Mottakergruppe i script.varsel_pushover_send_melding_webhome
-      default: pushover_diverse
+      default: pushover
       selector:
         text:
 
     pushover_priority:
       name: Pushover priority
       description: Prioritet sendt til scriptet (typisk -2 til 2)
-      default: 0
+      default: 1
       selector:
         number:
           min: -2
