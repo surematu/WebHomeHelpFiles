@@ -106,6 +106,7 @@ blueprint:
           multiple: true
           filter:
             - domain: sensor
+              device_class: enum
 
     include_debug_details:
       name: Legg til debug-detaljer i varselet
