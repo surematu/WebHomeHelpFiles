@@ -21,8 +21,7 @@ blueprint:
         * Rapporter alle nede-enheter uansett når de gikk ned.
 
     Kritiske enheter (øyeblikkelig varsel):
-      - Velg enheter (ikke entiteter) som skal utløse varselet øyeblikkelig.
-      - Status-sensoren på enheten brukes automatisk.
+      - Velg status-sensorene som skal utløse varselet øyeblikkelig.
       - Tittelen vil vise enhetsnavnet som utløste varselet.
       - Beskrivelsen inkluderer alle nede-enheter som normalt.
 
@@ -95,16 +94,18 @@ blueprint:
           mode: box
 
     urgent_sensors:
-      name: Kritiske enheter (øyeblikkelig varsel)
+      name: Kritiske status-sensorer (øyeblikkelig varsel)
       description: >
-        Velg Uptime Kuma-enheter som skal utløse varselet øyeblikkelig
+        Velg Uptime Kuma Status-sensorene som skal utløse varselet øyeblikkelig
         når de går ned (status endres fra "Up"). Tittelen vil vise enhetsnavnet
         som utløste varselet. Beskrivelsen inkluderer alle nede-enheter som normalt.
         La feltet stå tomt for å ikke bruke denne funksjonen.
       default: []
       selector:
-        device:
+        entity:
           multiple: true
+          filter:
+            - domain: sensor
 
     include_debug_details:
       name: Legg til debug-detaljer i varselet
@@ -124,8 +125,13 @@ trigger:
     weekday: !input check_weekdays
     id: scheduled_check
 
-  - platform: event
-    event_type: state_changed
+  - platform: state
+    entity_id: !input urgent_sensors
+    from: "Up"
+    to:
+      - "Down"
+      - "Pending"
+      - "Maintenance"
     id: urgent_sensor_trigger
 
 condition: []
@@ -137,63 +143,18 @@ action:
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
-      urgent_device_ids: !input urgent_sensors
-      urgent_status_entities: >-
-        {%- set dids = urgent_device_ids if urgent_device_ids is list else ([urgent_device_ids] if urgent_device_ids else []) -%}
-        {%- set ns = namespace(entities=[]) -%}
-        {%- for did in dids -%}
-          {%- for e in device_entities(did) -%}
-            {%- if (state_attr(e, 'friendly_name') | default('', true) | string).endswith(' Status') -%}
-              {%- set ns.entities = ns.entities + [e] -%}
-            {%- endif -%}
-          {%- endfor -%}
-        {%- endfor -%}
-        {{ ns.entities }}
 
       interval_seconds: 3600
 
       manual_run: "{{ trigger is not defined or trigger.id is not defined or trigger.id == 'scheduled_check' }}"
       show_all_down: "{{ trigger is not defined or trigger.id is not defined or trigger.id == 'scheduled_check' or trigger.id == 'urgent_sensor_trigger' }}"
-      urgent_event_entity_id: >-
-        {%- if trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' and trigger.event is defined and trigger.event.data is defined -%}
-          {{ trigger.event.data.entity_id | default('', true) }}
-        {%- else -%}
-          {{ '' }}
-        {%- endif -%}
-      urgent_event_old_state: >-
-        {%- if trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' and trigger.event is defined and trigger.event.data is defined and trigger.event.data.old_state is not none -%}
-          {{ trigger.event.data.old_state.state | default('', true) }}
-        {%- else -%}
-          {{ '' }}
-        {%- endif -%}
-      urgent_event_new_state: >-
-        {%- if trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' and trigger.event is defined and trigger.event.data is defined and trigger.event.data.new_state is not none -%}
-          {{ trigger.event.data.new_state.state | default('', true) }}
-        {%- else -%}
-          {{ '' }}
-        {%- endif -%}
-      urgent_event_match: >-
-        {%- set watched = urgent_status_entities if urgent_status_entities is list else ([urgent_status_entities] if urgent_status_entities else []) -%}
-        {{
-          trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger'
-          and urgent_event_entity_id in watched
-          and urgent_event_old_state == 'Up'
-          and urgent_event_new_state in ['Down', 'Pending', 'Maintenance']
-        }}
       urgent_trigger_device_name: >-
-        {%- if urgent_event_match -%}
-          {%- set did = device_id(urgent_event_entity_id) -%}
-          {{ device_attr(did, 'name') | default(urgent_event_entity_id, true) }}
+        {%- if trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' -%}
+          {%- set did = device_id(trigger.entity_id) -%}
+          {{ device_attr(did, 'name') | default(trigger.entity_id, true) }}
         {%- else -%}
           {{ '' }}
         {%- endif -%}
-
-  - alias: "Steg 1b - Ignorer irrelevante state_changed-hendelser"
-    if:
-      - condition: template
-        value_template: "{{ trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' and not urgent_event_match }}"
-    then:
-      - stop: "Ignorerer state_changed-hendelse som ikke matcher kritisk Uptime Kuma-status"
 
   - alias: "Steg 2 - Finn Uptime Kuma devices"
     variables:
