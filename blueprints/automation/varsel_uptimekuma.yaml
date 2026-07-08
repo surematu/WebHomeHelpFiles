@@ -31,7 +31,7 @@ blueprint:
     Oppetid vises som "(dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2025.07.16
+    Blueprint versjon: 2025.07.17
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -348,7 +348,7 @@ action:
             {% set u365 = (it.uptime365 | float(0)) | int %}
             {% set ns.names = ns.names + [it.device_name] %}
             {% set prefix = "- " if p.down_count > 1 else "" %}
-            {% set ns.detail_lines = ns.detail_lines + [prefix ~ it.device_name ~ ", nede i " ~ age_txt ~ " (oppetid " ~ u1|string ~ "%/" ~ u30|string ~ "%/" ~ u365|string ~ "%)"] %}
+            {% set ns.detail_lines = ns.detail_lines + [prefix ~ it.device_name ~ ", nede i " ~ age_txt ~ " (" ~ u1|string ~ "%/" ~ u30|string ~ "%/" ~ u365|string ~ "%)"] %}
           {% endfor %}
 
           {% if p.down_count > 1 %}
