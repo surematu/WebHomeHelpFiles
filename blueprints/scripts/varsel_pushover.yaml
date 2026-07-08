@@ -2,28 +2,79 @@ blueprint:
   name: Varsel - Pushover Send Melding (WebHome Script)
   description: >
     Sender melding til Pushover for valgt WebHome-navn.
-    Laget fra eksisterende automasjonslogikk, men som script blueprint med kun input: name.
+    Basert på eksisterende automasjonslogikk, nå som script blueprint med støtte for alle opprinnelige felt.
 
     Blueprint versjon:
-    2026.07.02
+    2026.07.03
   domain: script
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/scripts/varsel_pushover.yaml
-  author: WebHome
-  homeassistant:
-    min_version: "2026.7.0"
   input:
     name:
       name: Name
       description: Navn som brukes i tittel, URL og URL-tittel.
       selector:
         text:
+    title:
+      name: Tittel
+      description: Tittel på meldingen.
+      default: Tittel
+      selector:
+        text:
+    message:
+      name: Melding
+      description: Innhold i meldingen.
+      default: Melding
+      selector:
+        text:
+    destination:
+      name: Destination
+      description: Varsel-destinasjon (pushover eller pushover_diverse).
+      default: pushover
+      selector:
+        text:
+    priority:
+      name: Priority
+      description: Pushover-prioritet (-2 til 2).
+      default: 0
+      selector:
+        number:
+          min: -2
+          max: 2
+          step: 1
+    ttl:
+      name: TTL
+      description: Time-to-live i sekunder.
+      default: 21600
+      selector:
+        number:
+          min: 1
+          max: 1000000
+          step: 1
+    url:
+      name: URL
+      description: Valgfri URL i meldingen.
+      default: https://x.cloud.webhome.no/
+      selector:
+        text:
+    url_title:
+      name: URL title
+      description: Tekst for URL-lenken.
+      default: Åpne WebHome (x)
+      selector:
+        text:
 
 sequence:
   - variables:
       name: !input name
+      title: !input title
+      message: !input message
+      destination: !input destination
+      priority: !input priority
+      ttl: !input ttl
+      url: !input url
+      url_title: !input url_title
 
-      # Defaults beholdes fra originalen, siden blueprint kun skal ha input: name
-      pushover_ttl: 21600
+      pushover_ttl: "{{ ttl | default(21600) | int }}"
       ttl_sufix: >
         {% set s = pushover_ttl | int %}
         {% if s >= 86400 %}
@@ -40,21 +91,21 @@ sequence:
         {% endif %}
 
       pushover_title: >
-        {{ (name | default('LiBe', true)) ~ ' - ' ~ 'DefaultTitle' }}
+        {{ (name | default('LiBe', true)) ~ ' - ' ~ (title | default('DefaultTitle', true)) }}
 
       pushover_message: >
-        {{ 'DefaultMessage' ~ '\n\n' ~ ttl_sufix }}
+        {{ (message | default('DefaultMessage', true)) ~ '\n\n' ~ ttl_sufix }}
 
-      pushover_destination: "pushover"
-      pushover_priority: 0
+      pushover_destination: "{{ destination | default('pushover', true) | lower }}"
+      pushover_priority: "{{ priority | default(0) | int }}"
 
       pushover_url: >
         {% set n = name | default('', true) | trim | lower %}
-        {{ 'https://' ~ (n ~ '.cloud.' if n else '') ~ 'webhome.no/' }}
+        {{ url | default('https://' ~ (n ~ '.cloud.' if n else '') ~ 'webhome.no/', true) }}
 
       pushover_url_title: >
         {% set n = name | default('', true) | trim %}
-        {{ 'Åpne WebHome' ~ (' (' ~ n ~ ')' if n else '') }}
+        {{ url_title | default('Åpne WebHome' ~ (' (' ~ n ~ ')' if n else ''), true) }}
 
   - choose:
       - conditions:
