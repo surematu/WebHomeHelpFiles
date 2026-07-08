@@ -5,24 +5,28 @@ blueprint:
     ved å oppdage devices som har en entity hvis friendly_name slutter på "Uptime (30 days)".
 
     Logikk:
-      - Kjøres hver time.
+      - Kjøres hver time (timepattern).
+      - Kan også kjøres etter valgt ukedag/tid (planlagt sjekk).
       - Finner alle aktuelle devices via "Uptime (30 days)"-entity.
       - For hvert device:
         * Finn "Status"-sensor.
         * Hvis status != "Up", regnes den som ned.
       - Varsel sendes kun når:
         * Minst én enhet har gått ned i løpet av siste time (ny hendelse), ELLER
-        * Automatiseringen kjøres manuelt.
+        * Automatiseringen kjøres manuelt eller via planlagt sjekk.
       - Når varsel først sendes:
         * Ta med ALLE enheter som nå er nede.
-        * Inkluder "Uptime (30 days)" i rapportlinjen.
-      - Ved manuell kjøring:
+        * Inkluder oppetid for Dag/Måned/År i rapportlinjen.
+      - Ved manuell kjøring eller planlagt sjekk:
         * Rapporter alle nede-enheter uansett når de gikk ned.
 
-    "Ny i siste time" beregnes ved å bruke tidspunkt for siste state-endring på Status-entity
-    (last_changed), og sjekke om den er innenfor valgt intervall (standard 1 time).
+    Timepattern-triggeren kjøres hvert time og sjekker kun enheter som gikk ned
+    i siste time. Planlagt sjekk og manuell kjøring viser ALLE nede-enheter.
 
-    Blueprint versjon: 2026.07.06
+    Oppetid vises som "(dag%/måned%/år%)" uten desimaler, basert på sensorene
+    "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
+
+    Blueprint versjon: 2026.07.07
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -30,15 +34,30 @@ blueprint:
     min_version: 2026.7.0
 
   input:
-    check_interval:
-      name: Sjekkfrekvens (for "ny i vindu")
-      description: >
-        Hvor stort vindu som regnes som "ny nedetid".
-        Standard: 1 time.
-      default:
-        hours: 1
+    check_time:
+      name: Tid for planlagt sjekk
+      default: "09:00:00"
       selector:
-        duration:
+        time:
+
+    check_weekdays:
+      name: Ukedag(er) for planlagt sjekk
+      default:
+        - mon
+        - wed
+        - fri
+      selector:
+        select:
+          multiple: true
+          mode: list
+          options:
+            - { label: Mandag, value: mon }
+            - { label: Tirsdag, value: tue }
+            - { label: Onsdag, value: wed }
+            - { label: Torsdag, value: thu }
+            - { label: Fredag, value: fri }
+            - { label: Lørdag, value: sat }
+            - { label: Søndag, value: sun }
 
     pushover_destination:
       name: Pushover destination
@@ -82,38 +101,24 @@ trigger:
     hours: "/1"
     id: hourly_check
 
+  - platform: time
+    at: !input check_time
+    weekday: !input check_weekdays
+    id: scheduled_check
+
 condition: []
 
 action:
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
-      check_interval: !input check_interval
       debug_on: !input include_debug_details
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
 
-      interval_seconds: >-
-        {% set d = check_interval %}
-        {{ (d.get('days',0)|int * 86400)
-         + (d.get('hours',0)|int * 3600)
-         + (d.get('minutes',0)|int * 60)
-         + (d.get('seconds',0)|int) }}
+      interval_seconds: 3600
 
-      interval_label: >-
-        {% set d = check_interval %}
-        {% set days = d.get('days',0)|int %}
-        {% set hours = d.get('hours',0)|int %}
-        {% set mins = d.get('minutes',0)|int %}
-        {% set secs = d.get('seconds',0)|int %}
-        {% set parts = namespace(p=[]) %}
-        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
-        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
-        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
-        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
-        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
-
-      manual_run: "{{ trigger is not defined or trigger.id is not defined }}"
+      manual_run: "{{ trigger is not defined or trigger.id is not defined or trigger.id == 'scheduled_check' }}"
 
   - alias: "Steg 2 - Finn Uptime Kuma devices"
     variables:
@@ -139,7 +144,7 @@ action:
               {%- set dev_manufacturer = device_attr(did, 'manufacturer') | default('', true) -%}
               {%- set ents = device_entities(did) if did else [] -%}
 
-              {%- set found = namespace(status_eid='', uptime30_eid='', uptime7_eid='') -%}
+              {%- set found = namespace(status_eid='', uptime1_eid='', uptime30_eid='', uptime365_eid='') -%}
 
               {# Finn Status + Uptime-entiteter på device #}
               {%- for e in ents -%}
@@ -149,11 +154,14 @@ action:
                   {%- if fn.endswith(' Status') and found.status_eid == '' -%}
                     {%- set found.status_eid = e -%}
                   {%- endif -%}
+                  {%- if fn.endswith('Uptime (1 day)') and found.uptime1_eid == '' -%}
+                    {%- set found.uptime1_eid = e -%}
+                  {%- endif -%}
                   {%- if fn.endswith('Uptime (30 days)') and found.uptime30_eid == '' -%}
                     {%- set found.uptime30_eid = e -%}
                   {%- endif -%}
-                  {%- if fn.endswith('Uptime (7 days)') and found.uptime7_eid == '' -%}
-                    {%- set found.uptime7_eid = e -%}
+                  {%- if fn.endswith('Uptime (365 days)') and found.uptime365_eid == '' -%}
+                    {%- set found.uptime365_eid = e -%}
                   {%- endif -%}
                 {%- endif -%}
               {%- endfor -%}
@@ -173,11 +181,13 @@ action:
                   'model': dev_model,
                   'manufacturer': dev_manufacturer,
                   'status_eid': found.status_eid,
+                  'uptime1_eid': found.uptime1_eid,
                   'uptime30_eid': found.uptime30_eid,
-                  'uptime7_eid': found.uptime7_eid,
+                  'uptime365_eid': found.uptime365_eid,
                   'status': status_state,
+                  'uptime1': states(found.uptime1_eid) if found.uptime1_eid != '' else 'ukjent',
                   'uptime30': uptime30,
-                  'uptime7': states(found.uptime7_eid) if found.uptime7_eid != '' else 'ukjent',
+                  'uptime365': states(found.uptime365_eid) if found.uptime365_eid != '' else 'ukjent',
                   'is_up': is_up,
                   'last_changed_ts': lc_ts,
                   'age_s': age_s,
@@ -193,11 +203,13 @@ action:
                   'model': dev_model,
                   'manufacturer': dev_manufacturer,
                   'status_eid': '',
+                  'uptime1_eid': found.uptime1_eid,
                   'uptime30_eid': found.uptime30_eid,
-                  'uptime7_eid': found.uptime7_eid,
+                  'uptime365_eid': found.uptime365_eid,
                   'status': 'ukjent',
+                  'uptime1': states(found.uptime1_eid) if found.uptime1_eid != '' else 'ukjent',
                   'uptime30': uptime30_val,
-                  'uptime7': states(found.uptime7_eid) if found.uptime7_eid != '' else 'ukjent',
+                  'uptime365': states(found.uptime365_eid) if found.uptime365_eid != '' else 'ukjent',
                   'is_up': false,
                   'last_changed_ts': 0,
                   'age_s': 0,
@@ -280,16 +292,19 @@ action:
             {% else %}
               {% set age_txt = (age_s % 60)|string ~ "s" %}
             {% endif %}
-            {% set uptime_val = it.uptime7 if (it.uptime7 is defined and it.uptime7 not in ['ukjent', '']) else it.uptime30 %}
+            {% set u1 = (it.uptime1 | float(0)) | int %}
+            {% set u30 = (it.uptime30 | float(0)) | int %}
+            {% set u365 = (it.uptime365 | float(0)) | int %}
             {% set ns.names = ns.names + [it.device_name] %}
             {% set prefix = "- " if p.down_count > 1 else "" %}
-            {% set ns.detail_lines = ns.detail_lines + [prefix ~ it.device_name ~ ", nede i " ~ age_txt ~ " (oppetid siste uke " ~ uptime_val ~ "%)"] %}
+            {% set ns.detail_lines = ns.detail_lines + [prefix ~ it.device_name ~ ", nede i " ~ age_txt ~ " (oppetid " ~ u1|string ~ "%/" ~ u30|string ~ "%/" ~ u365|string ~ "%)"] %}
           {% endfor %}
 
           {% if p.down_count > 1 %}
             {% set ns.out = ns.out + [ns.names | join(', ') ~ " er offline.", ""] %}
           {% endif %}
           {% set ns.out = ns.out + ns.detail_lines %}
+          {% set ns.out = ns.out + ["", "Oppetid er presentert for; Dag/Måned/År."] %}
         {% endif %}
 
         {% if debug_on %}
@@ -299,8 +314,7 @@ action:
             "Debug:",
             "- trigger: " ~ (trigger.id if trigger is defined and trigger.id is defined else 'manual/unknown'),
             "- manual_run: " ~ (manual_run | string),
-            "- interval: " ~ (interval_label | string),
-            "- interval_seconds: " ~ (interval_seconds | string),
+            "- interval_seconds: 3600",
             "- devices_found: " ~ ((p.devices_found | int(0)) | string),
             "- down_count: " ~ ((p.down_count | int(0)) | string),
             "- new_down_count: " ~ ((p.new_down_count | int(0)) | string),
@@ -324,11 +338,11 @@ action:
             {% endif %}
             {% if dev.is_up %}
               {% set ns.out = ns.out + [
-                "  " ~ dev.device_name ~ ": Up | uptime30: " ~ dev.uptime30
+                "  " ~ dev.device_name ~ ": Up | oppetid: " ~ (dev.uptime1|float(0)|int)|string ~ "%/" ~ (dev.uptime30|float(0)|int)|string ~ "%/" ~ (dev.uptime365|float(0)|int)|string ~ "%"
               ] %}
             {% else %}
               {% set ns.out = ns.out + [
-                "  " ~ dev.device_name ~ ": " ~ dev.status ~ " | uptime30: " ~ dev.uptime30 ~ " | nede i: " ~ age_txt ~ (" [NY]" if dev.is_new else "")
+                "  " ~ dev.device_name ~ ": " ~ dev.status ~ " | oppetid: " ~ (dev.uptime1|float(0)|int)|string ~ "%/" ~ (dev.uptime30|float(0)|int)|string ~ "%/" ~ (dev.uptime365|float(0)|int)|string ~ "%" ~ " | nede i: " ~ age_txt ~ (" [NY]" if dev.is_new else "")
               ] %}
             {% endif %}
           {% endfor %}
