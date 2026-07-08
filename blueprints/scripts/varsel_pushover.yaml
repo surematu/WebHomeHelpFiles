@@ -5,7 +5,7 @@ blueprint:
     Basert på eksisterende automasjonslogikk, som script blueprint med runtime fields ved script-kall.
 
     Blueprint versjon:
-    2026.07.04
+    2026.07.05
   domain: script
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/scripts/varsel_pushover.yaml
   input:
@@ -55,13 +55,13 @@ fields:
   url:
     name: URL
     description: Valgfri URL i meldingen.
-    default: ""
+    default: "https://x.cloud.webhome.no/"
     selector:
       text:
   url_title:
     name: URL title
     description: Tekst for URL-lenken.
-    default: ""
+    default: "Åpne WebHome (XxXx)"
     selector:
       text:
 
