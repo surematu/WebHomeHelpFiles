@@ -31,12 +31,12 @@ blueprint:
     Oppetid vises som "(dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.15
+    Blueprint versjon: 2025.07.15
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
   homeassistant:
-    min_version: 2026.7.0
+    min_version: 2025.11.0
 
   input:
     check_time:
