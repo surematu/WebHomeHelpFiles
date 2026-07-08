@@ -22,7 +22,7 @@ blueprint:
     "Ny i siste time" beregnes ved å bruke tidspunkt for siste state-endring på Status-entity
     (last_changed), og sjekke om den er innenfor valgt intervall (standard 1 time).
 
-    Blueprint versjon: 2026.07.05
+    Blueprint versjon: 2026.07.06
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -286,9 +286,6 @@ action:
             {% set ns.detail_lines = ns.detail_lines + [prefix ~ it.device_name ~ ", nede i " ~ age_txt ~ " (oppetid siste uke " ~ uptime_val ~ "%)"] %}
           {% endfor %}
 
-          {% if manual_run %}
-            {% set ns.out = ns.out + ["*UptimeKuma: Manuell rapport*", ""] %}
-          {% endif %}
           {% if p.down_count > 1 %}
             {% set ns.out = ns.out + [ns.names | join(', ') ~ " er offline.", ""] %}
           {% endif %}
