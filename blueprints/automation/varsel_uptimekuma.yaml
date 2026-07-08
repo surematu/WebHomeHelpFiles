@@ -1,0 +1,277 @@
+blueprint:
+  name: Varsel - UptimeKuma rapport (WebHome Automation)
+  description: >
+    Overvåker Uptime Kuma-enheter automatisk (ingen manuell entity-velging nødvendig)
+    ved å oppdage devices som har en entity med navn "Uptime (30 days)".
+
+    Logikk:
+      - Kjøres hver time.
+      - Finner alle aktuelle devices via "Uptime (30 days)"-entity.
+      - For hvert device:
+        * Finn "Status"-sensor.
+        * Hvis status != "Up", regnes den som ned.
+      - Varsel sendes kun når:
+        * Minst én enhet har gått ned i løpet av siste time (ny hendelse), ELLER
+        * Automatiseringen kjøres manuelt.
+      - Når varsel først sendes:
+        * Ta med ALLE enheter som nå er nede.
+        * Inkluder "Uptime (30 days)" i rapportlinjen.
+      - Ved manuell kjøring:
+        * Rapporter alle nede-enheter uansett når de gikk ned.
+
+    "Ny i siste time" beregnes ved å bruke tidspunkt for siste state-endring på Status-entity
+    (last_changed), og sjekke om den er innenfor valgt intervall (standard 1 time).
+
+    Blueprint versjon: 2026.07.08
+  domain: automation
+  author: WebHome
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    check_interval:
+      name: Sjekkfrekvens (for "ny i vindu")
+      description: >
+        Hvor stort vindu som regnes som "ny nedetid".
+        Standard: 1 time.
+      default:
+        hours: 1
+      selector:
+        duration:
+
+    pushover_destination:
+      name: Pushover destination
+      description: Mottakergruppe i script.varsel_pushover_send_melding_webhome
+      default: pushover_diverse
+      selector:
+        text:
+
+    pushover_priority:
+      name: Pushover priority
+      description: Prioritet sendt til scriptet (typisk -2 til 2)
+      default: 0
+      selector:
+        number:
+          min: -2
+          max: 2
+          step: 1
+          mode: box
+
+    pushover_ttl:
+      name: Pushover TTL (sekunder)
+      description: Levetid for varselet (f.eks. 21600 = 6 timer)
+      default: 21600
+      selector:
+        number:
+          min: 0
+          max: 86400
+          step: 60
+          mode: box
+
+    include_debug_details:
+      name: Legg til debug-detaljer i varselet
+      default: false
+      selector:
+        boolean:
+
+mode: restart
+
+trigger:
+  - platform: time_pattern
+    hours: "/1"
+    id: hourly_check
+
+condition: []
+
+action:
+  - alias: "Steg 1 - Sett grunnvariabler"
+    variables:
+      check_interval: !input check_interval
+      debug_on: !input include_debug_details
+      pushover_destination: !input pushover_destination
+      pushover_priority: !input pushover_priority
+      pushover_ttl: !input pushover_ttl
+
+      interval_seconds: >-
+        {% set d = check_interval %}
+        {{ (d.get('days',0)|int * 86400)
+         + (d.get('hours',0)|int * 3600)
+         + (d.get('minutes',0)|int * 60)
+         + (d.get('seconds',0)|int) }}
+
+      interval_label: >-
+        {% set d = check_interval %}
+        {% set days = d.get('days',0)|int %}
+        {% set hours = d.get('hours',0)|int %}
+        {% set mins = d.get('minutes',0)|int %}
+        {% set secs = d.get('seconds',0)|int %}
+        {% set parts = namespace(p=[]) %}
+        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
+        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
+        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
+        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
+        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
+
+      manual_run: "{{ trigger is not defined or trigger.id is not defined }}"
+
+  - alias: "Steg 2 - Finn Uptime Kuma devices + bygg nedeliste"
+    variables:
+      report_payload: |-
+        {%- set interval_s = interval_seconds | int(3600) -%}
+        {%- set now_ts = as_timestamp(now()) | int(0) -%}
+        {%- set ns = namespace(
+              seen_devices=[],
+              down_all=[],
+              down_new=[],
+              debug=[]
+            ) -%}
+
+        {# Finn kandidater: entities med friendly_name == "Uptime (30 days)" #}
+        {%- for s in states.sensor -%}
+          {%- set fname = state_attr(s.entity_id, 'friendly_name') | default(s.name, true) -%}
+          {%- if fname == 'Uptime (30 days)' -%}
+            {%- set did = device_id(s.entity_id) -%}
+            {%- if did and did not in ns.seen_devices -%}
+              {%- set ns.seen_devices = ns.seen_devices + [did] -%}
+
+              {%- set dev_name = device_attr(did, 'name') | default('Ukjent enhet', true) -%}
+              {%- set ents = device_entities(did) if did else [] -%}
+
+              {%- set found = namespace(status_eid='', uptime30_eid='') -%}
+
+              {# Finn Status + Uptime (30 days) på device #}
+              {%- for e in ents -%}
+                {%- set st_obj = states[e] -%}
+                {%- if st_obj is not none -%}
+                  {%- set fn = state_attr(e, 'friendly_name') | default(st_obj.name, true) -%}
+                  {%- if fn == 'Status' and found.status_eid == '' -%}
+                    {%- set found.status_eid = e -%}
+                  {%- endif -%}
+                  {%- if fn == 'Uptime (30 days)' and found.uptime30_eid == '' -%}
+                    {%- set found.uptime30_eid = e -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+
+              {%- if found.status_eid != '' -%}
+                {%- set status_state = states(found.status_eid) | string -%}
+                {%- set is_up = (status_state | lower) == 'up' -%}
+
+                {%- if not is_up -%}
+                  {%- set uptime30 = states(found.uptime30_eid) if found.uptime30_eid != '' else 'ukjent' -%}
+                  {%- set status_obj = states[found.status_eid] -%}
+                  {%- set lc_ts = as_timestamp(status_obj.last_changed, default=0) | int(0) -%}
+                  {%- set age_s = (now_ts - lc_ts) | int(0) -%}
+                  {%- set is_new = (age_s >= 0) and (age_s < interval_s) -%}
+
+                  {%- set line = {
+                    'device': dev_name,
+                    'status': status_state,
+                    'uptime30': uptime30,
+                    'status_eid': found.status_eid,
+                    'age_s': age_s,
+                    'is_new': is_new
+                  } -%}
+
+                  {%- set ns.down_all = ns.down_all + [line] -%}
+                  {%- if is_new -%}
+                    {%- set ns.down_new = ns.down_new + [line] -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- else -%}
+                {%- set ns.debug = ns.debug + ['Mangler Status på device: ' ~ dev_name] -%}
+              {%- endif -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {# Sorter alfabetisk på device-navn #}
+        {%- set sorted_down = ns.down_all | sort(attribute='device') -%}
+
+        {{
+          {
+            'devices_found': ns.seen_devices | count,
+            'down_count': ns.down_all | count,
+            'new_down_count': ns.down_new | count,
+            'should_notify': (manual_run or ((ns.down_new | count) > 0)) and ((ns.down_all | count) > 0),
+            'down_all': sorted_down,
+            'debug': ns.debug
+          } | tojson
+        }}
+
+  - alias: "Steg 3 - Bygg melding"
+    variables:
+      combined_message: >-
+        {% set p = report_payload | from_json %}
+        {% set lines = namespace(v=[]) %}
+
+        {% if p.should_notify %}
+          {% if manual_run %}
+            {% set lines.v = lines.v + [
+              "*UptimeKuma: Manuell rapport (alle som er nede nå)*",
+              ""
+            ] %}
+          {% else %}
+            {% set lines.v = lines.v + [
+              "*UptimeKuma: Nye nedetider siste " ~ (interval_label | string) ~ " (viser alle som er nede nå)*",
+              ""
+            ] %}
+          {% endif %}
+
+          {% for it in p.down_all %}
+            {% set age_s = it.age_s | int(0) %}
+            {% set d = (age_s // 86400) | int(0) %}
+            {% set h = ((age_s % 86400) // 3600) | int(0) %}
+            {% set m = ((age_s % 3600) // 60) | int(0) %}
+
+            {% if d > 0 %}
+              {% set age_txt = d|string ~ "d " ~ h|string ~ "h" %}
+            {% elif h > 0 %}
+              {% set age_txt = h|string ~ "h " ~ m|string ~ "m" %}
+            {% elif m > 0 %}
+              {% set age_txt = m|string ~ "m" %}
+            {% else %}
+              {% set age_txt = (age_s % 60)|string ~ "s" %}
+            {% endif %}
+
+            {% set lines.v = lines.v + [
+              "- " ~ it.device ~ " (Status: " ~ it.status ~ ", Uptime 30d: " ~ it.uptime30 ~ ", nede i: " ~ age_txt ~ ")"
+            ] %}
+          {% endfor %}
+        {% endif %}
+
+        {% if debug_on %}
+          {% set lines.v = lines.v + [
+            "",
+            "---",
+            "Debug:",
+            "- trigger: " ~ (trigger.id if trigger is defined and trigger.id is defined else 'manual/unknown'),
+            "- manual_run: " ~ (manual_run | string),
+            "- interval: " ~ (interval_label | string),
+            "- interval_seconds: " ~ (interval_seconds | string),
+            "- devices_found: " ~ ((p.devices_found | int(0)) | string),
+            "- down_count: " ~ ((p.down_count | int(0)) | string),
+            "- new_down_count: " ~ ((p.new_down_count | int(0)) | string),
+            "- should_notify: " ~ ((p.should_notify) | string)
+          ] %}
+          {% for dline in p.debug %}
+            {% set lines.v = lines.v + ["- note: " ~ dline] %}
+          {% endfor %}
+        {% endif %}
+
+        {{ (lines.v | join('\n')) | trim }}
+
+  - alias: "Steg 4 - Send varsel"
+    if:
+      - condition: template
+        value_template: "{{ combined_message | trim != '' }}"
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        metadata: {}
+        data:
+          title: "🔴 UptimeKuma varsel"
+          message: "{{ combined_message }}"
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl: "{{ pushover_ttl | int(21600) }}"
