@@ -22,7 +22,7 @@ blueprint:
     "Ny i siste time" beregnes ved å bruke tidspunkt for siste state-endring på Status-entity
     (last_changed), og sjekke om den er innenfor valgt intervall (standard 1 time).
 
-    Blueprint versjon: 2026.07.04
+    Blueprint versjon: 2026.07.05
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -139,9 +139,9 @@ action:
               {%- set dev_manufacturer = device_attr(did, 'manufacturer') | default('', true) -%}
               {%- set ents = device_entities(did) if did else [] -%}
 
-              {%- set found = namespace(status_eid='', uptime30_eid='') -%}
+              {%- set found = namespace(status_eid='', uptime30_eid='', uptime7_eid='') -%}
 
-              {# Finn Status + Uptime (30 days) på device #}
+              {# Finn Status + Uptime-entiteter på device #}
               {%- for e in ents -%}
                 {%- set st_obj = states[e] -%}
                 {%- if st_obj is not none -%}
@@ -151,6 +151,9 @@ action:
                   {%- endif -%}
                   {%- if fn.endswith('Uptime (30 days)') and found.uptime30_eid == '' -%}
                     {%- set found.uptime30_eid = e -%}
+                  {%- endif -%}
+                  {%- if fn.endswith('Uptime (7 days)') and found.uptime7_eid == '' -%}
+                    {%- set found.uptime7_eid = e -%}
                   {%- endif -%}
                 {%- endif -%}
               {%- endfor -%}
@@ -171,8 +174,10 @@ action:
                   'manufacturer': dev_manufacturer,
                   'status_eid': found.status_eid,
                   'uptime30_eid': found.uptime30_eid,
+                  'uptime7_eid': found.uptime7_eid,
                   'status': status_state,
                   'uptime30': uptime30,
+                  'uptime7': states(found.uptime7_eid) if found.uptime7_eid != '' else 'ukjent',
                   'is_up': is_up,
                   'last_changed_ts': lc_ts,
                   'age_s': age_s,
@@ -189,8 +194,10 @@ action:
                   'manufacturer': dev_manufacturer,
                   'status_eid': '',
                   'uptime30_eid': found.uptime30_eid,
+                  'uptime7_eid': found.uptime7_eid,
                   'status': 'ukjent',
                   'uptime30': uptime30_val,
+                  'uptime7': states(found.uptime7_eid) if found.uptime7_eid != '' else 'ukjent',
                   'is_up': false,
                   'last_changed_ts': 0,
                   'age_s': 0,
@@ -242,30 +249,28 @@ action:
 
   - alias: "Steg 4 - Bygg melding"
     variables:
+      notification_title: >-
+        {% set p = report_payload if report_payload is mapping else report_payload | from_json %}
+        {% if p.should_notify %}
+          {% if p.down_count == 1 %}
+            🔴 {{ p.down_all[0].device_name }} er offline
+          {% else %}
+            🔴 {{ p.down_count }} enheter offline
+          {% endif %}
+        {% else %}
+          UptimeKuma
+        {% endif %}
       combined_message: >-
         {% set p = report_payload if report_payload is mapping else report_payload | from_json %}
         {% set dev_list = devices if devices is mapping else devices | from_json %}
-        {% set lines = namespace(v=[]) %}
+        {% set ns = namespace(names=[], detail_lines=[], out=[]) %}
 
         {% if p.should_notify %}
-          {% if manual_run %}
-            {% set lines.v = lines.v + [
-              "*UptimeKuma: Manuell rapport (alle som er nede nå)*",
-              ""
-            ] %}
-          {% else %}
-            {% set lines.v = lines.v + [
-              "*UptimeKuma: Nye nedetider siste " ~ (interval_label | string) ~ " (viser alle som er nede nå)*",
-              ""
-            ] %}
-          {% endif %}
-
           {% for it in p.down_all %}
             {% set age_s = it.age_s | int(0) %}
             {% set d = (age_s // 86400) | int(0) %}
             {% set h = ((age_s % 86400) // 3600) | int(0) %}
             {% set m = ((age_s % 3600) // 60) | int(0) %}
-
             {% if d > 0 %}
               {% set age_txt = d|string ~ "d " ~ h|string ~ "h" %}
             {% elif h > 0 %}
@@ -275,15 +280,23 @@ action:
             {% else %}
               {% set age_txt = (age_s % 60)|string ~ "s" %}
             {% endif %}
-
-            {% set lines.v = lines.v + [
-              "- " ~ it.device_name ~ " (Status: " ~ it.status ~ ", Uptime 30d: " ~ it.uptime30 ~ ", nede i: " ~ age_txt ~ ")"
-            ] %}
+            {% set uptime_val = it.uptime7 if (it.uptime7 is defined and it.uptime7 not in ['ukjent', '']) else it.uptime30 %}
+            {% set ns.names = ns.names + [it.device_name] %}
+            {% set prefix = "- " if p.down_count > 1 else "" %}
+            {% set ns.detail_lines = ns.detail_lines + [prefix ~ it.device_name ~ ", nede i " ~ age_txt ~ " (oppetid siste uke " ~ uptime_val ~ "%)"] %}
           {% endfor %}
+
+          {% if manual_run %}
+            {% set ns.out = ns.out + ["*UptimeKuma: Manuell rapport*", ""] %}
+          {% endif %}
+          {% if p.down_count > 1 %}
+            {% set ns.out = ns.out + [ns.names | join(', ') ~ " er offline.", ""] %}
+          {% endif %}
+          {% set ns.out = ns.out + ns.detail_lines %}
         {% endif %}
 
         {% if debug_on %}
-          {% set lines.v = lines.v + [
+          {% set ns.out = ns.out + [
             "",
             "---",
             "Debug:",
@@ -313,21 +326,21 @@ action:
               {% set age_txt = (age_s % 60)|string ~ "s" %}
             {% endif %}
             {% if dev.is_up %}
-              {% set lines.v = lines.v + [
+              {% set ns.out = ns.out + [
                 "  " ~ dev.device_name ~ ": Up | uptime30: " ~ dev.uptime30
               ] %}
             {% else %}
-              {% set lines.v = lines.v + [
+              {% set ns.out = ns.out + [
                 "  " ~ dev.device_name ~ ": " ~ dev.status ~ " | uptime30: " ~ dev.uptime30 ~ " | nede i: " ~ age_txt ~ (" [NY]" if dev.is_new else "")
               ] %}
             {% endif %}
           {% endfor %}
           {% for dline in p.debug %}
-            {% set lines.v = lines.v + ["- note: " ~ dline] %}
+            {% set ns.out = ns.out + ["- note: " ~ dline] %}
           {% endfor %}
         {% endif %}
 
-        {{ (lines.v | join('\n')) | trim }}
+        {{ (ns.out | join('\n')) | trim }}
 
   - alias: "Steg 5 - Send varsel"
     if:
@@ -337,7 +350,7 @@ action:
       - action: script.varsel_pushover_send_melding_webhome
         metadata: {}
         data:
-          title: "🔴 Enhet er gått offline"
+          title: "{{ notification_title | trim }}"
           message: "{{ combined_message }}"
           destination: "{{ pushover_destination }}"
           priority: "{{ pushover_priority | int(0) }}"
