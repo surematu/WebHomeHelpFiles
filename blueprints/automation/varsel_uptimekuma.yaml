@@ -31,7 +31,7 @@ blueprint:
     Oppetid vises som "(dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.12
+    Blueprint versjon: 2026.07.13
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -158,6 +158,12 @@ action:
           {{ device_attr(did, 'name') | default(trigger.entity_id, true) }}
         {%- else -%}
           {{ '' }}
+        {%- endif -%}
+      urgent_trigger_went_online: >-
+        {%- if trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' -%}
+          {{ trigger.to_state is not none and trigger.to_state.state | lower == 'up' }}
+        {%- else -%}
+          false
         {%- endif -%}
 
   - alias: "Steg 2 - Finn Uptime Kuma devices"
@@ -304,7 +310,9 @@ action:
       notification_title: >-
         {% set p = report_payload if report_payload is mapping else report_payload | from_json %}
         {% set urgent_dev = urgent_trigger_device_name | trim %}
-        {% if p.should_notify %}
+        {% if urgent_dev != '' and urgent_trigger_went_online | bool(false) %}
+          🟢 {{ urgent_dev }} is online
+        {% elif p.should_notify %}
           {% if urgent_dev != '' %}
             🔴 {{ urgent_dev }} er offline
           {% elif p.down_count == 1 %}
@@ -348,6 +356,8 @@ action:
           {% endif %}
           {% set ns.out = ns.out + ns.detail_lines %}
           {% set ns.out = ns.out + ["", "Oppetid er presentert for; Dag/Måned/År."] %}
+        {% elif urgent_trigger_went_online | bool(false) and urgent_trigger_device_name | trim != '' %}
+          {% set ns.out = ["Alle overvåkede enheter er nå online."] %}
         {% endif %}
 
         {% if debug_on %}
@@ -359,6 +369,7 @@ action:
             "- manual_run: " ~ (manual_run | string),
             "- show_all_down: " ~ (show_all_down | string),
             "- urgent_trigger_device: " ~ (urgent_trigger_device_name | trim if urgent_trigger_device_name | trim != '' else 'n/a'),
+            "- urgent_trigger_went_online: " ~ (urgent_trigger_went_online | string),
             "- interval_seconds: 3600",
             "- devices_found: " ~ ((p.devices_found | int(0)) | string),
             "- down_count: " ~ ((p.down_count | int(0)) | string),
