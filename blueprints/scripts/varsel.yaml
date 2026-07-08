@@ -1,0 +1,82 @@
+blueprint:
+  name: Pushover Send Melding (WebHome)
+  description: >
+    Sender melding til Pushover for valgt WebHome-navn.
+    Laget fra eksisterende automasjonslogikk, men som script blueprint med kun input: name.
+  domain: script
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/scripts/varsel.yaml
+  author: surematu
+  homeassistant:
+    min_version: "2024.6.0"
+  input:
+    name:
+      name: Name
+      description: Navn som brukes i tittel, URL og URL-tittel.
+      selector:
+        text:
+
+sequence:
+  - variables:
+      name: !input name
+
+      # Defaults beholdes fra originalen, siden blueprint kun skal ha input: name
+      pushover_ttl: 21600
+      ttl_sufix: >
+        {% set s = pushover_ttl | int %}
+        {% if s >= 86400 %}
+          {% set n = (s / 86400) | round(0, 'floor') | int %}
+          (forsvinner om {{ n }} {{ 'dag' if n == 1 else 'dager' }})
+        {% elif s >= 3600 %}
+          {% set n = (s / 3600) | round(0, 'floor') | int %}
+          (forsvinner om {{ n }} {{ 'time' if n == 1 else 'timer' }})
+        {% elif s >= 60 %}
+          {% set n = (s / 60) | round(0, 'floor') | int %}
+          (forsvinner om {{ n }} {{ 'minutt' if n == 1 else 'minutter' }})
+        {% else %}
+          (forsvinner om {{ s }} sekunder)
+        {% endif %}
+
+      pushover_title: >
+        {{ (name | default('LiBe', true)) ~ ' - ' ~ 'DefaultTitle' }}
+
+      pushover_message: >
+        {{ 'DefaultMessage' ~ '\n\n' ~ ttl_sufix }}
+
+      pushover_destination: "pushover"
+      pushover_priority: 0
+
+      pushover_url: >
+        {% set n = name | default('', true) | trim | lower %}
+        {{ 'https://' ~ (n ~ '.cloud.' if n else '') ~ 'webhome.no/' }}
+
+      pushover_url_title: >
+        {% set n = name | default('', true) | trim %}
+        {{ 'Åpne WebHome' ~ (' (' ~ n ~ ')' if n else '') }}
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ pushover_destination | lower == 'pushover_diverse' }}"
+        sequence:
+          - action: notify.pushover_diverse
+            data:
+              title: "{{ pushover_title }}"
+              message: "{{ pushover_message }}"
+              data:
+                priority: "{{ pushover_priority }}"
+                ttl: "{{ pushover_ttl }}"
+                url: "{{ pushover_url }}"
+                url_title: "{{ pushover_url_title }}"
+    default:
+      - action: notify.pushover
+        data:
+          title: "{{ pushover_title }}"
+          message: "{{ pushover_message }}"
+          data:
+            priority: "{{ pushover_priority }}"
+            ttl: "{{ pushover_ttl }}"
+            url: "{{ pushover_url }}"
+            url_title: "{{ pushover_url_title }}"
+
+mode: parallel
+max: 10
