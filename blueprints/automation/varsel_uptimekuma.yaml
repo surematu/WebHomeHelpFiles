@@ -31,7 +31,7 @@ blueprint:
     Oppetid vises som "(dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.11
+    Blueprint versjon: 2026.07.12
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -128,11 +128,14 @@ trigger:
 
   - platform: state
     entity_id: !input urgent_sensors
-    from: "Up"
-    to:
+    from: 
+      - "Up"
       - "Down"
       - "Pending"
       - "Maintenance"
+    to:
+      - "Up"
+      - "Down"
     id: urgent_sensor_trigger
 
 condition: []
