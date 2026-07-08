@@ -1,11 +1,11 @@
 blueprint:
-  name: Varsel - Pushover Send Melding (WebHome)
+  name: Varsel - Pushover Send Melding (WebHome Script)
   description: >
     Sender melding til Pushover for valgt WebHome-navn.
     Laget fra eksisterende automasjonslogikk, men som script blueprint med kun input: name.
 
     Blueprint versjon:
-    2026.07.01
+    2026.07.02
   domain: script
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/scripts/varsel_pushover.yaml
   author: WebHome
