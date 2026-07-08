@@ -2,10 +2,10 @@ blueprint:
   name: Varsel - Pushover Send Melding (WebHome Script)
   description: >
     Sender melding til Pushover for valgt WebHome-navn.
-    Basert på eksisterende automasjonslogikk, nå som script blueprint med støtte for alle opprinnelige felt.
+    Basert på eksisterende automasjonslogikk, som script blueprint med runtime fields ved script-kall.
 
     Blueprint versjon:
-    2026.07.03
+    2026.07.04
   domain: script
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/scripts/varsel_pushover.yaml
   input:
@@ -14,67 +14,71 @@ blueprint:
       description: Navn som brukes i tittel, URL og URL-tittel.
       selector:
         text:
-    title:
-      name: Tittel
-      description: Tittel på meldingen.
-      default: Tittel
-      selector:
-        text:
-    message:
-      name: Melding
-      description: Innhold i meldingen.
-      default: Melding
-      selector:
-        text:
-    destination:
-      name: Destination
-      description: Varsel-destinasjon (pushover eller pushover_diverse).
-      default: pushover
-      selector:
-        text:
-    priority:
-      name: Priority
-      description: Pushover-prioritet (-2 til 2).
-      default: 0
-      selector:
-        number:
-          min: -2
-          max: 2
-          step: 1
-    ttl:
-      name: TTL
-      description: Time-to-live i sekunder.
-      default: 21600
-      selector:
-        number:
-          min: 1
-          max: 1000000
-          step: 1
-    url:
-      name: URL
-      description: Valgfri URL i meldingen.
-      default: https://x.cloud.webhome.no/
-      selector:
-        text:
-    url_title:
-      name: URL title
-      description: Tekst for URL-lenken.
-      default: Åpne WebHome (x)
-      selector:
-        text:
+
+fields:
+  title:
+    name: Tittel
+    description: Tittel på meldingen.
+    default: Tittel
+    selector:
+      text:
+  message:
+    name: Melding
+    description: Innhold i meldingen.
+    default: Melding
+    selector:
+      text:
+  destination:
+    name: Destination
+    description: Varsel-destinasjon (pushover eller pushover_diverse).
+    default: pushover
+    selector:
+      text:
+  priority:
+    name: Priority
+    description: Pushover-prioritet (-2 til 2).
+    default: 0
+    selector:
+      number:
+        min: -2
+        max: 2
+        step: 1
+  ttl:
+    name: TTL
+    description: Time-to-live i sekunder.
+    default: 21600
+    selector:
+      number:
+        min: 1
+        max: 1000000
+        step: 1
+  url:
+    name: URL
+    description: Valgfri URL i meldingen.
+    default: ""
+    selector:
+      text:
+  url_title:
+    name: URL title
+    description: Tekst for URL-lenken.
+    default: ""
+    selector:
+      text:
 
 sequence:
   - variables:
       name: !input name
-      title: !input title
-      message: !input message
-      destination: !input destination
-      priority: !input priority
-      ttl: !input ttl
-      url: !input url
-      url_title: !input url_title
 
-      pushover_ttl: "{{ ttl | default(21600) | int }}"
+      # Runtime fields from script call (with defaults)
+      call_title: "{{ title | default('Tittel', true) }}"
+      call_message: "{{ message | default('Melding', true) }}"
+      call_destination: "{{ destination | default('pushover', true) | lower }}"
+      call_priority: "{{ priority | default(0) | int }}"
+      call_ttl: "{{ ttl | default(21600) | int }}"
+      call_url: "{{ url | default('', true) }}"
+      call_url_title: "{{ url_title | default('', true) }}"
+
+      pushover_ttl: "{{ call_ttl | int }}"
       ttl_sufix: >
         {% set s = pushover_ttl | int %}
         {% if s >= 86400 %}
@@ -91,26 +95,28 @@ sequence:
         {% endif %}
 
       pushover_title: >
-        {{ (name | default('LiBe', true)) ~ ' - ' ~ (title | default('DefaultTitle', true)) }}
+        {{ (name | default('LiBe', true)) ~ ' - ' ~ (call_title | default('DefaultTitle', true)) }}
 
       pushover_message: >
-        {{ (message | default('DefaultMessage', true)) ~ '\n\n' ~ ttl_sufix }}
+        {{ (call_message | default('DefaultMessage', true)) ~ '\n\n' ~ ttl_sufix }}
 
-      pushover_destination: "{{ destination | default('pushover', true) | lower }}"
-      pushover_priority: "{{ priority | default(0) | int }}"
+      pushover_destination: "{{ call_destination | default('pushover', true) | lower }}"
+      pushover_priority: "{{ call_priority | default(0) | int }}"
 
       pushover_url: >
         {% set n = name | default('', true) | trim | lower %}
-        {{ url | default('https://' ~ (n ~ '.cloud.' if n else '') ~ 'webhome.no/', true) }}
+        {% set fallback = 'https://' ~ (n ~ '.cloud.' if n else '') ~ 'webhome.no/' %}
+        {{ call_url if (call_url | default('', true) | trim) else fallback }}
 
       pushover_url_title: >
         {% set n = name | default('', true) | trim %}
-        {{ url_title | default('Åpne WebHome' ~ (' (' ~ n ~ ')' if n else ''), true) }}
+        {% set fallback = 'Åpne WebHome' ~ (' (' ~ n ~ ')' if n else '') %}
+        {{ call_url_title if (call_url_title | default('', true) | trim) else fallback }}
 
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ pushover_destination | lower == 'pushover_diverse' }}"
+            value_template: "{{ pushover_destination == 'pushover_diverse' }}"
         sequence:
           - action: notify.pushover_diverse
             data:
