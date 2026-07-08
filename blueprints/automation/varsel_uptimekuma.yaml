@@ -22,7 +22,7 @@ blueprint:
     "Ny i siste time" beregnes ved å bruke tidspunkt for siste state-endring på Status-entity
     (last_changed), og sjekke om den er innenfor valgt intervall (standard 1 time).
 
-    Blueprint versjon: 2026.07.01
+    Blueprint versjon: 2026.07.08
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -115,15 +115,14 @@ action:
 
       manual_run: "{{ trigger is not defined or trigger.id is not defined }}"
 
-  - alias: "Steg 2 - Finn Uptime Kuma devices + bygg nedeliste"
+  - alias: "Steg 2 - Finn Uptime Kuma devices"
     variables:
-      report_payload: |-
+      devices: |-
         {%- set interval_s = interval_seconds | int(3600) -%}
         {%- set now_ts = as_timestamp(now()) | int(0) -%}
         {%- set ns = namespace(
               seen_devices=[],
-              down_all=[],
-              down_new=[],
+              all_devices=[],
               debug=[]
             ) -%}
 
@@ -136,6 +135,8 @@ action:
               {%- set ns.seen_devices = ns.seen_devices + [did] -%}
 
               {%- set dev_name = device_attr(did, 'name') | default('Ukjent enhet', true) -%}
+              {%- set dev_model = device_attr(did, 'model') | default('', true) -%}
+              {%- set dev_manufacturer = device_attr(did, 'manufacturer') | default('', true) -%}
               {%- set ents = device_entities(did) if did else [] -%}
 
               {%- set found = namespace(status_eid='', uptime30_eid='') -%}
@@ -157,53 +158,93 @@ action:
               {%- if found.status_eid != '' -%}
                 {%- set status_state = states(found.status_eid) | string -%}
                 {%- set is_up = (status_state | lower) == 'up' -%}
+                {%- set uptime30 = states(found.uptime30_eid) if found.uptime30_eid != '' else 'ukjent' -%}
+                {%- set status_obj = states[found.status_eid] -%}
+                {%- set lc_ts = as_timestamp(status_obj.last_changed, default=0) | int(0) -%}
+                {%- set age_s = (now_ts - lc_ts) | int(0) -%}
+                {%- set is_new = (not is_up) and (age_s >= 0) and (age_s < interval_s) -%}
 
-                {%- if not is_up -%}
-                  {%- set uptime30 = states(found.uptime30_eid) if found.uptime30_eid != '' else 'ukjent' -%}
-                  {%- set status_obj = states[found.status_eid] -%}
-                  {%- set lc_ts = as_timestamp(status_obj.last_changed, default=0) | int(0) -%}
-                  {%- set age_s = (now_ts - lc_ts) | int(0) -%}
-                  {%- set is_new = (age_s >= 0) and (age_s < interval_s) -%}
-
-                  {%- set line = {
-                    'device': dev_name,
-                    'status': status_state,
-                    'uptime30': uptime30,
-                    'status_eid': found.status_eid,
-                    'age_s': age_s,
-                    'is_new': is_new
-                  } -%}
-
-                  {%- set ns.down_all = ns.down_all + [line] -%}
-                  {%- if is_new -%}
-                    {%- set ns.down_new = ns.down_new + [line] -%}
-                  {%- endif -%}
-                {%- endif -%}
+                {%- set dev_info = {
+                  'device_id': did,
+                  'device_name': dev_name,
+                  'model': dev_model,
+                  'manufacturer': dev_manufacturer,
+                  'status_eid': found.status_eid,
+                  'uptime30_eid': found.uptime30_eid,
+                  'status': status_state,
+                  'uptime30': uptime30,
+                  'is_up': is_up,
+                  'last_changed_ts': lc_ts,
+                  'age_s': age_s,
+                  'is_new': is_new
+                } -%}
+                {%- set ns.all_devices = ns.all_devices + [dev_info] -%}
               {%- else -%}
                 {%- set ns.debug = ns.debug + ['Mangler Status på device: ' ~ dev_name] -%}
+                {%- set uptime30_val = states(found.uptime30_eid) if found.uptime30_eid != '' else 'ukjent' -%}
+                {%- set dev_info = {
+                  'device_id': did,
+                  'device_name': dev_name,
+                  'model': dev_model,
+                  'manufacturer': dev_manufacturer,
+                  'status_eid': '',
+                  'uptime30_eid': found.uptime30_eid,
+                  'status': 'ukjent',
+                  'uptime30': uptime30_val,
+                  'is_up': false,
+                  'last_changed_ts': 0,
+                  'age_s': 0,
+                  'is_new': false
+                } -%}
+                {%- set ns.all_devices = ns.all_devices + [dev_info] -%}
               {%- endif -%}
             {%- endif -%}
           {%- endif -%}
         {%- endfor -%}
 
-        {# Sorter alfabetisk på device-navn #}
-        {%- set sorted_down = ns.down_all | sort(attribute='device') -%}
+        {%- set sorted_devices = ns.all_devices | sort(attribute='device_name') -%}
 
         {{
           {
-            'devices_found': ns.seen_devices | count,
-            'down_count': ns.down_all | count,
-            'new_down_count': ns.down_new | count,
-            'should_notify': (manual_run or ((ns.down_new | count) > 0)) and ((ns.down_all | count) > 0),
-            'down_all': sorted_down,
+            'all_devices': sorted_devices,
+            'total_count': sorted_devices | count,
             'debug': ns.debug
           } | tojson
         }}
 
-  - alias: "Steg 3 - Bygg melding"
+  - alias: "Steg 3 - Bygg nedeliste"
+    variables:
+      report_payload: |-
+        {%- set d = devices | from_json -%}
+        {%- set ns = namespace(down_all=[], down_new=[]) -%}
+
+        {%- for dev in d.all_devices -%}
+          {%- if not dev.is_up -%}
+            {%- set ns.down_all = ns.down_all + [dev] -%}
+            {%- if dev.is_new -%}
+              {%- set ns.down_new = ns.down_new + [dev] -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {%- set sorted_down = ns.down_all | sort(attribute='device_name') -%}
+
+        {{
+          {
+            'devices_found': d.total_count,
+            'down_count': ns.down_all | count,
+            'new_down_count': ns.down_new | count,
+            'should_notify': (manual_run or ((ns.down_new | count) > 0)) and ((ns.down_all | count) > 0),
+            'down_all': sorted_down,
+            'debug': d.debug
+          } | tojson
+        }}
+
+  - alias: "Steg 4 - Bygg melding"
     variables:
       combined_message: >-
         {% set p = report_payload | from_json %}
+        {% set dev_list = devices | from_json %}
         {% set lines = namespace(v=[]) %}
 
         {% if p.should_notify %}
@@ -236,7 +277,7 @@ action:
             {% endif %}
 
             {% set lines.v = lines.v + [
-              "- " ~ it.device ~ " (Status: " ~ it.status ~ ", Uptime 30d: " ~ it.uptime30 ~ ", nede i: " ~ age_txt ~ ")"
+              "- " ~ it.device_name ~ " (Status: " ~ it.status ~ ", Uptime 30d: " ~ it.uptime30 ~ ", nede i: " ~ age_txt ~ ")"
             ] %}
           {% endfor %}
         {% endif %}
@@ -253,8 +294,34 @@ action:
             "- devices_found: " ~ ((p.devices_found | int(0)) | string),
             "- down_count: " ~ ((p.down_count | int(0)) | string),
             "- new_down_count: " ~ ((p.new_down_count | int(0)) | string),
-            "- should_notify: " ~ ((p.should_notify) | string)
+            "- should_notify: " ~ ((p.should_notify) | string),
+            "",
+            "Alle devices (" ~ (dev_list.total_count | string) ~ "):"
           ] %}
+          {% for dev in dev_list.all_devices %}
+            {% set age_s = dev.age_s | int(0) %}
+            {% set dv = (age_s // 86400) | int(0) %}
+            {% set hv = ((age_s % 86400) // 3600) | int(0) %}
+            {% set mv = ((age_s % 3600) // 60) | int(0) %}
+            {% if dv > 0 %}
+              {% set age_txt = dv|string ~ "d " ~ hv|string ~ "h" %}
+            {% elif hv > 0 %}
+              {% set age_txt = hv|string ~ "h " ~ mv|string ~ "m" %}
+            {% elif mv > 0 %}
+              {% set age_txt = mv|string ~ "m" %}
+            {% else %}
+              {% set age_txt = (age_s % 60)|string ~ "s" %}
+            {% endif %}
+            {% if dev.is_up %}
+              {% set lines.v = lines.v + [
+                "  " ~ dev.device_name ~ ": Up | uptime30: " ~ dev.uptime30
+              ] %}
+            {% else %}
+              {% set lines.v = lines.v + [
+                "  " ~ dev.device_name ~ ": " ~ dev.status ~ " | uptime30: " ~ dev.uptime30 ~ " | nede i: " ~ age_txt ~ (" [NY]" if dev.is_new else "")
+              ] %}
+            {% endif %}
+          {% endfor %}
           {% for dline in p.debug %}
             {% set lines.v = lines.v + ["- note: " ~ dline] %}
           {% endfor %}
@@ -262,7 +329,7 @@ action:
 
         {{ (lines.v | join('\n')) | trim }}
 
-  - alias: "Steg 4 - Send varsel"
+  - alias: "Steg 5 - Send varsel"
     if:
       - condition: template
         value_template: "{{ combined_message | trim != '' }}"
