@@ -31,7 +31,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2025.07.18
+    Blueprint versjon: 2025.07.19
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -70,6 +70,28 @@ blueprint:
       default: pushover
       selector:
         text:
+
+    pushover_priority_general:
+      name: Pushover priority - generell
+      description: Prioritet brukt for vanlige varsler
+      default: 0
+      selector:
+        number:
+          min: -2
+          max: 2
+          step: 1
+          mode: box
+
+    pushover_priority_urgent_offline:
+      name: Pushover priority - kritisk enhet offline
+      description: Prioritet brukt når en valgt kritisk enhet går offline
+      default: 1
+      selector:
+        number:
+          min: -2
+          max: 2
+          step: 1
+          mode: box
 
     pushover_ttl:
       name: Pushover TTL (sekunder)
@@ -134,6 +156,8 @@ action:
     variables:
       debug_on: !input include_debug_details
       pushover_destination: !input pushover_destination
+      pushover_priority_general: !input pushover_priority_general
+      pushover_priority_urgent_offline: !input pushover_priority_urgent_offline
       pushover_ttl: !input pushover_ttl
       urgent_sensors_input: !input urgent_sensors
 
@@ -157,12 +181,12 @@ action:
       effective_priority: >-
         {%- if trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' -%}
           {%- if trigger.to_state is not none and trigger.to_state.state | lower != 'up' -%}
-            1
+            {{ pushover_priority_urgent_offline | int(1) }}
           {%- else -%}
-            0
+            {{ pushover_priority_general | int(0) }}
           {%- endif -%}
         {%- else -%}
-          0
+          {{ pushover_priority_general | int(0) }}
         {%- endif -%}
 
   - alias: "Steg 2 - Finn Uptime Kuma devices"
@@ -358,7 +382,7 @@ action:
             {% set ns.out = ns.out + [ns.names | sort | join(', ') ~ " er offline.", ""] %}
           {% endif %}
           {% set ns.out = ns.out + ns.detail_lines %}
-          {% set ns.out = ns.out + ["", "Parentes: Endret/oppetid i dag/-måned/-år."] %}
+          {% set ns.out = ns.out + ["", "Parentes: Endret/oppetid dag/-måned/-år."] %}
         {% elif urgent_trigger_went_online | bool(false) and urgent_trigger_device_name | trim != '' %}
           {% set ns.out = ["Alle overvåkede enheter er nå online."] %}
         {% endif %}
