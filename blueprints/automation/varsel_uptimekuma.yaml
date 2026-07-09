@@ -415,7 +415,7 @@ action:
               {% set ns.out = ns.out + ["- " ~ it.device_name ~ " | " ~ age_txt ~ " / " ~ umin|string ~ "-" ~ umax|string ~ "%"] %}
             {% endfor %}
           {% endif %}
-          {% set ns.out = ns.out + ["", "Info bak |: Oppetid i %."] %}
+          {% set ns.out = ns.out + ["", "Struktur: Navn | Sist endret status / Oppetid i %."] %}
         {% elif urgent_trigger_went_online | bool(false) and urgent_trigger_device_name | trim != '' %}
           {% set ns.out = ["Alle overvåkede enheter er nå online."] %}
           {% if p.unstable_count > 0 %}
@@ -441,7 +441,7 @@ action:
               {% set umax = [u1, u30, u365] | max %}
               {% set ns.out = ns.out + ["- " ~ it.device_name ~ " | " ~ age_txt ~ " / " ~ umin|string ~ "-" ~ umax|string ~ "%"] %}
             {% endfor %}
-            {% set ns.out = ns.out + ["", "Info bak |: Oppetid i %."] %}
+            {% set ns.out = ns.out + ["", "Struktur: Navn | Sist endret status / Oppetid i %."] %}
           {% endif %}
         {% endif %}
 
