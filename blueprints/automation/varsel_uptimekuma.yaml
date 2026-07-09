@@ -31,7 +31,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.23
+    Blueprint versjon: 2026.07.24
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -150,14 +150,13 @@ trigger:
 
   - platform: state
     entity_id: !input urgent_sensors
-    from:
-      - "up"
-      - "down"
-      - "pending"
-      - "maintenance"
-    to:
-      - "up"
-      - "down"
+    to: "down"
+    id: urgent_sensor_trigger
+
+  - platform: state
+    entity_id: !input urgent_sensors
+    from: "down"
+    to: "up"
     id: urgent_sensor_trigger
 
 condition: []
@@ -317,7 +316,7 @@ action:
       report_payload: |-
         {%- set d = devices if devices is mapping else devices | from_json -%}
         {%- set urgent_eids = urgent_sensors_input | default([]) -%}
-        {%- set ns = namespace(down_all=[], down_new=[]) -%}
+        {%- set ns = namespace(down_all=[], down_new=[], unstable=[]) -%}
 
         {%- for dev in d.all_devices -%}
           {%- if not dev.is_up -%}
@@ -325,10 +324,13 @@ action:
             {%- if dev.is_new and dev.status_eid not in urgent_eids -%}
               {%- set ns.down_new = ns.down_new + [dev] -%}
             {%- endif -%}
+          {%- elif dev.uptime1_eid != '' and (dev.uptime1 | float(100)) < 99.5 -%}
+            {%- set ns.unstable = ns.unstable + [dev] -%}
           {%- endif -%}
         {%- endfor -%}
 
         {%- set sorted_down = ns.down_all | sort(attribute='device_name') -%}
+        {%- set sorted_unstable = ns.unstable | sort(attribute='device_name') -%}
 
         {{
           {
@@ -337,6 +339,8 @@ action:
             'new_down_count': ns.down_new | count,
             'should_notify': (show_all_down or ((ns.down_new | count) > 0)) and ((ns.down_all | count) > 0),
             'down_all': sorted_down,
+            'unstable_devices': sorted_unstable,
+            'unstable_count': ns.unstable | count,
             'debug': d.debug
           } | tojson
         }}
@@ -396,9 +400,58 @@ action:
             {% set ns.out = ns.out + [ns.names | sort | join(', ') ~ " er offline.", ""] %}
           {% endif %}
           {% set ns.out = ns.out + ns.detail_lines %}
+          {% if p.unstable_count > 0 %}
+            {% set ns.out = ns.out + ["", "Ustabile enheter siste døgn:"] %}
+            {% for it in p.unstable_devices %}
+              {% set age_s = it.age_s | int(0) %}
+              {% set d = (age_s // 86400) | int(0) %}
+              {% set h = ((age_s % 86400) // 3600) | int(0) %}
+              {% set m = ((age_s % 3600) // 60) | int(0) %}
+              {% if d > 0 %}
+                {% set age_txt = d|string ~ "d " ~ h|string ~ "h" %}
+              {% elif h > 0 %}
+                {% set age_txt = h|string ~ "h " ~ m|string ~ "m" %}
+              {% elif m > 0 %}
+                {% set age_txt = m|string ~ "m" %}
+              {% else %}
+                {% set age_txt = (age_s % 60)|string ~ "s" %}
+              {% endif %}
+              {% set u1 = (it.uptime1 | float(0)) | int %}
+              {% set u30 = (it.uptime30 | float(0)) | int %}
+              {% set u365 = (it.uptime365 | float(0)) | int %}
+              {% set umin = [u1, u30, u365] | min %}
+              {% set umax = [u1, u30, u365] | max %}
+              {% set ns.out = ns.out + ["- " ~ it.device_name ~ " | " ~ age_txt ~ " / " ~ umin|string ~ "-" ~ umax|string ~ "%"] %}
+            {% endfor %}
+          {% endif %}
           {% set ns.out = ns.out + ["", "Info bak |: Sist endret status/Oppetid i %."] %}
         {% elif urgent_trigger_went_online | bool(false) and urgent_trigger_device_name | trim != '' %}
           {% set ns.out = ["Alle overvåkede enheter er nå online."] %}
+          {% if p.unstable_count > 0 %}
+            {% set ns.out = ns.out + ["", "Ustabile enheter siste døgn:"] %}
+            {% for it in p.unstable_devices %}
+              {% set age_s = it.age_s | int(0) %}
+              {% set d = (age_s // 86400) | int(0) %}
+              {% set h = ((age_s % 86400) // 3600) | int(0) %}
+              {% set m = ((age_s % 3600) // 60) | int(0) %}
+              {% if d > 0 %}
+                {% set age_txt = d|string ~ "d " ~ h|string ~ "h" %}
+              {% elif h > 0 %}
+                {% set age_txt = h|string ~ "h " ~ m|string ~ "m" %}
+              {% elif m > 0 %}
+                {% set age_txt = m|string ~ "m" %}
+              {% else %}
+                {% set age_txt = (age_s % 60)|string ~ "s" %}
+              {% endif %}
+              {% set u1 = (it.uptime1 | float(0)) | int %}
+              {% set u30 = (it.uptime30 | float(0)) | int %}
+              {% set u365 = (it.uptime365 | float(0)) | int %}
+              {% set umin = [u1, u30, u365] | min %}
+              {% set umax = [u1, u30, u365] | max %}
+              {% set ns.out = ns.out + ["- " ~ it.device_name ~ " | " ~ age_txt ~ " / " ~ umin|string ~ "-" ~ umax|string ~ "%"] %}
+            {% endfor %}
+            {% set ns.out = ns.out + ["", "Info bak |: Sist endret status/Oppetid i %."] %}
+          {% endif %}
         {% endif %}
 
         {% if debug_on %}
