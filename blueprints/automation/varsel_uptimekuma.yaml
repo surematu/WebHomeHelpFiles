@@ -31,7 +31,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2025.07.20
+    Blueprint versjon: 2026.07.09
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -369,7 +369,7 @@ action:
             {% set ns.names = ns.names + [it.device_name] %}
           {% endfor %}
 
-          {% for it in p.down_all | sort(attribute='age_s', reverse=true) %}
+          {% for it in p.down_all | sort(attribute='age_s') %}
             {% set age_s = it.age_s | int(0) %}
             {% set d = (age_s // 86400) | int(0) %}
             {% set h = ((age_s % 86400) // 3600) | int(0) %}
@@ -387,7 +387,7 @@ action:
             {% set u30 = (it.uptime30 | float(0)) | int %}
             {% set u365 = (it.uptime365 | float(0)) | int %}
             {% set prefix = "- " if p.down_count > 1 else "" %}
-            {% set ns.detail_lines = ns.detail_lines + [prefix ~ it.device_name ~ " (" ~ age_txt ~ "/" ~ u1|string ~ "%/" ~ u30|string ~ "%/" ~ u365|string ~ "%)"] %}
+            {% set ns.detail_lines = ns.detail_lines + [prefix ~ it.device_name ~ " | " ~ age_txt ~ "/" ~ u1|string ~ "%/" ~ u30|string ~ "%/" ~ u365|string ~ "%"] %}
           {% endfor %}
 
           {% if p.down_count > 1 %}
