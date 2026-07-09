@@ -31,7 +31,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.24
+    Blueprint versjon: 2026.07.25
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -366,40 +366,17 @@ action:
       combined_message: >-
         {% set p = report_payload if report_payload is mapping else report_payload | from_json %}
         {% set dev_list = devices if devices is mapping else devices | from_json %}
-        {% set ns = namespace(names=[], detail_lines=[], out=[]) %}
+        {% set ns = namespace(names=[], out=[]) %}
 
         {% if p.should_notify %}
           {% for it in p.down_all %}
             {% set ns.names = ns.names + [it.device_name] %}
           {% endfor %}
 
-          {% for it in p.down_all | sort(attribute='age_s') %}
-            {% set age_s = it.age_s | int(0) %}
-            {% set d = (age_s // 86400) | int(0) %}
-            {% set h = ((age_s % 86400) // 3600) | int(0) %}
-            {% set m = ((age_s % 3600) // 60) | int(0) %}
-            {% if d > 0 %}
-              {% set age_txt = d|string ~ "d " ~ h|string ~ "h" %}
-            {% elif h > 0 %}
-              {% set age_txt = h|string ~ "h " ~ m|string ~ "m" %}
-            {% elif m > 0 %}
-              {% set age_txt = m|string ~ "m" %}
-            {% else %}
-              {% set age_txt = (age_s % 60)|string ~ "s" %}
-            {% endif %}
-            {% set u1 = (it.uptime1 | float(0)) | int %}
-            {% set u30 = (it.uptime30 | float(0)) | int %}
-            {% set u365 = (it.uptime365 | float(0)) | int %}
-            {% set prefix = "- " if p.down_count > 1 else "" %}
-            {% set umin = [u1, u30, u365] | min %}
-            {% set umax = [u1, u30, u365] | max %}
-            {% set ns.detail_lines = ns.detail_lines + [prefix ~ it.device_name ~ " | " ~ age_txt ~ " / " ~ umin|string ~ "-" ~ umax|string ~ "%"] %}
+          {% set ns.out = ns.out + ["Enheter som er offline akkurat nå:"] %}
+          {% for dev_name in ns.names | sort %}
+            {% set ns.out = ns.out + ["- " ~ dev_name] %}
           {% endfor %}
-
-          {% if p.down_count > 1 %}
-            {% set ns.out = ns.out + [ns.names | sort | join(', ') ~ " er offline.", ""] %}
-          {% endif %}
-          {% set ns.out = ns.out + ns.detail_lines %}
           {% if p.unstable_count > 0 %}
             {% set ns.out = ns.out + ["", "Ustabile enheter siste døgn:"] %}
             {% for it in p.unstable_devices %}
