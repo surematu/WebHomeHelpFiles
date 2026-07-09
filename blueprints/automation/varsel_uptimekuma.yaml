@@ -31,7 +31,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2025.07.19
+    Blueprint versjon: 2025.07.20
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -86,6 +86,17 @@ blueprint:
       name: Pushover priority - kritisk enhet offline
       description: Prioritet brukt når en valgt kritisk enhet går offline
       default: 1
+      selector:
+        number:
+          min: -2
+          max: 2
+          step: 1
+          mode: box
+
+    pushover_priority_urgent_other:
+      name: Pushover priority - kritisk enhet online/annen endring
+      description: Prioritet brukt når en kritisk enhet går online eller gjør en annen ikke-offline statusendring
+      default: -1
       selector:
         number:
           min: -2
@@ -158,6 +169,7 @@ action:
       pushover_destination: !input pushover_destination
       pushover_priority_general: !input pushover_priority_general
       pushover_priority_urgent_offline: !input pushover_priority_urgent_offline
+      pushover_priority_urgent_other: !input pushover_priority_urgent_other
       pushover_ttl: !input pushover_ttl
       urgent_sensors_input: !input urgent_sensors
 
@@ -183,7 +195,7 @@ action:
           {%- if trigger.to_state is not none and trigger.to_state.state | lower != 'up' -%}
             {{ pushover_priority_urgent_offline | int(1) }}
           {%- else -%}
-            {{ pushover_priority_general | int(0) }}
+            {{ pushover_priority_urgent_other | int(-1) }}
           {%- endif -%}
         {%- else -%}
           {{ pushover_priority_general | int(0) }}
@@ -382,7 +394,7 @@ action:
             {% set ns.out = ns.out + [ns.names | sort | join(', ') ~ " er offline.", ""] %}
           {% endif %}
           {% set ns.out = ns.out + ns.detail_lines %}
-          {% set ns.out = ns.out + ["", "Parentes: Endret/oppetid dag/-måned/-år."] %}
+          {% set ns.out = ns.out + ["", "Tekst bak |: Endret/oppetid dag/-måned/-år."] %}
         {% elif urgent_trigger_went_online | bool(false) and urgent_trigger_device_name | trim != '' %}
           {% set ns.out = ["Alle overvåkede enheter er nå online."] %}
         {% endif %}
