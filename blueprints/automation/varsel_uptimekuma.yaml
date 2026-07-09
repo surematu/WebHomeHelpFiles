@@ -31,7 +31,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.22
+    Blueprint versjon: 2026.07.23
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -107,11 +107,11 @@ blueprint:
     pushover_ttl:
       name: Pushover TTL (sekunder)
       description: Levetid for varselet (f.eks. 86400 = 1 døgn)
-      default: 86400
+      default: 604800
       selector:
         number:
           min: 0
-          max: 86400
+          max: 604800
           step: 60
           mode: box
 
