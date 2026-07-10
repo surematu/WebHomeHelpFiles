@@ -1,20 +1,33 @@
 blueprint:
-  name: Varsel - Batteri, lavt nivå (WebHome)
+  name: Varsel - Batteri (nivå + signal) (WebHome)
   description: >
-    Sender varsel om lavt batteri basert på:
-      1) sensor.* med device_class: battery (prosent)
-         - deduper per "renset" navn og beholder laveste verdi
-         - kun numeriske verdier under terskel inkluderes
-      2) binary_sensor.* med device_class: battery (digital battery low)
-         - tar med de som ikke er 'off'
-         - fjerner duplikater som allerede er i liste (1)
+    Samlet overvåkning av batteri-enheter i tre deler:
 
-    Nytt:
-      - Én samlet melding (analog + digital)
-      - Ignore-liste for entities (og valgfri ignore-liste for devices)
-      - Filtrerer bort meningsløse linjer
+    Del 1 – Batteri lavt nivå (planlagt sjekk):
+      - sensor.* med device_class: battery → rapporterer % under terskel
+      - binary_sensor.* med device_class: battery → rapporterer digitalt lav-signal
+      - Deduper per renset navn, beholder laveste verdi
 
-    Blueprint versjon: 2026.07.00
+    Del 2 – Signal langsomt (planlagt sjekk, samme tid som Del 1):
+      - Finner batteri-enheter som ikke har rapportert inn innen angitt tid (standard 72 timer)
+      - Bruker nyeste kjente aktivitet per device (last_seen, last_changed)
+
+    Del 3 – Signal raskt (time_pattern – kjøres hver time):
+      - Finner batteri-enheter som nylig har mistet kontakten
+      - Varsler kun enheter innenfor varsel-vinduet:
+        last_seen_threshold <= alder < check_interval
+      - Eksempel (terskel 2t, intervall 4t): enheter sett for 2–4 timer siden rapporteres
+
+    Felles for alle tre:
+      - Én ignore-liste for entities og devices (gjelder alle sjekkene)
+      - Debug-detaljer slås på én gang
+
+    Slik finner vi "sist sett" (signal-sjekkene):
+      - state_attr(entity, 'last_seen') hvis finnes
+      - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
+      - Fallback: entity.last_changed for sensor/binary_sensor
+
+    Blueprint versjon: 2026.07.01
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -22,104 +35,192 @@ blueprint:
     min_version: 2025.11.0
 
   input:
-    pushover_destination:
-      name: Pushover destination
-      description: Mottakergruppe i script.varsel_pushover_send_melding_webhome
-      default: pushover
-      selector:
-        text:
 
-    pushover_priority:
-      name: Pushover priority
-      description: Prioritet brukt for varsling
-      default: 0
-      selector:
-        number:
-          min: -2
-          max: 2
-          step: 1
-          mode: box
+    planlagt_sjekk:
+      name: "Planlagt sjekk"
+      description: >
+        Tidspunkt og ukedager for batteri nivå (Del 1) og langsomt signal (Del 2).
+        Den raske signal-sjekken (Del 3) kjøres automatisk hver time via time_pattern.
+      input:
+        check_time:
+          name: Tid for planlagt sjekk
+          default: "09:05:00"
+          selector:
+            time:
 
-    pushover_ttl:
-      name: Pushover TTL (sekunder)
-      description: Levetid for varselet (f.eks. 86400 = 1 døgn)
-      default: 604800
-      selector:
-        number:
-          min: 0
-          max: 604800
-          step: 60
-          mode: box
+        check_weekdays:
+          name: Ukedag(er) for planlagt sjekk
+          default:
+            - wed
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - { label: Mandag, value: mon }
+                - { label: Tirsdag, value: tue }
+                - { label: Onsdag, value: wed }
+                - { label: Torsdag, value: thu }
+                - { label: Fredag, value: fri }
+                - { label: Lørdag, value: sat }
+                - { label: Søndag, value: sun }
 
-    threshold_percent:
-      name: Terskel for lavt batteri (%)
-      default: 30
-      selector:
-        number:
-          min: 1
-          max: 100
-          step: 1
-          unit_of_measurement: "%"
+        run_on_startup:
+          name: Kjør Del 1 og Del 2 ved oppstart av Home Assistant
+          default: false
+          selector:
+            boolean:
 
-    include_digital_battery_sensors:
-      name: "Ta med digitale batterisensorer (binary_sensor device_class: battery)"
-      default: true
-      selector:
-        boolean:
+    filtrering:
+      name: "Filtrering (gjelder alle sjekkene)"
+      description: "Entities og devices som utelates fra batteri nivå, langsomt signal og raskt signal."
+      input:
+        ignore_entities:
+          name: Ignorer entities (valgfritt)
+          description: Velg entities du vil skjule fra alle rapporter (sensor/binary_sensor).
+          default: []
+          selector:
+            entity:
+              multiple: true
 
-    ignore_entities:
-      name: Ignorer entities (valgfritt)
-      description: Velg entities du vil skjule fra rapporten (sensor/binary_sensor).
-      default: []
-      selector:
-        entity:
-          multiple: true
+        ignore_devices:
+          name: Ignorer devices (valgfritt)
+          description: Velg devices du vil skjule (skjuler alle batteri-entities knyttet til device).
+          default: []
+          selector:
+            device:
+              multiple: true
 
-    ignore_devices:
-      name: Ignorer devices (valgfritt)
-      description: Velg devices du vil skjule (skjuler alle batteri-entities knyttet til device).
-      default: []
-      selector:
-        device:
-          multiple: true
+    batteri_nivaa:
+      name: "Del 1 – Batteri nivå"
+      description: "Innstillinger for rapportering av lavt batterinivå (planlagt sjekk)."
+      input:
+        threshold_percent:
+          name: Terskel for lavt batteri (%)
+          default: 30
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
 
-    check_time:
-      name: Tid for planlagt sjekk
-      default: "09:05:00"
-      selector:
-        time:
+        include_digital_battery_sensors:
+          name: "Ta med digitale batterisensorer (binary_sensor device_class: battery)"
+          default: true
+          selector:
+            boolean:
 
-    check_weekdays:
-      name: Ukedag(er) for planlagt sjekk
-      default:
-        - wed
-      selector:
-        select:
-          multiple: true
-          mode: list
-          options:
-            - { label: Mandag, value: mon }
-            - { label: Tirsdag, value: tue }
-            - { label: Onsdag, value: wed }
-            - { label: Torsdag, value: thu }
-            - { label: Fredag, value: fri }
-            - { label: Lørdag, value: sat }
-            - { label: Søndag, value: sun }
+    signal_langsomt:
+      name: "Del 2 – Signal langsomt"
+      description: >
+        Varsler batteri-enheter som ikke har rapportert inn på lenge.
+        Kjøres ved planlagt sjekk (samme tid som Del 1).
+        NB: Shelly WiFi-temperatursensorer responderer noen ganger ikke på 1–2 timer.
+      input:
+        max_age:
+          name: Maks tid siden sist signal
+          description: "Varsle hvis enhet ikke er sett på mer enn dette. Standard: 72 timer."
+          default:
+            hours: 72
+          selector:
+            duration:
 
-    run_on_startup:
-      name: Kjør ved oppstart av Home Assistant
-      default: false
-      selector:
-        boolean:
+    signal_raskt:
+      name: "Del 3 – Signal raskt"
+      description: >
+        Varsler batteri-enheter som nylig mistet kontakten (kjøres hver time).
+        Varsel-vinduet er: last_seen_threshold <= alder < check_interval.
+        Sett check_interval til å matche sjekkfrekvensen for å unngå gjentatte varsler.
+        NB: Shelly WiFi-temperatursensorer responderer noen ganger ikke på 1–2 timer.
+      input:
+        last_seen_threshold:
+          name: Nedre grense – minimum tid siden sist signal
+          description: >
+            Enheter sett for kortere tid enn dette ignoreres. Standard: 2 timer.
+          default:
+            hours: 2
+          selector:
+            duration:
+
+        check_interval:
+          name: Øvre grense – varsel-vindu
+          description: >
+            Enheter sett for lenger tid enn dette ignoreres (de ville blitt rapportert forrige sjekk).
+            Standard: 4 timer. Må være større enn nedre grense.
+          default:
+            hours: 4
+          selector:
+            duration:
+
+        include_unavailable:
+          name: Ta med unknown/unavailable i varselet (raskt signal)
+          description: >
+            Hvis på: enheter der batteri-entity er unknown/unavailable tas med.
+            Slå av hvis du opplever støy.
+          default: true
+          selector:
+            boolean:
+
+    varsling:
+      name: "Varsling (Pushover)"
+      description: "Innstillinger for Pushover-varsler. Gjelder alle tre sjekkene."
+      input:
+        pushover_destination:
+          name: Pushover destination
+          description: Mottakergruppe i script.varsel_pushover_send_melding_webhome
+          default: pushover
+          selector:
+            text:
+
+        pushover_priority:
+          name: Pushover priority
+          description: Prioritet brukt for varsling
+          default: 0
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_ttl:
+          name: Pushover TTL (sekunder)
+          description: Levetid for varselet (f.eks. 86400 = 1 døgn)
+          default: 604800
+          selector:
+            number:
+              min: 0
+              max: 604800
+              step: 60
+              mode: box
+
+    avansert:
+      name: "Avansert"
+      collapsed: true
+      input:
+        include_debug_details:
+          name: Legg til debug-detaljer i varselet
+          description: Legger til ekstra informasjon om trigger, terskler og intervaller i alle varsler.
+          default: false
+          selector:
+            boolean:
 
 mode: restart
 
 trigger:
+  # Del 3 – raskt signal: kjøres hver time
+  - platform: time_pattern
+    hours: /1
+    id: time_pattern_check
+
+  # Del 1 + Del 2 – planlagt sjekk
   - platform: time
     at: !input check_time
     weekday: !input check_weekdays
     id: scheduled_check
 
+  # Del 1 + Del 2 – ved HA-oppstart (valgfritt)
   - platform: homeassistant
     event: start
     id: ha_start
@@ -128,220 +229,903 @@ trigger:
 condition: []
 
 action:
+  # ─── Steg 1 – Sett grunnvariabler ────────────────────────────────────────────
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
       threshold: !input threshold_percent
       include_digital: !input include_digital_battery_sensors
+      max_age: !input max_age
+      last_seen_threshold: !input last_seen_threshold
+      check_interval: !input check_interval
+      include_unavailable: !input include_unavailable
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
+      debug_on: !input include_debug_details
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
 
-  - alias: "Steg 2 - Bygg batteriliste (prosent)"
-    variables:
-      low_list_percent: |-
-        {%- set ns = namespace(map={}, names={}, lines=[]) -%}
-        {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
-        {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+      # Del 2 – langsomt signal: terskel i sekunder og label
+      max_age_seconds: >-
+        {% set d = max_age %}
+        {{ (d.get('days',0)|int * 86400)
+         + (d.get('hours',0)|int * 3600)
+         + (d.get('minutes',0)|int * 60)
+         + (d.get('seconds',0)|int) }}
+      max_age_label: >-
+        {% set d = max_age %}
+        {% set days = d.get('days',0)|int %}
+        {% set hours = d.get('hours',0)|int %}
+        {% set mins = d.get('minutes',0)|int %}
+        {% set secs = d.get('seconds',0)|int %}
+        {% set parts = namespace(p=[]) %}
+        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
+        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
+        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
+        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
+        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
 
-        {%- for s in states.sensor
-              | selectattr('attributes.device_class','defined')
-              | selectattr('attributes.device_class','eq','battery') -%}
+      # Del 3 – raskt signal: terskel og intervall i sekunder og labels
+      threshold_seconds: >-
+        {% set d = last_seen_threshold %}
+        {{ (d.get('days',0)|int * 86400)
+         + (d.get('hours',0)|int * 3600)
+         + (d.get('minutes',0)|int * 60)
+         + (d.get('seconds',0)|int) }}
+      interval_seconds: >-
+        {% set d = check_interval %}
+        {{ (d.get('days',0)|int * 86400)
+         + (d.get('hours',0)|int * 3600)
+         + (d.get('minutes',0)|int * 60)
+         + (d.get('seconds',0)|int) }}
+      threshold_label: >-
+        {% set d = last_seen_threshold %}
+        {% set days = d.get('days',0)|int %}
+        {% set hours = d.get('hours',0)|int %}
+        {% set mins = d.get('minutes',0)|int %}
+        {% set secs = d.get('seconds',0)|int %}
+        {% set parts = namespace(p=[]) %}
+        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
+        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
+        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
+        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
+        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
+      interval_label: >-
+        {% set d = check_interval %}
+        {% set days = d.get('days',0)|int %}
+        {% set hours = d.get('hours',0)|int %}
+        {% set mins = d.get('minutes',0)|int %}
+        {% set secs = d.get('seconds',0)|int %}
+        {% set parts = namespace(p=[]) %}
+        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
+        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
+        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
+        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
+        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
 
-          {%- set eid = s.entity_id -%}
-          {%- set did = device_id(eid) -%}
+  # ─── Velg logikk basert på trigger ───────────────────────────────────────────
+  - choose:
 
-          {%- if eid in ignore_e or (did and did in ignore_d) -%}
-            {# Ignorert #}
-          {%- else -%}
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DEL 3 – RASKT SIGNAL (time_pattern – kjøres hver time)
+    # ═══════════════════════════════════════════════════════════════════════════
+    - conditions:
+        - condition: template
+          value_template: "{{ trigger.id == 'time_pattern_check' }}"
+      sequence:
 
-            {%- set state_str = s.state -%}
-            {%- set is_num = state_str | is_number -%}
-            {%- if is_num -%}
-              {%- set val = state_str | float -%}
-            {%- else -%}
-              {%- set val = none -%}
-            {%- endif -%}
+        # Steg 2R – Bygg per-device aktivitetsindeks (raskt signal)
+        - alias: "Steg 2R - Bygg per-device aktivitetsindeks (raskt signal)"
+          variables:
+            device_activity_index: |-
+              {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+              {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+              {%- set ns = namespace(idx={}, seen=[]) -%}
 
-            {#--- Clean display name ---#}
-            {%- set base = s.name
-                | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
-                | replace(' Battery+', '')
-                | regex_replace('\\s{2,}', ' ')
-                | regex_replace('\\s*\\+\\s*$', '')
-                | trim -%}
+              {%- for s in states.sensor
+                    | selectattr('attributes.device_class','defined')
+                    | selectattr('attributes.device_class','eq','battery') -%}
+                {%- set did = device_id(s.entity_id) -%}
+                {%- if s.entity_id not in ignore_e
+                    and did is not none
+                    and did not in ignore_d
+                    and did not in ns.seen -%}
+                  {%- set ns.seen = ns.seen + [did] -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- for b in states.binary_sensor
+                    | selectattr('attributes.device_class','eq','battery') -%}
+                {%- set did = device_id(b.entity_id) -%}
+                {%- if b.entity_id not in ignore_e
+                    and did is not none
+                    and did not in ignore_d
+                    and did not in ns.seen -%}
+                  {%- set ns.seen = ns.seen + [did] -%}
+                {%- endif -%}
+              {%- endfor -%}
 
-            {#--- Normalized key for dedupe ---#}
-            {%- set norm = base
-                | lower
-                | regex_replace('[^\\w\\s:]', '')
-                | regex_replace('\\s{2,}', ' ')
-                | trim -%}
+              {%- for did in ns.seen -%}
+                {%- set w = namespace(ts=0, ent='', src='') -%}
+                {%- for ent in device_entities(did) -%}
+                  {%- set st_obj = states[ent] -%}
+                  {%- if st_obj is not none -%}
+                    {%- if st_obj.entity_id.split('.')[0] in ['sensor','binary_sensor'] -%}
+                      {%- set t_chg = as_timestamp(st_obj.last_changed, default=0) | float(0) -%}
+                      {%- if t_chg > w.ts -%}
+                        {%- set w.ts = t_chg -%}
+                        {%- set w.ent = ent -%}
+                        {%- set w.src = 'meta:last_changed' -%}
+                      {%- endif -%}
+                    {%- endif -%}
+                    {%- set ls = state_attr(ent,'last_seen') -%}
+                    {%- if ls is not none -%}
+                      {%- set t_ls = as_timestamp(ls, default=0) | float(0) -%}
+                      {%- if t_ls > w.ts -%}
+                        {%- set w.ts = t_ls -%}
+                        {%- set w.ent = ent -%}
+                        {%- set w.src = 'attr:last_seen' -%}
+                      {%- endif -%}
+                    {%- endif -%}
+                    {%- if 'last_seen' in (ent | lower) -%}
+                      {%- set t2 = as_timestamp(states(ent), default=0) | float(0) -%}
+                      {%- if t2 > w.ts -%}
+                        {%- set w.ts = t2 -%}
+                        {%- set w.ent = ent -%}
+                        {%- set w.src = 'state:last_seen_entity' -%}
+                      {%- endif -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endfor -%}
+                {%- set age_s = (as_timestamp(now()) - w.ts) | int(0) -%}
+                {%- set ns.idx = dict(ns.idx, **{
+                  did: {
+                    'winner_entity': w.ent,
+                    'winner_source': w.src,
+                    'winner_ts': w.ts,
+                    'winner_age_s': age_s
+                  }
+                }) -%}
+              {%- endfor -%}
+              {{ ns.idx | to_json }}
+              {# Merk: output er JSON; størrelse er proporsjonal med antall unike devices. #}
 
-            {#--- Numeric: keep lowest per name if under threshold ---#}
-            {%- if is_num and 0 <= val < (threshold | float(0)) -%}
-              {%- if norm not in ns.map or val < ns.map[norm] -%}
-                {%- set ns.map = dict(ns.map, **{norm: val}) -%}
-                {%- set ns.names = dict(ns.names, **{norm: base}) -%}
-              {%- endif -%}
-            {%- endif -%}
+        # Steg 3R – Finn batteri-enheter i varsel-vinduet (raskt, rå)
+        # Inkluderer enheter der: threshold_seconds <= age_s < interval_seconds
+        - alias: "Steg 3R - Finn batteri-enheter i varsel-vinduet (raskt, rå)"
+          variables:
+            stale_list_raw: |-
+              {%- set threshold_s = (threshold_seconds | int(0)) -%}
+              {%- set interval_s = (interval_seconds | int(0)) -%}
+              {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+              {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+              {%- set _raw_idx = device_activity_index | default({}) -%}
+              {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
+              {%- set ns = namespace(map={}, lines=[]) -%}
 
-          {%- endif -%}
-        {%- endfor -%}
+              {# ===== sensor battery ===== #}
+              {%- for s in states.sensor
+                    | selectattr('attributes.device_class','defined')
+                    | selectattr('attributes.device_class','eq','battery') -%}
+                {%- set eid = s.entity_id -%}
+                {%- set did = device_id(eid) -%}
+                {%- if eid in ignore_e or (did and did in ignore_d) -%}
+                {%- else -%}
+                  {%- set base = s.name
+                      | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
+                      | replace(' Battery+', '')
+                      | regex_replace('\\s{2,}', ' ')
+                      | regex_replace('\\s*\\+\\s*$', '')
+                      | trim -%}
+                  {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
+                  {%- if did and did in idx -%}
+                    {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
+                  {%- else -%}
+                    {%- set ts = as_timestamp(s.last_changed, default=0) | float(0) -%}
+                    {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+                  {%- endif -%}
+                  {%- set st = s.state -%}
+                  {%- set is_unavail = st in ['unknown','unavailable'] -%}
+                  {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+                  {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                    {%- if norm != '' -%}
+                      {%- set keep = false -%}
+                      {%- if norm not in ns.map -%}
+                        {%- set keep = true -%}
+                      {%- else -%}
+                        {%- set cur = ns.map[norm] -%}
+                        {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
+                        {%- if is_unavail and not cur_unavail -%}
+                          {%- set keep = true -%}
+                        {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                          {%- set keep = true -%}
+                        {%- endif -%}
+                      {%- endif -%}
+                      {%- if keep -%}
+                        {%- set ns.map = dict(ns.map, **{norm: {'base': base, 'age_s': age_s, 'state': st}}) -%}
+                      {%- endif -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
 
-        {#--- Numeric lows sorted ascending ---#}
-        {%- for norm, v in ns.map | dictsort(by='value') -%}
-          {%- set ns.lines = ns.lines + ['- ' ~ ns.names[norm] ~ ' (' ~ (v | round(0)) ~ '%)'] -%}
-        {%- endfor -%}
+              {# ===== binary_sensor battery ===== #}
+              {%- for b in states.binary_sensor
+                    | selectattr('attributes.device_class','eq','battery') -%}
+                {%- set eid = b.entity_id -%}
+                {%- set did = device_id(eid) -%}
+                {%- if eid in ignore_e or (did and did in ignore_d) -%}
+                {%- else -%}
+                  {%- set base = b.name
+                      | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
+                      | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
+                      | regex_replace('(?i)\\bbattery\\b:?',' ')
+                      | regex_replace('(?i)\\bbatteri\\b:?',' ')
+                      | regex_replace('\\s*\\+\\s*$','')
+                      | regex_replace('\\s*:\\s*$','')
+                      | regex_replace('\\s{2,}',' ')
+                      | trim -%}
+                  {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
+                  {%- if did and did in idx -%}
+                    {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
+                  {%- else -%}
+                    {%- set ts = as_timestamp(b.last_changed, default=0) | float(0) -%}
+                    {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+                  {%- endif -%}
+                  {%- set st = b.state -%}
+                  {%- set is_unavail = st in ['unknown','unavailable'] -%}
+                  {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+                  {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                    {%- if norm != '' -%}
+                      {%- set keep = false -%}
+                      {%- if norm not in ns.map -%}
+                        {%- set keep = true -%}
+                      {%- else -%}
+                        {%- set cur = ns.map[norm] -%}
+                        {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
+                        {%- if is_unavail and not cur_unavail -%}
+                          {%- set keep = true -%}
+                        {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                          {%- set keep = true -%}
+                        {%- endif -%}
+                      {%- endif -%}
+                      {%- if keep -%}
+                        {%- set ns.map = dict(ns.map, **{norm: {'base': base, 'age_s': age_s, 'state': st}}) -%}
+                      {%- endif -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
 
-        {{ ns.lines | join('\n') }}
+              {# ===== Render sortert (eldst først) ===== #}
+              {%- set items = namespace(lst=[]) -%}
+              {%- for norm, it in ns.map.items() -%}
+                {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string)] -%}
+              {%- endfor -%}
+              {%- for age_s, base in (items.lst | sort(reverse=true)) -%}
+                {%- set d = (age_s // 86400) | int(0) -%}
+                {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
+                {%- set m = ((age_s % 3600) // 60) | int(0) -%}
+                {%- if d > 0 -%}
+                  {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
+                {%- elif h > 0 -%}
+                  {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
+                {%- elif m > 0 -%}
+                  {%- set age_txt = m|string ~ 'm' -%}
+                {%- else -%}
+                  {%- set s = (age_s % 60) | int(0) -%}
+                  {%- set age_txt = s|string ~ 's' -%}
+                {%- endif -%}
+                {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ age_txt ~ ')'] -%}
+              {%- endfor -%}
+              {{ ns.lines | join('\n') }}
 
-  - alias: "Steg 3 - Bygg digital batteriliste (binary_sensor)"
-    variables:
-      low_list_digital: |-
-        {%- set ns = namespace(lines=[]) -%}
-        {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
-        {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+            # Alltid synlig i trace – viser hvilken entity/kilde som ga nyeste aktivitet
+            stale_debug_winners: |-
+              {%- set threshold_s = (threshold_seconds | int(0)) -%}
+              {%- set interval_s = (interval_seconds | int(0)) -%}
+              {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+              {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+              {%- set _raw_idx = device_activity_index | default({}) -%}
+              {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
+              {%- set ns = namespace(out=[]) -%}
+              {%- for s in states.sensor
+                    | selectattr('attributes.device_class','defined')
+                    | selectattr('attributes.device_class','eq','battery') -%}
+                {%- set eid = s.entity_id -%}
+                {%- set did = device_id(eid) -%}
+                {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
+                  {%- if did and did in idx -%}
+                    {%- set w = idx[did] -%}
+                    {%- set age_s = w['winner_age_s'] | int(0) -%}
+                  {%- else -%}
+                    {%- set age_s = (as_timestamp(now()) - as_timestamp(s.last_changed, default=0) | float(0)) | int(0) -%}
+                    {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
+                  {%- endif -%}
+                  {%- set st = s.state -%}
+                  {%- set is_unavail = st in ['unknown','unavailable'] -%}
+                  {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+                  {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                    {%- set ns.out = ns.out + [{'entity_id': eid, 'name': s.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- for b in states.binary_sensor
+                    | selectattr('attributes.device_class','eq','battery') -%}
+                {%- set eid = b.entity_id -%}
+                {%- set did = device_id(eid) -%}
+                {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
+                  {%- if did and did in idx -%}
+                    {%- set w = idx[did] -%}
+                    {%- set age_s = w['winner_age_s'] | int(0) -%}
+                  {%- else -%}
+                    {%- set age_s = (as_timestamp(now()) - as_timestamp(b.last_changed, default=0) | float(0)) | int(0) -%}
+                    {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
+                  {%- endif -%}
+                  {%- set st = b.state -%}
+                  {%- set is_unavail = st in ['unknown','unavailable'] -%}
+                  {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+                  {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                    {%- set ns.out = ns.out + [{'entity_id': eid, 'name': b.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {{ ns.out | to_json }}
 
-        {%- if not include_digital -%}
-          {{ '' }}
-        {%- else -%}
-          {%- set items = states.binary_sensor
-              | selectattr('attributes.device_class','eq','battery')
-              | rejectattr('state','eq','off')
-              | sort(attribute='name') | list -%}
+        # Steg 4R – Rydd bort meningsløse linjer (raskt signal)
+        - alias: "Steg 4R - Rydd bort meningsløse linjer (raskt signal)"
+          variables:
+            stale_list_clean: >-
+              {% set out = namespace(lines=[]) %}
+              {% for line in (stale_list_raw | default('')).split('\n') %}
+                {% set l = line | trim %}
+                {% if l == '' %}
+                {% elif not l.startswith('- ') %}
+                {% else %}
+                  {% set name = (l | regex_replace('^-\\s*','') | regex_replace('\\s*\\(.*$','') | trim) %}
+                  {% if name != '' and (name | lower) != 'battery' %}
+                    {% set out.lines = out.lines + [l] %}
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+              {{ out.lines | join('\n') }}
 
-          {%- for e in items -%}
-            {%- set eid = e.entity_id -%}
-            {%- set did = device_id(eid) -%}
+        # Steg 5R – Bygg melding (raskt signal)
+        - alias: "Steg 5R - Bygg melding (raskt signal)"
+          variables:
+            combined_message: >-
+              {% set parts = namespace(lines=[]) %}
+              {% if (stale_list_clean | trim) != '' %}
+                {% set parts.lines = parts.lines + [
+                  "*Batteri-enheter tapte signal (terskel: " ~ (threshold_label | string) ~ ", intervall: " ~ (interval_label | string) ~ "):*",
+                  stale_list_clean,
+                  ""
+                ] %}
+              {% endif %}
+              {% if debug_on %}
+                {% set parts.lines = parts.lines + [
+                  "---",
+                  "Debug (Del 3 – raskt signal):",
+                  "- trigger: " ~ trigger.id,
+                  "- threshold: " ~ (threshold_label | string),
+                  "- threshold_seconds: " ~ (threshold_seconds | string),
+                  "- interval: " ~ (interval_label | string),
+                  "- interval_seconds: " ~ (interval_seconds | string),
+                  "- alert_window: " ~ (threshold_label | string) ~ " to " ~ (interval_label | string),
+                  "- include_unavailable: " ~ (include_unavailable | string),
+                  "- ignored_entities: " ~ ((ignore_entities | count) | string),
+                  "- ignored_devices: " ~ ((ignore_devices | count) | string)
+                ] %}
+              {% endif %}
+              {{ (parts.lines | join('\n')) | trim }}
 
-            {%- if eid in ignore_e or (did and did in ignore_d) -%}
-              {# Ignorert #}
-            {%- else -%}
+        # Steg 6R – Send varsel (raskt signal)
+        - alias: "Steg 6R - Send varsel (raskt signal)"
+          if:
+            - condition: template
+              value_template: "{{ combined_message | trim != '' }}"
+          then:
+            - action: script.varsel_pushover_send_melding_webhome
+              data:
+                title: "🟠 *Batteri-enheter tapte signal*"
+                message: "{{ combined_message }}"
+                destination: "{{ pushover_destination }}"
+                priority: "{{ pushover_priority | int(0) }}"
+                ttl: "{{ pushover_ttl | int(604800) }}"
 
-              {%- set base = e.name
-                  | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
-                  | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
-                  | regex_replace('(?i)\\bbattery\\b:?',' ')
-                  | regex_replace('(?i)\\bbatteri\\b:?',' ')
-                  | regex_replace('\\s*\\+\\s*$','')
-                  | regex_replace('\\s*:\\s*$','')
-                  | regex_replace('\\s{2,}',' ')
-                  | trim -%}
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DEL 1 – BATTERI NIVÅ  +  DEL 2 – LANGSOMT SIGNAL
+    # (planlagt sjekk og HA-oppstart)
+    # ═══════════════════════════════════════════════════════════════════════════
+    default:
 
-              {%- if e.state == 'on' -%}
-                {%- set status = 'Low' -%}
-              {%- elif e.state in ['unknown','unavailable','none'] -%}
-                {%- set status = 'Unknown' -%}
+      # ── Del 1 – Batteri nivå ──────────────────────────────────────────────────
+
+      # Steg 2B – Bygg batteriliste (prosent)
+      - alias: "Steg 2B - Bygg batteriliste (prosent)"
+        variables:
+          low_list_percent: |-
+            {%- set ns = namespace(map={}, names={}, lines=[]) -%}
+            {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+            {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+
+            {%- for s in states.sensor
+                  | selectattr('attributes.device_class','defined')
+                  | selectattr('attributes.device_class','eq','battery') -%}
+              {%- set eid = s.entity_id -%}
+              {%- set did = device_id(eid) -%}
+              {%- if eid in ignore_e or (did and did in ignore_d) -%}
+                {# Ignorert #}
               {%- else -%}
-                {%- set status = e.state | title -%}
+                {%- set state_str = s.state -%}
+                {%- set is_num = state_str | is_number -%}
+                {%- if is_num -%}
+                  {%- set val = state_str | float -%}
+                {%- else -%}
+                  {%- set val = none -%}
+                {%- endif -%}
+                {%- set base = s.name
+                    | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
+                    | replace(' Battery+', '')
+                    | regex_replace('\\s{2,}', ' ')
+                    | regex_replace('\\s*\\+\\s*$', '')
+                    | trim -%}
+                {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
+                {%- if is_num and 0 <= val < (threshold | float(0)) -%}
+                  {%- if norm not in ns.map or val < ns.map[norm] -%}
+                    {%- set ns.map = dict(ns.map, **{norm: val}) -%}
+                    {%- set ns.names = dict(ns.names, **{norm: base}) -%}
+                  {%- endif -%}
+                {%- endif -%}
               {%- endif -%}
+            {%- endfor -%}
 
-              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ status ~ ')'] -%}
+            {%- for norm, v in ns.map | dictsort(by='value') -%}
+              {%- set ns.lines = ns.lines + ['- ' ~ ns.names[norm] ~ ' (' ~ (v | round(0)) ~ '%)'] -%}
+            {%- endfor -%}
+            {{ ns.lines | join('\n') }}
 
+      # Steg 3B – Bygg digital batteriliste (binary_sensor)
+      - alias: "Steg 3B - Bygg digital batteriliste (binary_sensor)"
+        variables:
+          low_list_digital: |-
+            {%- set ns = namespace(lines=[]) -%}
+            {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+            {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+
+            {%- if not include_digital -%}
+              {{ '' }}
+            {%- else -%}
+              {%- set items = states.binary_sensor
+                  | selectattr('attributes.device_class','eq','battery')
+                  | rejectattr('state','eq','off')
+                  | sort(attribute='name') | list -%}
+
+              {%- for e in items -%}
+                {%- set eid = e.entity_id -%}
+                {%- set did = device_id(eid) -%}
+                {%- if eid in ignore_e or (did and did in ignore_d) -%}
+                  {# Ignorert #}
+                {%- else -%}
+                  {%- set base = e.name
+                      | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
+                      | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
+                      | regex_replace('(?i)\\bbattery\\b:?',' ')
+                      | regex_replace('(?i)\\bbatteri\\b:?',' ')
+                      | regex_replace('\\s*\\+\\s*$','')
+                      | regex_replace('\\s*:\\s*$','')
+                      | regex_replace('\\s{2,}',' ')
+                      | trim -%}
+                  {%- if e.state == 'on' -%}
+                    {%- set status = 'Low' -%}
+                  {%- elif e.state in ['unknown','unavailable','none'] -%}
+                    {%- set status = 'Unknown' -%}
+                  {%- else -%}
+                    {%- set status = e.state | title -%}
+                  {%- endif -%}
+                  {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ status ~ ')'] -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {{ ns.lines | join('\n') }}
             {%- endif -%}
-          {%- endfor -%}
 
-          {{ ns.lines | join('\n') }}
-        {%- endif -%}
+      # Steg 4B – Fjern duplikater (digital vs prosent)
+      - alias: "Steg 4B - Fjern duplikater (digital vs prosent)"
+        variables:
+          low_list_digital_nodup: >-
+            {%- set ns = namespace(lines=[]) -%}
+            {%- set low_names = (low_list_percent | default(''))
+                .split('\n')
+                | map('trim')
+                | select('match','^- ')
+                | map('regex_replace','^- ','')
+                | map('regex_replace','\\s*\\([^)]*\\)\\s*$','')
+                | map('regex_replace','\\s*\\+\\s*$', '')
+                | map('regex_replace','\\s{2,}',' ')
+                | map('lower')
+                | list
+            -%}
+            {%- for line in (low_list_digital | default('')).split('\n')
+                  | map('trim')
+                  | select('match','^- ') -%}
+              {%- set raw = line | regex_replace('^- ','') -%}
+              {%- set name_norm = raw
+                  | regex_replace('\\s*\\([^)]*\\)\\s*$','')
+                  | regex_replace('\\s*\\+\\s*$', '')
+                  | regex_replace('\\s{2,}',' ')
+                  | lower
+              -%}
+              {%- if name_norm not in low_names -%}
+                {%- set ns.lines = ns.lines + [ line ] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {{ ns.lines | join('\n') }}
 
-  - alias: "Steg 4 - Fjern duplikater (digital vs prosent)"
-    variables:
-      low_list_digital_nodup: >-
-        {%- set ns = namespace(lines=[]) -%}
+      # Steg 5B – Rydd bort meningsløse linjer (batteri nivå)
+      - alias: "Steg 5B - Rydd bort meningsløse linjer (batteri nivå)"
+        variables:
+          low_list_percent_clean: >-
+            {% set out = namespace(lines=[]) %}
+            {% for line in (low_list_percent | default('')).split('\n') %}
+              {% set l = line | trim %}
+              {% if l == '' %}
+              {% elif not (l.startswith('- ')) %}
+              {% else %}
+                {% set name = (l | regex_replace('^-\\s*','') | regex_replace('\\s*\\([^)]*\\)\\s*$','') | trim) %}
+                {% if name != '' and (name | lower) != 'battery' %}
+                  {% set out.lines = out.lines + [l] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ out.lines | join('\n') }}
 
-        {%- set low_names = (low_list_percent | default(''))
-            .split('\n')
-            | map('trim')
-            | select('match','^- ')
-            | map('regex_replace','^- ','')
-            | map('regex_replace','\\s*\\([^)]*\\)\\s*$','')
-            | map('regex_replace','\\s*\\+\\s*$', '')
-            | map('regex_replace','\\s{2,}',' ')
-            | map('lower')
-            | list
-        -%}
+          low_list_digital_clean: >-
+            {% set out = namespace(lines=[]) %}
+            {% for line in (low_list_digital_nodup | default('')).split('\n') %}
+              {% set l = line | trim %}
+              {% if l == '' %}
+              {% elif not (l.startswith('- ')) %}
+              {% else %}
+                {% set name = (l | regex_replace('^-\\s*','') | regex_replace('\\s*\\([^)]*\\)\\s*$','') | trim) %}
+                {% if name != '' and (name | lower) != 'battery' %}
+                  {% set out.lines = out.lines + [l] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ out.lines | join('\n') }}
 
-        {%- for line in (low_list_digital | default('')).split('\n')
-              | map('trim')
-              | select('match','^- ') -%}
-          {%- set raw = line | regex_replace('^- ','') -%}
-          {%- set name_norm = raw
-              | regex_replace('\\s*\\([^)]*\\)\\s*$','')
-              | regex_replace('\\s*\\+\\s*$', '')
-              | regex_replace('\\s{2,}',' ')
-              | lower
-          -%}
-          {%- if name_norm not in low_names -%}
-            {%- set ns.lines = ns.lines + [ line ] -%}
-          {%- endif -%}
-        {%- endfor -%}
-
-        {{ ns.lines | join('\n') }}
-
-  - alias: "Steg 5A - Rydd bort meningsløse linjer før melding"
-    variables:
-      low_list_percent_clean: >-
-        {% set out = namespace(lines=[]) %}
-        {% for line in (low_list_percent | default('')).split('\n') %}
-          {% set l = line | trim %}
-          {% if l == '' %}
-          {% elif not (l.startswith('- ')) %}
-          {% else %}
-            {% set name = (l
-              | regex_replace('^-\\s*','')
-              | regex_replace('\\s*\\([^)]*\\)\\s*$','')
-              | trim) %}
-            {% if name != '' and (name | lower) != 'battery' %}
-              {% set out.lines = out.lines + [l] %}
+      # Steg 6B – Bygg samlet batteri nivå-melding
+      - alias: "Steg 6B - Bygg samlet batteri nivå-melding"
+        variables:
+          combined_message_batteri: >-
+            {% set parts = namespace(lines=[]) %}
+            {% if (low_list_percent_clean | trim) != '' %}
+              {% set parts.lines = parts.lines + ["*Batteri % under " ~ (threshold | string) ~ "%:*", low_list_percent_clean, ""] %}
             {% endif %}
-          {% endif %}
-        {% endfor %}
-        {{ out.lines | join('\n') }}
-
-      low_list_digital_clean: >-
-        {% set out = namespace(lines=[]) %}
-        {% for line in (low_list_digital_nodup | default('')).split('\n') %}
-          {% set l = line | trim %}
-          {% if l == '' %}
-          {% elif not (l.startswith('- ')) %}
-          {% else %}
-            {% set name = (l
-              | regex_replace('^-\\s*','')
-              | regex_replace('\\s*\\([^)]*\\)\\s*$','')
-              | trim) %}
-            {% if name != '' and (name | lower) != 'battery' %}
-              {% set out.lines = out.lines + [l] %}
+            {% if (low_list_digital_clean | trim) != '' %}
+              {% set parts.lines = parts.lines + ["*Digital batteri lavt:*", low_list_digital_clean, ""] %}
             {% endif %}
-          {% endif %}
-        {% endfor %}
-        {{ out.lines | join('\n') }}
+            {% if debug_on %}
+              {% set parts.lines = parts.lines + [
+                "---",
+                "Debug (Del 1 – batteri nivå):",
+                "- trigger: " ~ trigger.id,
+                "- threshold: " ~ (threshold | string) ~ "%",
+                "- include_digital: " ~ (include_digital | string),
+                "- ignored_entities: " ~ ((ignore_entities | count) | string),
+                "- ignored_devices: " ~ ((ignore_devices | count) | string)
+              ] %}
+            {% endif %}
+            {{ (parts.lines | join('\n')) | trim }}
 
-  - alias: "Steg 5 - Bygg samlet melding (analog + digital)"
-    variables:
-      combined_message: >-
-        {% set parts = namespace(lines=[]) %}
+      # ── Del 2 – Langsomt signal ───────────────────────────────────────────────
 
-        {% if (low_list_percent_clean | trim) != '' %}
-          {% set parts.lines = parts.lines + ["*Batteri % under " ~ (threshold | string) ~ "%:*", low_list_percent_clean, ""] %}
-        {% endif %}
+      # Steg 7S – Bygg per-device aktivitetsindeks (langsomt signal)
+      - alias: "Steg 7S - Bygg per-device aktivitetsindeks (langsomt signal)"
+        variables:
+          device_activity_index: |-
+            {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+            {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+            {%- set ns = namespace(idx={}, seen=[]) -%}
 
-        {% if (low_list_digital_clean | trim) != '' %}
-          {% set parts.lines = parts.lines + ["*Digital batteri lavt:*", low_list_digital_clean, ""] %}
-        {% endif %}
+            {%- for s in states.sensor
+                  | selectattr('attributes.device_class','defined')
+                  | selectattr('attributes.device_class','eq','battery') -%}
+              {%- set did = device_id(s.entity_id) -%}
+              {%- if s.entity_id not in ignore_e
+                  and did is not none
+                  and did not in ignore_d
+                  and did not in ns.seen -%}
+                {%- set ns.seen = ns.seen + [did] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- for b in states.binary_sensor
+                  | selectattr('attributes.device_class','eq','battery') -%}
+              {%- set did = device_id(b.entity_id) -%}
+              {%- if b.entity_id not in ignore_e
+                  and did is not none
+                  and did not in ignore_d
+                  and did not in ns.seen -%}
+                {%- set ns.seen = ns.seen + [did] -%}
+              {%- endif -%}
+            {%- endfor -%}
 
-        {{ (parts.lines | join('\n')) | trim }}
+            {%- for did in ns.seen -%}
+              {%- set w = namespace(ts=0, ent='', src='') -%}
+              {%- for ent in device_entities(did) -%}
+                {%- set st_obj = states[ent] -%}
+                {%- if st_obj is not none -%}
+                  {%- if st_obj.entity_id.split('.')[0] in ['sensor','binary_sensor'] -%}
+                    {%- set t_upd = as_timestamp(st_obj.last_changed, default=0) | float(0) -%}
+                    {%- if t_upd > w.ts -%}
+                      {%- set w.ts = t_upd -%}
+                      {%- set w.ent = ent -%}
+                      {%- set w.src = 'meta:last_changed' -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                  {%- set ls = state_attr(ent,'last_seen') -%}
+                  {%- if ls is not none -%}
+                    {%- set t_ls = as_timestamp(ls, default=0) | float(0) -%}
+                    {%- if t_ls > w.ts -%}
+                      {%- set w.ts = t_ls -%}
+                      {%- set w.ent = ent -%}
+                      {%- set w.src = 'attr:last_seen' -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                  {%- if 'last_seen' in (ent | lower) -%}
+                    {%- set t2 = as_timestamp(states(ent), default=0) | float(0) -%}
+                    {%- if t2 > w.ts -%}
+                      {%- set w.ts = t2 -%}
+                      {%- set w.ent = ent -%}
+                      {%- set w.src = 'state:last_seen_entity' -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- set age_s = (as_timestamp(now()) - w.ts) | int(0) -%}
+              {%- set ns.idx = dict(ns.idx, **{
+                did: {
+                  'winner_entity': w.ent,
+                  'winner_source': w.src,
+                  'winner_ts': w.ts,
+                  'winner_age_s': age_s
+                }
+              }) -%}
+            {%- endfor -%}
+            {{ ns.idx | to_json }}
+            {# Merk: output er JSON; størrelse er proporsjonal med antall unike devices. #}
 
-  - alias: "Steg 6 - Send samlet varsel"
-    if:
-      - condition: template
-        value_template: "{{ combined_message | trim != '' }}"
-    then:
-      - action: script.varsel_pushover_send_melding_webhome
-        data:
-          title: "🟠 *Batteri lavt*"
-          message: "{{ combined_message }}"
-          destination: "{{ pushover_destination }}"
-          priority: "{{ pushover_priority | int(0) }}"
-          ttl: "{{ pushover_ttl | int(604800) }}"
+      # Steg 8S – Finn batteri-enheter uten signal på lenge (langsomt, rå)
+      - alias: "Steg 8S - Finn batteri-enheter uten signal på lenge (langsomt, rå)"
+        variables:
+          stale_list_raw: |-
+            {%- set threshold_s = (max_age_seconds | int(0)) -%}
+            {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+            {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+            {%- set _raw_idx = device_activity_index | default({}) -%}
+            {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
+            {%- set ns = namespace(map={}, lines=[]) -%}
+
+            {# ===== sensor battery ===== #}
+            {%- for s in states.sensor
+                  | selectattr('attributes.device_class','defined')
+                  | selectattr('attributes.device_class','eq','battery') -%}
+              {%- set eid = s.entity_id -%}
+              {%- set did = device_id(eid) -%}
+              {%- if eid in ignore_e or (did and did in ignore_d) -%}
+                {# ignorert #}
+              {%- else -%}
+                {%- set base = s.name
+                    | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
+                    | replace(' Battery+', '')
+                    | regex_replace('\\s{2,}', ' ')
+                    | regex_replace('\\s*\\+\\s*$', '')
+                    | trim -%}
+                {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
+                {%- if did and did in idx -%}
+                  {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
+                {%- else -%}
+                  {%- set ts = as_timestamp(s.last_changed, default=0) | float(0) -%}
+                  {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+                {%- endif -%}
+                {%- set st = s.state -%}
+                {%- if age_s >= threshold_s and norm != '' -%}
+                  {%- set keep = false -%}
+                  {%- if norm not in ns.map -%}
+                    {%- set keep = true -%}
+                  {%- else -%}
+                    {%- set cur = ns.map[norm] -%}
+                    {%- if (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                      {%- set keep = true -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                  {%- if keep -%}
+                    {%- set ns.map = dict(ns.map, **{norm: {'base': base, 'age_s': age_s, 'state': st}}) -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endif -%}
+            {%- endfor -%}
+
+            {# ===== binary_sensor battery ===== #}
+            {%- for b in states.binary_sensor
+                  | selectattr('attributes.device_class','eq','battery') -%}
+              {%- set eid = b.entity_id -%}
+              {%- set did = device_id(eid) -%}
+              {%- if eid in ignore_e or (did and did in ignore_d) -%}
+                {# ignorert #}
+              {%- else -%}
+                {%- set base = b.name
+                    | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
+                    | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
+                    | regex_replace('(?i)\\bbattery\\b:?',' ')
+                    | regex_replace('(?i)\\bbatteri\\b:?',' ')
+                    | regex_replace('\\s*\\+\\s*$','')
+                    | regex_replace('\\s*:\\s*$','')
+                    | regex_replace('\\s{2,}',' ')
+                    | trim -%}
+                {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
+                {%- if did and did in idx -%}
+                  {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
+                {%- else -%}
+                  {%- set ts = as_timestamp(b.last_changed, default=0) | float(0) -%}
+                  {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+                {%- endif -%}
+                {%- set st = b.state -%}
+                {%- if age_s >= threshold_s and norm != '' -%}
+                  {%- set keep = false -%}
+                  {%- if norm not in ns.map -%}
+                    {%- set keep = true -%}
+                  {%- else -%}
+                    {%- set cur = ns.map[norm] -%}
+                    {%- if (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                      {%- set keep = true -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                  {%- if keep -%}
+                    {%- set ns.map = dict(ns.map, **{norm: {'base': base, 'age_s': age_s, 'state': st}}) -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endif -%}
+            {%- endfor -%}
+
+            {# ===== Render sortert (eldst først) ===== #}
+            {%- set items = namespace(lst=[]) -%}
+            {%- for norm, it in ns.map.items() -%}
+              {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string)] -%}
+            {%- endfor -%}
+            {%- for age_s, base in (items.lst | sort(reverse=true)) -%}
+              {%- set d = (age_s // 86400) | int(0) -%}
+              {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
+              {%- set m = ((age_s % 3600) // 60) | int(0) -%}
+              {%- if d > 0 -%}
+                {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
+              {%- elif h > 0 -%}
+                {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
+              {%- elif m > 0 -%}
+                {%- set age_txt = m|string ~ 'm' -%}
+              {%- else -%}
+                {%- set s = (age_s % 60) | int(0) -%}
+                {%- set age_txt = s|string ~ 's' -%}
+              {%- endif -%}
+              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' (' ~ age_txt ~ ')'] -%}
+            {%- endfor -%}
+            {{ ns.lines | join('\n') }}
+
+          # Alltid synlig i trace – viser hvilken entity/kilde som ga nyeste aktivitet
+          stale_debug_winners: |-
+            {%- set threshold_s = (max_age_seconds | int(0)) -%}
+            {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+            {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+            {%- set _raw_idx = device_activity_index | default({}) -%}
+            {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
+            {%- set ns = namespace(out=[]) -%}
+            {%- for s in states.sensor
+                  | selectattr('attributes.device_class','defined')
+                  | selectattr('attributes.device_class','eq','battery') -%}
+              {%- set eid = s.entity_id -%}
+              {%- set did = device_id(eid) -%}
+              {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
+                {%- if did and did in idx -%}
+                  {%- set w = idx[did] -%}
+                  {%- set age_s = w['winner_age_s'] | int(0) -%}
+                {%- else -%}
+                  {%- set age_s = (as_timestamp(now()) - as_timestamp(s.last_changed, default=0) | float(0)) | int(0) -%}
+                  {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
+                {%- endif -%}
+                {%- set st = s.state -%}
+                {%- if age_s >= threshold_s -%}
+                  {%- set ns.out = ns.out + [{'entity_id': eid, 'name': s.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
+                {%- endif -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- for b in states.binary_sensor
+                  | selectattr('attributes.device_class','eq','battery') -%}
+              {%- set eid = b.entity_id -%}
+              {%- set did = device_id(eid) -%}
+              {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
+                {%- if did and did in idx -%}
+                  {%- set w = idx[did] -%}
+                  {%- set age_s = w['winner_age_s'] | int(0) -%}
+                {%- else -%}
+                  {%- set age_s = (as_timestamp(now()) - as_timestamp(b.last_changed, default=0) | float(0)) | int(0) -%}
+                  {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
+                {%- endif -%}
+                {%- set st = b.state -%}
+                {%- if age_s >= threshold_s -%}
+                  {%- set ns.out = ns.out + [{'entity_id': eid, 'name': b.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
+                {%- endif -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {{ ns.out | to_json }}
+
+      # Steg 9S – Rydd bort meningsløse linjer (langsomt signal)
+      - alias: "Steg 9S - Rydd bort meningsløse linjer (langsomt signal)"
+        variables:
+          stale_list_clean: >-
+            {% set out = namespace(lines=[]) %}
+            {% for line in (stale_list_raw | default('')).split('\n') %}
+              {% set l = line | trim %}
+              {% if l == '' %}
+              {% elif not l.startswith('- ') %}
+              {% else %}
+                {% set name = (l | regex_replace('^-\\s*','') | regex_replace('\\s*\\(.*$','') | trim) %}
+                {% if name != '' and (name | lower) != 'battery' %}
+                  {% set out.lines = out.lines + [l] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ out.lines | join('\n') }}
+
+      # Steg 10S – Bygg endelig langsomt signal-melding
+      - alias: "Steg 10S - Bygg endelig langsomt signal-melding"
+        variables:
+          combined_message_signal: >-
+            {% set parts = namespace(lines=[]) %}
+            {% if (stale_list_clean | trim) != '' %}
+              {% set parts.lines = parts.lines + [
+                "*Batteri-enheter uten signal > " ~ (max_age_label | string) ~ ":*",
+                stale_list_clean,
+                ""
+              ] %}
+            {% endif %}
+            {% if debug_on %}
+              {% set parts.lines = parts.lines + [
+                "---",
+                "Debug (Del 2 – langsomt signal):",
+                "- trigger: " ~ trigger.id,
+                "- max_age: " ~ (max_age_label | string),
+                "- max_age_seconds: " ~ (max_age_seconds | string),
+                "- ignored_entities: " ~ ((ignore_entities | count) | string),
+                "- ignored_devices: " ~ ((ignore_devices | count) | string)
+              ] %}
+            {% endif %}
+            {{ (parts.lines | join('\n')) | trim }}
+
+      # ── Send varsler ──────────────────────────────────────────────────────────
+
+      # Steg 11B – Send batteri nivå varsel
+      - alias: "Steg 11B - Send batteri nivå varsel"
+        if:
+          - condition: template
+            value_template: "{{ combined_message_batteri | trim != '' }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "🟠 *Batteri lavt*"
+              message: "{{ combined_message_batteri }}"
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl: "{{ pushover_ttl | int(604800) }}"
+
+      # Steg 12S – Send langsomt signal varsel
+      - alias: "Steg 12S - Send langsomt signal varsel"
+        if:
+          - condition: template
+            value_template: "{{ combined_message_signal | trim != '' }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "🟠 *Ingen signal på lenge*"
+              message: "{{ combined_message_signal }}"
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl: "{{ pushover_ttl | int(604800) }}"
