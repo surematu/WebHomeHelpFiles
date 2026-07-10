@@ -16,14 +16,14 @@ blueprint:
     - Skriv kun hvis:
         * ønsket > nåværende verdi
         * ELLER første time første dag i måneden (00:xx) – da overskrives selv om lavere
-    - Ved hver faktisk skriving sendes valgfri notify-melding.
+    - Ved hver faktisk skriving sendes valgfri pushover-melding.
 
     MERK:
     - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
 
 
     Blueprint versjon:
-    2026.02.08
+    2026.07.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/effektgrense_automatisk.yaml
   author: WebHome
@@ -188,16 +188,34 @@ blueprint:
             entity:
               domain: input_text
 
-        notify_targets:
-          name: Notify targets (valgfri)
-          description: >
-            Velg én eller flere notify-entiteter (f.eks. notify.mobile_app_...).
-            La stå tomt (ingen valgt) for å deaktivere varsling.
-          default: []
+        pushover_destination:
+          name: Pushover destination (valgfri)
+          description: Mottakergruppe i script.varsel_pushover_send_melding_webhome. La stå tomt for å deaktivere varsling.
+          default: pushover
           selector:
-            entity:
-              domain: notify
-              multiple: true
+            text:
+
+        pushover_priority:
+          name: Pushover priority
+          description: Prioritet brukt for varsling
+          default: 0
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_ttl:
+          name: Pushover TTL (sekunder)
+          description: Levetid for varselet (f.eks. 86400 = 1 døgn)
+          default: 604800
+          selector:
+            number:
+              min: 0
+              max: 604800
+              step: 60
+              mode: box
 
 mode: single
 
@@ -215,7 +233,9 @@ actions:
       io_weather_entity: !input weather_entity
       io_target_entity: !input target_limit_entity
       io_status_text_entity: !input status_text_entity
-      io_notify_targets: !input notify_targets
+      pushover_destination: !input pushover_destination
+      pushover_priority: !input pushover_priority
+      pushover_ttl: !input pushover_ttl
 
       hours_to_check_temp: !input hours_to_check
 
@@ -366,13 +386,14 @@ actions:
             choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ (io_notify_targets | count) > 0 }}"
+                    value_template: "{{ (pushover_destination | string | trim) != '' }}"
                 sequence:
-                  - action: notify.send_message
-                    target:
-                      entity_id: "{{ io_notify_targets }}"
+                  - action: script.varsel_pushover_send_melding_webhome
                     data:
                       title: "⚡ *KWh-grense* ⚡"
                       message: |-
                         *Basert på*: Utetemp ({{ io_outdoor_temp_comming | round(0) }}°C = {{ temp_min_limit | round(1) }}kwh) og måned ({{ month_min_limit | round(1) }}kwh)
                         *Justering*: {{ io_current_limit }}kwh → *{{ desired_limit }}kwh*.
+                      destination: "{{ pushover_destination }}"
+                      priority: "{{ pushover_priority | int(0) }}"
+                      ttl: "{{ pushover_ttl | int(604800) }}"

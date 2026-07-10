@@ -14,7 +14,7 @@ blueprint:
       - Ignore-liste for entities (og valgfri ignore-liste for devices)
       - Filtrerer bort meningsløse linjer
 
-    Blueprint versjon: 2026.3.0
+    Blueprint versjon: 2026.07.00
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -22,13 +22,34 @@ blueprint:
     min_version: 2025.11.0
 
   input:
-    notify_target:
-      name: Send varsel til
-      description: Velg én eller flere notify-tjenester
+    pushover_destination:
+      name: Pushover destination
+      description: Mottakergruppe i script.varsel_pushover_send_melding_webhome
+      default: pushover
       selector:
-        entity:
-          domain: notify
-          multiple: true
+        text:
+
+    pushover_priority:
+      name: Pushover priority
+      description: Prioritet brukt for varsling
+      default: 0
+      selector:
+        number:
+          min: -2
+          max: 2
+          step: 1
+          mode: box
+
+    pushover_ttl:
+      name: Pushover TTL (sekunder)
+      description: Levetid for varselet (f.eks. 86400 = 1 døgn)
+      default: 604800
+      selector:
+        number:
+          min: 0
+          max: 604800
+          step: 60
+          mode: box
 
     threshold_percent:
       name: Terskel for lavt batteri (%)
@@ -113,6 +134,9 @@ action:
       include_digital: !input include_digital_battery_sensors
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
+      pushover_destination: !input pushover_destination
+      pushover_priority: !input pushover_priority
+      pushover_ttl: !input pushover_ttl
 
   - alias: "Steg 2 - Bygg batteriliste (prosent)"
     variables:
@@ -314,9 +338,10 @@ action:
       - condition: template
         value_template: "{{ combined_message | trim != '' }}"
     then:
-      - action: notify.send_message
+      - action: script.varsel_pushover_send_melding_webhome
         data:
           title: "🟠 *Batteri lavt*"
           message: "{{ combined_message }}"
-        target:
-          entity_id: !input notify_target
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl: "{{ pushover_ttl | int(604800) }}"
