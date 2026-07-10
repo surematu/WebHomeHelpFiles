@@ -23,7 +23,7 @@ blueprint:
 
 
     Blueprint versjon:
-    2026.07.00
+    2026.07.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/effektgrense_automatisk.yaml
   author: WebHome
@@ -191,7 +191,7 @@ blueprint:
         pushover_destination:
           name: Pushover destination (valgfri)
           description: Mottakergruppe i script.varsel_pushover_send_melding_webhome. La stå tomt for å deaktivere varsling.
-          default: ""
+          default: pushover
           selector:
             text:
 
