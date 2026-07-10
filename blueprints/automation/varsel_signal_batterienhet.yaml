@@ -7,8 +7,9 @@ blueprint:
       - Vi tar NYESTE tidspunkt på hele device-et ved å se på alle entities på samme device:
         * state_attr(entity,'last_seen') hvis finnes
         * entity_id som inneholder "last_seen" (og parsbar timestamp i state)
-        * ellers fallback: entity.last_changed (endres kun når selve state-verdien
-          endres – en enhet som "henger" med uendret state vil dermed flagges)
+        * ellers fallback: entity.last_changed for sensor/binary_sensor-entities
+          (endres kun når selve state-verdien endres; kun sensordata teller –
+           switch/light/etc. ekskluderes siden state kan endres av HA-kommando)
       -> Merk: en enhet som jevnlig oppdaterer attributter (f.eks. Signal Strength)
          uten at state endrer seg vil likevel flagges hvis state ikke har endret seg.
 
@@ -27,7 +28,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.07.00
+    Blueprint versjon: 2026.07.01
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -208,12 +209,15 @@ action:
             {%- set st_obj = states[ent] -%}
             {%- if st_obj is not none -%}
 
-              {# A) last_changed (fallback) #}
-              {%- set t_upd = as_timestamp(st_obj.last_changed, default=0) | float(0) -%}
-              {%- if t_upd > w.ts -%}
-                {%- set w.ts = t_upd -%}
-                {%- set w.ent = ent -%}
-                {%- set w.src = 'meta:last_changed' -%}
+              {# A) last_changed (fallback) - kun sensor/binary_sensor (switch/light/etc.
+                 ekskluderes; state kan endres av HA-kommando, ikke enheten selv) #}
+              {%- if st_obj.entity_id.split('.')[0] in ['sensor','binary_sensor'] -%}
+                {%- set t_upd = as_timestamp(st_obj.last_changed, default=0) | float(0) -%}
+                {%- if t_upd > w.ts -%}
+                  {%- set w.ts = t_upd -%}
+                  {%- set w.ent = ent -%}
+                  {%- set w.src = 'meta:last_changed' -%}
+                {%- endif -%}
               {%- endif -%}
 
               {# B) last_seen-attributt (vinner hvis nyere) #}
