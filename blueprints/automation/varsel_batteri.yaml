@@ -261,7 +261,7 @@ action:
          + (d.get('hours',0)|int * 3600)
          + (d.get('minutes',0)|int * 60)
          + (d.get('seconds',0)|int) }}
-      interval_seconds: "{{ threshold_seconds | int(0) + 3600 }}"
+      interval_seconds: "{{ threshold_seconds | int(0) + 3600 }}"  # 3600s = 1h = one time_pattern trigger cycle → each device reported at most once
       threshold_label: >-
         {% set d = last_seen_threshold %}
         {% set days = d.get('days',0)|int %}
@@ -567,7 +567,7 @@ action:
             notification_title: >-
               {%- set ns = namespace(names=[]) -%}
               {%- for line in (stale_list_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
-                {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\(.*$', '') | trim -%}
+                {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\([^)]*\\)\\s*$', '') | trim -%}
                 {%- if name != '' and (name | lower) not in (ns.names | map('lower') | list) -%}
                   {%- set ns.names = ns.names + [name] -%}
                 {%- endif -%}
@@ -1106,7 +1106,7 @@ action:
               {%- endif -%}
             {%- endfor -%}
             {%- for line in (stale_list_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
-              {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\(.*$', '') | trim -%}
+              {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\([^)]*\\)\\s*$', '') | trim -%}
               {%- if name != '' and (name | lower) not in (ns.names | map('lower') | list) -%}
                 {%- set ns.names = ns.names + [name] -%}
               {%- endif -%}
