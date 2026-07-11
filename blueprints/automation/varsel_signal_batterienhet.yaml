@@ -32,7 +32,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.07.01
+    Blueprint versjon: 2026.07.02
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml
@@ -536,7 +536,7 @@ action:
 
         {% if (stale_list_clean | trim) != '' %}
           {% set parts.lines = parts.lines + [
-            "*Batteri-enheter uten signal > " ~ (max_age_label | string) ~ ":*",
+            "Batteri-enheter uten signal > " ~ (max_age_label | string) ~ ":",
             stale_list_clean,
             ""
           ] %}
@@ -552,7 +552,7 @@ action:
     then:
       - action: script.varsel_pushover_send_melding_webhome
         data:
-          title: "🟠 *Ingen signal på lenge*"
+          title: "🟠 Ingen signal på lenge"
           message: "{{ combined_message }}"
           destination: "{{ pushover_destination }}"
           priority: "{{ pushover_priority | int(0) }}"

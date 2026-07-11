@@ -50,7 +50,7 @@ blueprint:
     og last_seen_threshold til 20 minutter, justeres logikken automatisk til å kun rapportere enheter
     sett mellom 20 minutter og 120 minutter siden.
 
-    Blueprint versjon: 2026.07.02
+    Blueprint versjon: 2026.07.03
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet_rask.yaml
@@ -592,7 +592,7 @@ action:
 
         {% if (stale_list_clean | trim) != '' %}
           {% set parts.lines = parts.lines + [
-            "*Batteri-enheter uten signal (terskel: " ~ (threshold_label | string) ~ ", intervall: " ~ (interval_label | string) ~ "):*",
+            "Batteri-enheter uten signal (terskel: " ~ (threshold_label | string) ~ ", intervall: " ~ (interval_label | string) ~ "):",
             stale_list_clean,
             ""
           ] %}
@@ -624,7 +624,7 @@ action:
     then:
       - action: script.varsel_pushover_send_melding_webhome
         data:
-          title: "🟠 *Batteri-enheter tapte signal*"
+          title: "🟠 Batteri-enheter tapte signal"
           message: "{{ combined_message }}"
           destination: "{{ pushover_destination }}"
           priority: "{{ pushover_priority | int(0) }}"

@@ -10,7 +10,7 @@ blueprint:
       - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.07.00
+    Blueprint versjon: 2026.07.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -348,7 +348,7 @@ action:
 
           {% if (low_map | count) > 0 or (na_map | count) > 0 %}
             {% set out.problem_names = out.problem_names + [pname] %}
-            {% set out.lines = out.lines + ['*' ~ pname ~ '*'] %}
+            {% set out.lines = out.lines + [pname] %}
 
             {% set sttxt = (p['status'] | default('', true) | string) %}
             {% if sttxt | trim != '' %}
@@ -375,7 +375,7 @@ action:
 
         {% set notify = (out.problem_names | count) > 0 %}
         {% set title_name = (out.problem_names[0] if (out.problem_names | count) == 1 else 'Printer') %}
-        {% set title = "🟠 *" ~ (title_name | string) ~ " – Blekk/Toner (< " ~ (threshold_f | round(0)) ~ "%)*" %}
+        {% set title = "🟠 " ~ (title_name | string) ~ " – Blekk/Toner (< " ~ (threshold_f | round(0)) ~ "%)" %}
 
         {# Count total low and na entries for offline detection #}
         {% set total_low = namespace(count=0) %}
@@ -430,7 +430,7 @@ action:
   - alias: "Steg 12 - Send varsel"
     action: script.varsel_pushover_send_melding_webhome
     data:
-      title: "{{ report.title | default('🟠 *Printer – Blekk* 🟠') }}"
+      title: "{{ report.title | default('🟠 Printer – Blekk 🟠') }}"
       message: "{{ final_message }}"
       destination: "{{ pushover_destination }}"
       priority: "{{ pushover_priority | int(0) }}"
