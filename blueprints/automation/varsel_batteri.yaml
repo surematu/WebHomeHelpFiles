@@ -27,7 +27,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.04
+    Blueprint versjon: 2026.07.05
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -387,6 +387,7 @@ action:
                       | replace(' Battery+', '')
                       | regex_replace('\\s{2,}', ' ')
                       | regex_replace('\\s*\\+\\s*$', '')
+                      | regex_replace('(?i)\\s*level\\s*$', '')
                       | trim -%}
                   {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
                   {%- if did and did in idx -%}
@@ -658,6 +659,7 @@ action:
                     | replace(' Battery+', '')
                     | regex_replace('\\s{2,}', ' ')
                     | regex_replace('\\s*\\+\\s*$', '')
+                    | regex_replace('(?i)\\s*level\\s*$', '')
                     | trim -%}
                 {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
                 {%- set age_s = (as_timestamp(now()) - as_timestamp(s.last_changed, default=0) | float(0)) | int(0) -%}
@@ -930,6 +932,7 @@ action:
                     | replace(' Battery+', '')
                     | regex_replace('\\s{2,}', ' ')
                     | regex_replace('\\s*\\+\\s*$', '')
+                    | regex_replace('(?i)\\s*level\\s*$', '')
                     | trim -%}
                 {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
                 {%- if did and did in idx -%}
