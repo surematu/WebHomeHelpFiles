@@ -14,9 +14,9 @@ blueprint:
 
     Del 3 – Signal raskt (time_pattern – kjøres hver time):
       - Finner batteri-enheter som nylig har mistet kontakten
-      - Varsler kun enheter innenfor varsel-vinduet:
-        last_seen_threshold <= alder < check_interval
-      - Eksempel (terskel 2t, intervall 4t): enheter sett for 2–4 timer siden rapporteres
+      - Varsler kun enheter som nettopp har krysset terskelen:
+        last_seen_threshold <= alder < (last_seen_threshold + 1 time)
+      - Hver enhet rapporteres kun én gang per sjekk-syklus
 
     Felles for alle tre:
       - Én ignore-liste for entities og devices (gjelder alle sjekkene)
@@ -27,7 +27,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.01
+    Blueprint versjon: 2026.07.02
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -130,8 +130,8 @@ blueprint:
       name: "Del 3 – Signal raskt"
       description: >
         Varsler batteri-enheter som nylig mistet kontakten (kjøres hver time).
-        Varsel-vinduet er: last_seen_threshold <= alder < check_interval.
-        Sett check_interval til å matche sjekkfrekvensen for å unngå gjentatte varsler.
+        Varsel-vinduet er nøyaktig én time bredt: last_seen_threshold <= alder < (last_seen_threshold + 1t).
+        Hver enhet rapporteres kun én gang – første time den passerer terskelen.
         NB: Shelly WiFi-temperatursensorer responderer noen ganger ikke på 1–2 timer.
       input:
         last_seen_threshold:
@@ -140,16 +140,6 @@ blueprint:
             Enheter sett for kortere tid enn dette ignoreres. Standard: 2 timer.
           default:
             hours: 2
-          selector:
-            duration:
-
-        check_interval:
-          name: Øvre grense – varsel-vindu
-          description: >
-            Enheter sett for lenger tid enn dette ignoreres (de ville blitt rapportert forrige sjekk).
-            Standard: 4 timer. Må være større enn nedre grense.
-          default:
-            hours: 4
           selector:
             duration:
 
@@ -236,7 +226,6 @@ action:
       include_digital: !input include_digital_battery_sensors
       max_age: !input max_age
       last_seen_threshold: !input last_seen_threshold
-      check_interval: !input check_interval
       include_unavailable: !input include_unavailable
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
@@ -265,33 +254,16 @@ action:
         {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
         {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
 
-      # Del 3 – raskt signal: terskel og intervall i sekunder og labels
+      # Del 3 – raskt signal: terskel i sekunder og label; intervall = terskel + 1t (1 sjekk-syklus)
       threshold_seconds: >-
         {% set d = last_seen_threshold %}
         {{ (d.get('days',0)|int * 86400)
          + (d.get('hours',0)|int * 3600)
          + (d.get('minutes',0)|int * 60)
          + (d.get('seconds',0)|int) }}
-      interval_seconds: >-
-        {% set d = check_interval %}
-        {{ (d.get('days',0)|int * 86400)
-         + (d.get('hours',0)|int * 3600)
-         + (d.get('minutes',0)|int * 60)
-         + (d.get('seconds',0)|int) }}
+      interval_seconds: "{{ threshold_seconds | int(0) + 3600 }}"
       threshold_label: >-
         {% set d = last_seen_threshold %}
-        {% set days = d.get('days',0)|int %}
-        {% set hours = d.get('hours',0)|int %}
-        {% set mins = d.get('minutes',0)|int %}
-        {% set secs = d.get('seconds',0)|int %}
-        {% set parts = namespace(p=[]) %}
-        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
-        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
-        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
-        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
-        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
-      interval_label: >-
-        {% set d = check_interval %}
         {% set days = d.get('days',0)|int %}
         {% set hours = d.get('hours',0)|int %}
         {% set mins = d.get('minutes',0)|int %}
@@ -592,11 +564,27 @@ action:
         # Steg 5R – Bygg melding (raskt signal)
         - alias: "Steg 5R - Bygg melding (raskt signal)"
           variables:
+            notification_title: >-
+              {%- set ns = namespace(names=[]) -%}
+              {%- for line in (stale_list_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
+                {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\(.*$', '') | trim -%}
+                {%- if name != '' and (name | lower) not in (ns.names | map('lower') | list) -%}
+                  {%- set ns.names = ns.names + [name] -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- set cnt = ns.names | count -%}
+              {%- if cnt == 1 -%}
+                🟠 {{ ns.names[0] }} tapte signal
+              {%- elif cnt > 1 -%}
+                🟠 {{ cnt }} batteri-enheter tapte signal
+              {%- else -%}
+                🟠 Batteri-enheter tapte signal
+              {%- endif -%}
             combined_message: >-
               {% set parts = namespace(lines=[]) %}
               {% if (stale_list_clean | trim) != '' %}
                 {% set parts.lines = parts.lines + [
-                  "*Batteri-enheter tapte signal (terskel: " ~ (threshold_label | string) ~ ", intervall: " ~ (interval_label | string) ~ "):*",
+                  "*Batteri-enheter tapte signal (terskel: " ~ (threshold_label | string) ~ "):*",
                   stale_list_clean,
                   ""
                 ] %}
@@ -608,9 +596,7 @@ action:
                   "- trigger: " ~ trigger.id,
                   "- threshold: " ~ (threshold_label | string),
                   "- threshold_seconds: " ~ (threshold_seconds | string),
-                  "- interval: " ~ (interval_label | string),
-                  "- interval_seconds: " ~ (interval_seconds | string),
-                  "- alert_window: " ~ (threshold_label | string) ~ " to " ~ (interval_label | string),
+                  "- interval_seconds (auto): " ~ (interval_seconds | string),
                   "- include_unavailable: " ~ (include_unavailable | string),
                   "- ignored_entities: " ~ ((ignore_entities | count) | string),
                   "- ignored_devices: " ~ ((ignore_devices | count) | string)
@@ -626,7 +612,7 @@ action:
           then:
             - action: script.varsel_pushover_send_melding_webhome
               data:
-                title: "🟠 *Batteri-enheter tapte signal*"
+                title: "{{ notification_title | trim }}"
                 message: "{{ combined_message }}"
                 destination: "{{ pushover_destination }}"
                 priority: "{{ pushover_priority | int(0) }}"
@@ -1100,32 +1086,62 @@ action:
             {% endif %}
             {{ (parts.lines | join('\n')) | trim }}
 
-      # ── Send varsler ──────────────────────────────────────────────────────────
+      # ── Send varsel ───────────────────────────────────────────────────────────
 
-      # Steg 11B – Send batteri nivå varsel
-      - alias: "Steg 11B - Send batteri nivå varsel"
+      # Steg 11 – Bygg samlet varsel (planlagt sjekk)
+      - alias: "Steg 11 - Bygg samlet varsel (planlagt sjekk)"
+        variables:
+          notification_title: >-
+            {%- set ns = namespace(names=[]) -%}
+            {%- for line in (low_list_percent_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
+              {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\([^)]*\\)\\s*$', '') | trim -%}
+              {%- if name != '' and (name | lower) not in (ns.names | map('lower') | list) -%}
+                {%- set ns.names = ns.names + [name] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- for line in (low_list_digital_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
+              {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\([^)]*\\)\\s*$', '') | trim -%}
+              {%- if name != '' and (name | lower) not in (ns.names | map('lower') | list) -%}
+                {%- set ns.names = ns.names + [name] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- for line in (stale_list_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
+              {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\(.*$', '') | trim -%}
+              {%- if name != '' and (name | lower) not in (ns.names | map('lower') | list) -%}
+                {%- set ns.names = ns.names + [name] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- set cnt = ns.names | count -%}
+            {%- if cnt == 1 -%}
+              🟠 {{ ns.names[0] }} har problemer
+            {%- elif cnt > 1 -%}
+              🟠 {{ cnt }} batteri-enheter med problemer
+            {%- else -%}
+              🟠 Batteri problemer
+            {%- endif -%}
+          merged_message: >-
+            {% set parts = namespace(lines=[]) %}
+            {% if (combined_message_batteri | trim) != '' %}
+              {% set parts.lines = parts.lines + [combined_message_batteri | trim] %}
+            {% endif %}
+            {% if (combined_message_signal | trim) != '' %}
+              {% if parts.lines | count > 0 %}
+                {% set parts.lines = parts.lines + [''] %}
+              {% endif %}
+              {% set parts.lines = parts.lines + [combined_message_signal | trim] %}
+            {% endif %}
+            {{ (parts.lines | join('\n')) | trim }}
+
+      # Steg 12 – Send samlet varsel (planlagt sjekk)
+      - alias: "Steg 12 - Send samlet varsel (planlagt sjekk)"
         if:
           - condition: template
-            value_template: "{{ combined_message_batteri | trim != '' }}"
+            value_template: "{{ merged_message | trim != '' }}"
         then:
           - action: script.varsel_pushover_send_melding_webhome
             data:
-              title: "🟠 *Batteri lavt*"
-              message: "{{ combined_message_batteri }}"
-              destination: "{{ pushover_destination }}"
-              priority: "{{ pushover_priority | int(0) }}"
-              ttl: "{{ pushover_ttl | int(604800) }}"
-
-      # Steg 12S – Send langsomt signal varsel
-      - alias: "Steg 12S - Send langsomt signal varsel"
-        if:
-          - condition: template
-            value_template: "{{ combined_message_signal | trim != '' }}"
-        then:
-          - action: script.varsel_pushover_send_melding_webhome
-            data:
-              title: "🟠 *Ingen signal på lenge*"
-              message: "{{ combined_message_signal }}"
+              title: "{{ notification_title | trim }}"
+              message: "{{ merged_message }}"
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(0) }}"
               ttl: "{{ pushover_ttl | int(604800) }}"
