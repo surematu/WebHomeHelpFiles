@@ -554,12 +554,27 @@ action:
                 {% elif not l.startswith('- ') %}
                 {% else %}
                   {% set name = (l | regex_replace('^-\\s*','') | regex_replace('\\s*\\|.*$','') | trim) %}
+                  {% if name != '' and (name | lower) != 'battery' %}
+                    {% set out.lines = out.lines + [l] %}
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+              {{ out.lines | join('\n') }}
+
+        # Steg 5R – Bygg melding (raskt signal)
         - alias: "Steg 5R - Bygg melding (raskt signal)"
           variables:
             notification_title: >-
               {%- set ns = namespace(names=[]) -%}
               {%- for line in (stale_list_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
                 {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
+                {%- if name != '' and (name | lower) not in (ns.names | map('lower') | list) -%}
+                  {%- set ns.names = ns.names + [name] -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- set cnt = ns.names | count -%}
+              {%- if cnt == 1 -%}
+                🟠 {{ ns.names[0] }} tapte signal
               {%- elif cnt > 1 -%}
                 🟠 {{ cnt }} batteri-enheter tapte signal
               {%- else -%}
@@ -686,13 +701,6 @@ action:
                       | regex_replace('\\s*:\\s*$','')
                       | regex_replace('\\s{2,}',' ')
                       | trim -%}
-                  {%- if e.state == 'on' -%}
-                    {%- set status = 'Low' -%}
-                  {%- elif e.state in ['unknown','unavailable','none'] -%}
-                    {%- set status = 'Unknown' -%}
-                  {%- else -%}
-                    {%- set status = e.state | title -%}
-                  {%- endif -%}
                   {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ukjent'] -%}
                 {%- endif -%}
               {%- endfor -%}
