@@ -27,7 +27,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.05
+    Blueprint versjon: 2026.07.06
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -551,19 +551,37 @@ action:
         - alias: "Steg 4R - Rydd bort meningsløse linjer (raskt signal)"
           variables:
             stale_list_clean: >-
-              {% set out = namespace(lines=[]) %}
+              {% set out = namespace(map={}, order=[]) %}
               {% for line in (stale_list_raw | default('')).split('\n') %}
                 {% set l = line | trim %}
                 {% if l == '' %}
                 {% elif not l.startswith('- ') %}
                 {% else %}
                   {% set name = (l | regex_replace('^-\\s*','') | regex_replace('\\s*\\|.*$','') | trim) %}
-                  {% if name != '' and (name | lower) != 'battery' %}
-                    {% set out.lines = out.lines + [l] %}
+                  {% set canon = name
+                    | regex_replace('(?i)\\s+level\\s*$','')
+                    | regex_replace('\\s{2,}',' ')
+                    | trim
+                    | lower %}
+                  {% if name != '' and canon != 'battery' %}
+                    {% if canon not in out.map %}
+                      {% set out.map = dict(out.map, **{canon: l}) %}
+                      {% set out.order = out.order + [canon] %}
+                    {% else %}
+                      {% set current = out.map[canon] %}
+                      {% set current_name = (current | regex_replace('^-\\s*','') | regex_replace('\\s*\\|.*$','') | trim) %}
+                      {% if (name | length) < (current_name | length) %}
+                        {% set out.map = dict(out.map, **{canon: l}) %}
+                      {% endif %}
+                    {% endif %}
                   {% endif %}
                 {% endif %}
               {% endfor %}
-              {{ out.lines | join('\n') }}
+              {% set lines = namespace(lst=[]) %}
+              {% for canon in out.order %}
+                {% set lines.lst = lines.lst + [out.map[canon]] %}
+              {% endfor %}
+              {{ lines.lst | join('\n') }}
 
         # Steg 5R – Bygg melding (raskt signal)
         - alias: "Steg 5R - Bygg melding (raskt signal)"
@@ -1078,25 +1096,43 @@ action:
       - alias: "Steg 9S - Rydd bort meningsløse linjer (langsomt signal)"
         variables:
           stale_list_clean: >-
-            {% set out = namespace(lines=[]) %}
+            {% set out = namespace(map={}, order=[]) %}
             {% for line in (stale_list_raw | default('')).split('\n') %}
               {% set l = line | trim %}
               {% if l == '' %}
               {% elif not l.startswith('- ') %}
               {% else %}
                 {% set name = (l | regex_replace('^-\\s*','') | regex_replace('\\s*\\|.*$','') | trim) %}
-                {% if name != '' and (name | lower) != 'battery' %}
-                  {% set out.lines = out.lines + [l] %}
+                {% set canon = name
+                  | regex_replace('(?i)\\s+level\\s*$','')
+                  | regex_replace('\\s{2,}',' ')
+                  | trim
+                  | lower %}
+                {% if name != '' and canon != 'battery' %}
+                  {% if canon not in out.map %}
+                    {% set out.map = dict(out.map, **{canon: l}) %}
+                    {% set out.order = out.order + [canon] %}
+                  {% else %}
+                    {% set current = out.map[canon] %}
+                    {% set current_name = (current | regex_replace('^-\\s*','') | regex_replace('\\s*\\|.*$','') | trim) %}
+                    {% if (name | length) < (current_name | length) %}
+                      {% set out.map = dict(out.map, **{canon: l}) %}
+                    {% endif %}
+                  {% endif %}
                 {% endif %}
               {% endif %}
             {% endfor %}
-            {{ out.lines | join('\n') }}
+            {% set lines = namespace(lst=[]) %}
+            {% for canon in out.order %}
+              {% set lines.lst = lines.lst + [out.map[canon]] %}
+            {% endfor %}
+            {{ lines.lst | join('\n') }}
 
       # Steg 10S – Bygg endelig langsomt signal-melding
       - alias: "Steg 10S - Bygg endelig langsomt signal-melding"
-        variables:
-          combined_message_signal: >-
-            {% set parts = namespace(lines=[]) %}
+      variables:
+        combined_message_signal: >-
+          {% set parts = namespace(lines=[]) %}
             {% if (stale_list_clean | trim) != '' %}
               {% set parts.lines = parts.lines + [
                 "Batteri-enheter uten signal > " ~ (max_age_label | string) ~ ":",
@@ -1117,6 +1153,62 @@ action:
             {% endif %}
             {{ (parts.lines | join('\n')) | trim }}
 
+      # Steg 10B – Fjern batterinivå-linjer som allerede er rapportert uten signal
+      - alias: "Steg 10B - Fjern batterinivå-linjer som allerede er rapportert uten signal"
+        variables:
+          low_list_digital_final: >-
+            {% set ns = namespace(lines=[]) %}
+            {% set stale_names = (stale_list_clean | default(''))
+              .split('\n')
+              | map('trim')
+              | select('match','^- ')
+              | map('regex_replace','^- ','')
+              | map('regex_replace','\\s*\\|.*$','')
+              | map('regex_replace','(?i)\\s+level\\s*$','')
+              | map('regex_replace','\\s{2,}',' ')
+              | map('trim')
+              | map('lower')
+              | list
+            %}
+            {% for line in (low_list_digital_clean | default('')).split('\n') %}
+              {% set l = line | trim %}
+              {% if l == '' %}
+              {% elif not l.startswith('- ') %}
+              {% else %}
+                {% set name_norm = (l
+                  | regex_replace('^-\\s*','')
+                  | regex_replace('\\s*\\|.*$','')
+                  | regex_replace('(?i)\\s+level\\s*$','')
+                  | regex_replace('\\s{2,}',' ')
+                  | trim
+                  | lower) %}
+                {% if name_norm not in stale_names %}
+                  {% set ns.lines = ns.lines + [l] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.lines | join('\n') }}
+          combined_message_batteri_final: >-
+            {% set parts = namespace(lines=[]) %}
+            {% if (low_list_percent_clean | trim) != '' %}
+              {% set parts.lines = parts.lines + ["Batteri % under " ~ (threshold | string) ~ "%:", low_list_percent_clean, ""] %}
+            {% endif %}
+            {% if (low_list_digital_final | trim) != '' %}
+              {% set parts.lines = parts.lines + ["Digital batteri lavt:", low_list_digital_final, ""] %}
+            {% endif %}
+            {% if debug_on %}
+              {% set parts.lines = parts.lines + [
+                "---",
+                "Debug (Del 1 – batteri nivå):",
+                "- trigger: " ~ trigger.id,
+                "- threshold: " ~ (threshold | string) ~ "%",
+                "- include_digital: " ~ (include_digital | string),
+                "- ignored_entities: " ~ ((ignore_entities | count) | string),
+                "- ignored_devices: " ~ ((ignore_devices | count) | string)
+              ] %}
+            {% endif %}
+            {{ (parts.lines | join('\n')) | trim }}
+
       # ── Send varsel ───────────────────────────────────────────────────────────
 
       # Steg 11 – Bygg samlet varsel (planlagt sjekk)
@@ -1130,7 +1222,7 @@ action:
                 {%- set ns.names = ns.names + [name] -%}
               {%- endif -%}
             {%- endfor -%}
-            {%- for line in (low_list_digital_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
+            {%- for line in (low_list_digital_final | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
               {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
               {%- if name != '' and (name | lower) not in (ns.names | map('lower') | list) -%}
                 {%- set ns.names = ns.names + [name] -%}
@@ -1155,11 +1247,11 @@ action:
             {% if (combined_message_signal | trim) != '' %}
               {% set parts.lines = parts.lines + [combined_message_signal | trim] %}
             {% endif %}
-            {% if (combined_message_batteri | trim) != '' %}
+            {% if (combined_message_batteri_final | trim) != '' %}
               {% if parts.lines | count > 0 %}
                 {% set parts.lines = parts.lines + [''] %}
               {% endif %}
-              {% set parts.lines = parts.lines + [combined_message_batteri | trim] %}
+              {% set parts.lines = parts.lines + [combined_message_batteri_final | trim] %}
             {% endif %}
             {% if parts.lines | count > 0 %}
               {% set parts.lines = parts.lines + ['', 'Struktur: Navn | Sist sett / Batteri %.'] %}
