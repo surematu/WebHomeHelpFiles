@@ -1,6 +1,10 @@
 blueprint:
-  name: Varsel - Batteri-enheter uten signal på lenge (WebHome)
+  name: "⚠️ AVVIKLET – Varsel - Batteri-enheter uten signal på lenge (WebHome)"
   description: >
+    AVVIKLET: Funksjonaliteten i denne blueprinten er slått sammen med
+    varsel_batteri.yaml (Del 2 – Signal langsomt). Bruk varsel_batteri.yaml
+    i stedet. Denne filen beholdes for bakoverkompatibilitet.
+
     Varsler når batteri-enheter ikke har rapportert inn på en stund.
 
     Slik finner vi "sist sett" (mest robust):
