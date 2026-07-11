@@ -27,7 +27,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.03
+    Blueprint versjon: 2026.07.04
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -471,9 +471,11 @@ action:
               {# ===== Render sortert (eldst først) ===== #}
               {%- set items = namespace(lst=[]) -%}
               {%- for norm, it in ns.map.items() -%}
-                {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string)] -%}
+                {%- set items.lst = items.lst + [{'age_s': it['age_s']|int(0), 'base': it['base']|string, 'state': it['state']|string}] -%}
               {%- endfor -%}
-              {%- for age_s, base in (items.lst | sort(reverse=true)) -%}
+              {%- for it in (items.lst | sort(attribute='age_s', reverse=true)) -%}
+                {%- set age_s = it.age_s -%}
+                {%- set base = it.base -%}
                 {%- set d = (age_s // 86400) | int(0) -%}
                 {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
                 {%- set m = ((age_s % 3600) // 60) | int(0) -%}
@@ -487,7 +489,8 @@ action:
                   {%- set s = (age_s % 60) | int(0) -%}
                   {%- set age_txt = s|string ~ 's' -%}
                 {%- endif -%}
-                {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt] -%}
+                {%- set pct_txt = (it.state ~ '%') if (it.state | is_number) else 'Ukjent' -%}
+                {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt ~ ' / ' ~ pct_txt] -%}
               {%- endfor -%}
               {{ ns.lines | join('\n') }}
 
@@ -586,7 +589,8 @@ action:
                 {% set parts.lines = parts.lines + [
                   "Batteri-enheter tapte signal (terskel: " ~ (threshold_label | string) ~ "):",
                   stale_list_clean,
-                  ""
+                  "",
+                  "Struktur: Navn | Sist sett / Batteri %."
                 ] %}
               {% endif %}
               {% if debug_on %}
@@ -630,7 +634,7 @@ action:
       - alias: "Steg 2B - Bygg batteriliste (prosent)"
         variables:
           low_list_percent: |-
-            {%- set ns = namespace(map={}, names={}, lines=[]) -%}
+            {%- set ns = namespace(map={}, names={}, ages={}, lines=[]) -%}
             {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
             {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
 
@@ -656,17 +660,32 @@ action:
                     | regex_replace('\\s*\\+\\s*$', '')
                     | trim -%}
                 {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
+                {%- set age_s = (as_timestamp(now()) - as_timestamp(s.last_changed, default=0) | float(0)) | int(0) -%}
                 {%- if is_num and 0 <= val < (threshold | float(0)) -%}
                   {%- if norm not in ns.map or val < ns.map[norm] -%}
                     {%- set ns.map = dict(ns.map, **{norm: val}) -%}
                     {%- set ns.names = dict(ns.names, **{norm: base}) -%}
+                    {%- set ns.ages = dict(ns.ages, **{norm: age_s}) -%}
                   {%- endif -%}
                 {%- endif -%}
               {%- endif -%}
             {%- endfor -%}
 
             {%- for norm, v in ns.map | dictsort(by='value') -%}
-              {%- set ns.lines = ns.lines + ['- ' ~ ns.names[norm] ~ ' | ' ~ (v | round(0)) ~ '%'] -%}
+              {%- set age_s = ns.ages[norm] | int(0) -%}
+              {%- set d = (age_s // 86400) | int(0) -%}
+              {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
+              {%- set m = ((age_s % 3600) // 60) | int(0) -%}
+              {%- if d > 0 -%}
+                {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
+              {%- elif h > 0 -%}
+                {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
+              {%- elif m > 0 -%}
+                {%- set age_txt = m|string ~ 'm' -%}
+              {%- else -%}
+                {%- set age_txt = (age_s % 60)|string ~ 's' -%}
+              {%- endif -%}
+              {%- set ns.lines = ns.lines + ['- ' ~ ns.names[norm] ~ ' | ' ~ age_txt ~ ' / ' ~ (v | round(0) | int) ~ '%'] -%}
             {%- endfor -%}
             {{ ns.lines | join('\n') }}
 
@@ -701,7 +720,20 @@ action:
                       | regex_replace('\\s*:\\s*$','')
                       | regex_replace('\\s{2,}',' ')
                       | trim -%}
-                  {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ukjent'] -%}
+                  {%- set age_s = (as_timestamp(now()) - as_timestamp(e.last_changed, default=0) | float(0)) | int(0) -%}
+                  {%- set d = (age_s // 86400) | int(0) -%}
+                  {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
+                  {%- set m = ((age_s % 3600) // 60) | int(0) -%}
+                  {%- if d > 0 -%}
+                    {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
+                  {%- elif h > 0 -%}
+                    {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
+                  {%- elif m > 0 -%}
+                    {%- set age_txt = m|string ~ 'm' -%}
+                  {%- else -%}
+                    {%- set age_txt = (age_s % 60)|string ~ 's' -%}
+                  {%- endif -%}
+                  {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt ~ ' / Ukjent'] -%}
                 {%- endif -%}
               {%- endfor -%}
               {{ ns.lines | join('\n') }}
@@ -969,9 +1001,11 @@ action:
             {# ===== Render sortert (eldst først) ===== #}
             {%- set items = namespace(lst=[]) -%}
             {%- for norm, it in ns.map.items() -%}
-              {%- set items.lst = items.lst + [(it['age_s']|int(0), it['base']|string)] -%}
+              {%- set items.lst = items.lst + [{'age_s': it['age_s']|int(0), 'base': it['base']|string, 'state': it['state']|string}] -%}
             {%- endfor -%}
-            {%- for age_s, base in (items.lst | sort(reverse=true)) -%}
+            {%- for it in (items.lst | sort(attribute='age_s', reverse=true)) -%}
+              {%- set age_s = it.age_s -%}
+              {%- set base = it.base -%}
               {%- set d = (age_s // 86400) | int(0) -%}
               {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
               {%- set m = ((age_s % 3600) // 60) | int(0) -%}
@@ -985,7 +1019,8 @@ action:
                 {%- set s = (age_s % 60) | int(0) -%}
                 {%- set age_txt = s|string ~ 's' -%}
               {%- endif -%}
-              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt] -%}
+              {%- set pct_txt = (it.state ~ '%') if (it.state | is_number) else 'Ukjent' -%}
+              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt ~ ' / ' ~ pct_txt] -%}
             {%- endfor -%}
             {{ ns.lines | join('\n') }}
 
@@ -1122,6 +1157,9 @@ action:
                 {% set parts.lines = parts.lines + [''] %}
               {% endif %}
               {% set parts.lines = parts.lines + [combined_message_batteri | trim] %}
+            {% endif %}
+            {% if parts.lines | count > 0 %}
+              {% set parts.lines = parts.lines + ['', 'Struktur: Navn | Sist sett / Batteri %.'] %}
             {% endif %}
             {{ (parts.lines | join('\n')) | trim }}
 
