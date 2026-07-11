@@ -1130,9 +1130,9 @@ action:
 
       # Steg 10S – Bygg endelig langsomt signal-melding
       - alias: "Steg 10S - Bygg endelig langsomt signal-melding"
-      variables:
-        combined_message_signal: >-
-          {% set parts = namespace(lines=[]) %}
+        variables:
+          combined_message_signal: >-
+            {% set parts = namespace(lines=[]) %}
             {% if (stale_list_clean | trim) != '' %}
               {% set parts.lines = parts.lines + [
                 "Batteri-enheter uten signal > " ~ (max_age_label | string) ~ ":",
