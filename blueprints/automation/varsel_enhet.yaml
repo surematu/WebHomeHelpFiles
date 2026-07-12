@@ -32,7 +32,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.02
+    Blueprint versjon: 2026.07.03
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -508,10 +508,10 @@ action:
           {% if show_all_down_uptime or (p.down_existing | count > 0) %}
             {% if ns.out | count > 0 %}{% set ns.out = ns.out + [""] %}{% endif %}
             {% set offline_list = p.down_all if show_all_down_uptime else p.down_existing %}
-            {% set ns.out = ns.out + ["Enheter som er nede, iht UptimeKuma. (| Endret / oppetid%):", (render_device_lines(offline_list) | trim)] %}
+            {% set ns.out = ns.out + ["Svarer ikke. (| Endret / oppetid %):", (render_device_lines(offline_list) | trim)] %}
           {% endif %}
           {% if p.unstable_count > 0 %}
-            {% set ns.out = ns.out + ["", "Ustabile enheter iht UptimeKuma. (| Endret / oppetid%):"] %}
+            {% set ns.out = ns.out + ["", "Ustabil oppetid. (| Endret / oppetid %):"] %}
             {% for it in p.unstable_devices %}
               {% set ns.out = ns.out + [format_device_line(it) | trim] %}
             {% endfor %}
@@ -2059,13 +2059,25 @@ action:
                 {%- endif -%}
               {%- endfor -%}
             {%- endfor -%}
-            {%- set reason_cnt = ns.trigger_reason_device_names | count -%}
-            {%- set total_cnt = total_ns.names | count -%}
             {%- set has_signal_loss = (lang_offline_clean | trim) != '' or (offline_full_final | trim) != '' -%}
             {%- set has_low_battery = (lite_batteri_prosent_clean | trim) != '' or (lite_batteri_digital_final | trim) != '' -%}
             {%- set has_uptime_issue = uptime_should_notify_unified -%}
+            {%- if has_uptime_issue -%}
+              {%- set p_u = uptime_report_payload if uptime_report_payload is mapping else uptime_report_payload | from_json -%}
+              {%- for dev in (p_u.down_all + p_u.unstable_devices) -%}
+                {%- if (dev.device_name | lower) not in (total_ns.names | map('lower') | list) -%}
+                  {%- set total_ns.names = total_ns.names + [dev.device_name] -%}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endif -%}
+            {%- set reason_cnt = ns.trigger_reason_device_names | count -%}
+            {%- set total_cnt = total_ns.names | count -%}
             {%- if has_uptime_issue and (has_signal_loss or has_low_battery) -%}
-              🔴 Enhetsvarsel (samlet)
+              {%- if total_cnt == 1 -%}
+                🔴 1 enhet med avvik
+              {%- else -%}
+                🔴 {{ total_cnt }} enheter med avvik
+              {%- endif -%}
             {%- elif has_uptime_issue -%}
               {{ uptime_notification_title }}
             {%- elif manual_run and total_cnt > 0 -%}
