@@ -32,7 +32,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.27
+    Blueprint versjon: 2026.07.28
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -367,6 +367,12 @@ action:
         {% set urgent_dev = urgent_trigger_device_name | trim %}
         {% if urgent_dev != '' and urgent_trigger_went_online | bool(false) %}
           🟢 {{ urgent_dev }} er online
+        {% elif manual_run and p.should_notify %}
+          {% if p.down_count == 1 %}
+            🔴 {{ p.down_all[0].device_name }} er offline
+          {% else %}
+            🔴 {{ p.down_count }} enheter offline
+          {% endif %}
         {% elif p.should_notify %}
           {% if urgent_dev != '' %}
             🔴 {{ urgent_dev }} er offline
