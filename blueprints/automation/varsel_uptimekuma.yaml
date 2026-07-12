@@ -15,7 +15,8 @@ blueprint:
         * Minst én enhet har gått ned i løpet av siste time (ny hendelse), ELLER
         * Automatiseringen kjøres manuelt eller via planlagt sjekk.
       - Når varsel først sendes:
-        * Ta med ALLE enheter som nå er nede.
+        * Vis først hvilke enheter som nylig gikk offline.
+        * Ta også med øvrige enheter som fortsatt er nede.
         * Inkluder oppetid for Dag/Måned/År i rapportlinjen.
       - Ved manuell kjøring eller planlagt sjekk:
         * Rapporter alle nede-enheter uansett når de gikk ned.
@@ -31,7 +32,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.25
+    Blueprint versjon: 2026.07.26
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -330,6 +331,13 @@ action:
         {%- endfor -%}
 
         {%- set sorted_down = ns.down_all | sort(attribute='device_name') -%}
+        {%- set sorted_down_new = ns.down_new | sort(attribute='device_name') -%}
+        {# dev.is_new is set in Steg 2 for every collected device #}
+        {%- set sorted_down_existing = ns.down_all
+          | rejectattr('is_new')
+          | list
+          | sort(attribute='device_name')
+        -%}
         {%- set sorted_unstable = ns.unstable | sort(attribute='device_name') -%}
 
         {{
@@ -339,6 +347,8 @@ action:
             'new_down_count': ns.down_new | count,
             'should_notify': (show_all_down or ((ns.down_new | count) > 0)) and ((ns.down_all | count) > 0),
             'down_all': sorted_down,
+            'down_new': sorted_down_new,
+            'down_existing': sorted_down_existing,
             'unstable_devices': sorted_unstable,
             'unstable_count': ns.unstable | count,
             'debug': d.debug
@@ -355,6 +365,10 @@ action:
         {% elif p.should_notify %}
           {% if urgent_dev != '' %}
             🔴 {{ urgent_dev }} er offline
+          {% elif not show_all_down and p.new_down_count == 1 %}
+            🔴 {{ p.down_new[0].device_name }} gikk offline
+          {% elif not show_all_down and p.new_down_count > 1 %}
+            🔴 {{ p.new_down_count }} nye enheter gikk offline
           {% elif p.down_count == 1 %}
             🔴 {{ p.down_all[0].device_name }} er offline
           {% else %}
@@ -367,30 +381,49 @@ action:
         {% set p = report_payload if report_payload is mapping else report_payload | from_json %}
         {% set dev_list = devices if devices is mapping else devices | from_json %}
         {% set ns = namespace(out=[]) %}
+        {# Format: device name | offline duration / min-max uptime % #}
+        {% macro format_device_line(it) -%}
+          {% set age_s = it.age_s | int(0) %}
+          {% set d = (age_s // 86400) | int(0) %}
+          {% set h = ((age_s % 86400) // 3600) | int(0) %}
+          {% set m = ((age_s % 3600) // 60) | int(0) %}
+          {% if d > 0 %}
+            {% set age_txt = d|string ~ "d " ~ h|string ~ "h" %}
+          {% elif h > 0 %}
+            {% set age_txt = h|string ~ "h " ~ m|string ~ "m" %}
+          {% elif m > 0 %}
+            {% set age_txt = m|string ~ "m" %}
+          {% else %}
+            {% set age_txt = (age_s % 60)|string ~ "s" %}
+          {% endif %}
+          {% set u1 = (it.uptime1 | float(0)) | int %}
+          {% set u30 = (it.uptime30 | float(0)) | int %}
+          {% set u365 = (it.uptime365 | float(0)) | int %}
+          {% set umin = [u1, u30, u365] | min %}
+          {% set umax = [u1, u30, u365] | max %}
+          {{ "- " ~ it.device_name ~ " | " ~ age_txt ~ " / " ~ umin|string ~ "-" ~ umax|string ~ "%" }}
+        {%- endmacro %}
+        {% macro render_device_lines(items) -%}
+          {% set render_ns = namespace(lines=[]) %}
+          {% for it in items | sort(attribute='age_s') %}
+            {% set render_ns.lines = render_ns.lines + [format_device_line(it) | trim] %}
+          {% endfor %}
+          {{ render_ns.lines | join('\n') }}
+        {%- endmacro %}
 
         {% if p.should_notify %}
-          {% set ns.out = ns.out + ["Enheter som er offline akkurat nå:"] %}
-          {% for it in p.down_all | sort(attribute='age_s') %}
-            {% set age_s = it.age_s | int(0) %}
-            {% set d = (age_s // 86400) | int(0) %}
-            {% set h = ((age_s % 86400) // 3600) | int(0) %}
-            {% set m = ((age_s % 3600) // 60) | int(0) %}
-            {% if d > 0 %}
-              {% set age_txt = d|string ~ "d " ~ h|string ~ "h" %}
-            {% elif h > 0 %}
-              {% set age_txt = h|string ~ "h " ~ m|string ~ "m" %}
-            {% elif m > 0 %}
-              {% set age_txt = m|string ~ "m" %}
-            {% else %}
-              {% set age_txt = (age_s % 60)|string ~ "s" %}
+          {% if not show_all_down and p.new_down_count > 0 %}
+            {% set ns.out = ns.out + ["Enheter som nylig gikk offline:"] %}
+            {% set ns.out = ns.out + [render_device_lines(p.down_new) | trim] %}
+          {% endif %}
+          {% if show_all_down or (p.down_existing | count > 0) %}
+            {% if ns.out | count > 0 %}
+              {% set ns.out = ns.out + [""] %}
             {% endif %}
-            {% set u1 = (it.uptime1 | float(0)) | int %}
-            {% set u30 = (it.uptime30 | float(0)) | int %}
-            {% set u365 = (it.uptime365 | float(0)) | int %}
-            {% set umin = [u1, u30, u365] | min %}
-            {% set umax = [u1, u30, u365] | max %}
-            {% set ns.out = ns.out + ["- " ~ it.device_name ~ " | " ~ age_txt ~ " / " ~ umin|string ~ "-" ~ umax|string ~ "%"] %}
-          {% endfor %}
+            {% set ns.out = ns.out + ["Enheter som er offline:"] %}
+            {% set offline_list = p.down_all if show_all_down else p.down_existing %}
+            {% set ns.out = ns.out + [render_device_lines(offline_list) | trim] %}
+          {% endif %}
           {% if p.unstable_count > 0 %}
             {% set ns.out = ns.out + ["", "Ustabile enheter siste døgn:"] %}
             {% for it in p.unstable_devices %}
