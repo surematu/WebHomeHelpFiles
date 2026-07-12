@@ -32,7 +32,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.03
+    Blueprint versjon: 2026.07.04
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -1947,11 +1947,6 @@ action:
             {% set parts = namespace(lines=[]) %}
             {% set msg = namespace(signal_intro="Ikke sett siste " ~ (max_age_label | string) ~ ". (| Endret):") %}
             {% if (lang_offline_clean | trim) != '' %}
-              {% set parts.lines = parts.lines + [
-                msg.signal_intro,
-                lang_offline_clean,
-                ""
-              ] %}
               {% if (offline_full_final | trim) != '' %}
                 {% set parts.lines = parts.lines + [
                   "Ikke sett siste " ~ (threshold_label | string) ~ ". (| Endret):",
@@ -1959,6 +1954,11 @@ action:
                   ""
                 ] %}
               {% endif %}
+              {% set parts.lines = parts.lines + [
+                msg.signal_intro,
+                lang_offline_clean,
+                ""
+              ] %}
             {% endif %}
             {% if debug_on %}
               {% set parts.lines = parts.lines + [
