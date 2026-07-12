@@ -1775,19 +1775,14 @@ action:
       - alias: "Steg 11 - Bygg samlet varsel (planlagt sjekk)"
         variables:
           notification_title: >-
-            {%- set ns = namespace(
-              trigger_reason_device_names=[],
-              all_devices_with_issues=[]
-            ) -%}
+            {%- set ns = namespace(trigger_reason_device_names=[]) -%}
             {%- for line in (lang_offline_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
               {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
               {%- if name != '' and (name | lower) not in (ns.trigger_reason_device_names | map('lower') | list) -%}
                 {%- set ns.trigger_reason_device_names = ns.trigger_reason_device_names + [name] -%}
               {%- endif -%}
-              {%- if name != '' and (name | lower) not in (ns.all_devices_with_issues | map('lower') | list) -%}
-                {%- set ns.all_devices_with_issues = ns.all_devices_with_issues + [name] -%}
-              {%- endif -%}
             {%- endfor -%}
+            {%- set total_ns = namespace(names=ns.trigger_reason_device_names) -%}
             {%- for section in [
               offline_full_final | default(''),
               lite_batteri_prosent_clean | default(''),
@@ -1795,13 +1790,13 @@ action:
             ] -%}
               {%- for line in section.split('\n') | map('trim') | select('match', '^- ') -%}
                 {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
-                {%- if name != '' and (name | lower) not in (ns.all_devices_with_issues | map('lower') | list) -%}
-                  {%- set ns.all_devices_with_issues = ns.all_devices_with_issues + [name] -%}
+                {%- if name != '' and (name | lower) not in (total_ns.names | map('lower') | list) -%}
+                  {%- set total_ns.names = total_ns.names + [name] -%}
                 {%- endif -%}
               {%- endfor -%}
             {%- endfor -%}
             {%- set reason_cnt = ns.trigger_reason_device_names | count -%}
-            {%- set total_cnt = ns.all_devices_with_issues | count -%}
+            {%- set total_cnt = total_ns.names | count -%}
             {%- if manual_run and total_cnt > 0 -%}
               {%- if total_cnt == 1 -%}
                 🟠 1 enhet med avvik
