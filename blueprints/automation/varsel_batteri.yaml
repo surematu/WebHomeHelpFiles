@@ -11,6 +11,7 @@ blueprint:
     Del 2 – Vært offline en stund (planlagt sjekk, samme tid som Del 1):
       - Trigger: minst én enhet har ikke rapportert inn på over angitt tid (standard 72 timer)
       - Meldingen inkluderer alle enheter uten signal fra terskel (standard 2 timer) og opp
+      - Enheter som allerede er listet i en tidligere del av samme varsel vises ikke på nytt senere
 
     Del 3 – Nylig mistet signal (time_pattern – kjøres hver time):
       - Varsler kun enheter som nettopp har krysset terskelen:
@@ -26,7 +27,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.08
+    Blueprint versjon: 2026.07.09
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -1622,6 +1623,42 @@ action:
             {% endfor %}
             {{ lines.lst | join('\n') }}
 
+      # Steg 9S-D – Fjern duplikater mellom signal-lister (senere lister skal ikke gjenta tidligere)
+      - alias: "Steg 9S-D - Fjern duplikater mellom signal-lister"
+        variables:
+          offline_full_final: >-
+            {% set out = namespace(lines=[]) %}
+            {% set lang_names = (lang_offline_clean | default(''))
+              .split('\n')
+              | map('trim')
+              | select('match','^- ')
+              | map('regex_replace','^- ','')
+              | map('regex_replace','\s*\|.*$','')
+              | map('regex_replace','(?i)\s+level\s*$','')
+              | map('regex_replace','\s{2,}',' ')
+              | map('trim')
+              | map('lower')
+              | list
+            %}
+            {% for line in (offline_full_clean | default('')).split('\n') %}
+              {% set l = line | trim %}
+              {% if l == '' %}
+              {% elif not l.startswith('- ') %}
+              {% else %}
+                {% set name_norm = (l
+                  | regex_replace('^-\s*','')
+                  | regex_replace('\s*\|.*$','')
+                  | regex_replace('(?i)\s+level\s*$','')
+                  | regex_replace('\s{2,}',' ')
+                  | trim
+                  | lower) %}
+                {% if name_norm not in lang_names %}
+                  {% set out.lines = out.lines + [l] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ out.lines | join('\n') }}
+
       # Steg 10S – Bygg endelig langsomt signal-melding
       - alias: "Steg 10S - Bygg endelig signal-melding (vært offline en stund)"
         variables:
@@ -1633,10 +1670,10 @@ action:
                 lang_offline_clean,
                 ""
               ] %}
-              {% if (offline_full_clean | trim) != '' %}
+              {% if (offline_full_final | trim) != '' %}
                 {% set parts.lines = parts.lines + [
                   "Alle enheter uten signal siden " ~ (threshold_label | string) ~ ":",
-                  offline_full_clean,
+                  offline_full_final,
                   ""
                 ] %}
               {% endif %}
@@ -1661,7 +1698,7 @@ action:
         variables:
           lite_batteri_digital_final: >-
             {% set ns = namespace(lines=[]) %}
-            {% set offline_full_names = (offline_full_clean | default(''))
+            {% set offline_full_names = ((lang_offline_clean | default('')) ~ '\n' ~ (offline_full_final | default('')))
               .split('\n')
               | map('trim')
               | select('match','^- ')
