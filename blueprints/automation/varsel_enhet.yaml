@@ -1,7 +1,7 @@
 blueprint:
-  name: ⚠️ Deprecated - Varsel - Batteri (nivå + signal) (WebHome)
+  name: Varsel - Enhet (batteri + signal + uptime) (WebHome)
   description: >
-    Samlet overvåkning av batteri-enheter i tre deler:
+    Samlet overvåkning av batteri-enheter og Uptime Kuma i én automasjon:
 
     Del 1 – Lite batteri (planlagt sjekk):
       - sensor.* med device_class: battery → rapporterer % under terskel
@@ -19,7 +19,11 @@ blueprint:
         nylig_mistet_terskel <= alder < (nylig_mistet_terskel + 1 time)
       - Inkluderer oversikt over alle enheter offline lenge og lavt batterinivå
 
-    Felles for alle tre:
+    Del 4 – Uptime Kuma:
+      - Inkluderes i samme varsling som Del 1-3 ved time_pattern og planlagt/manuell sjekk
+      - Kritiske Uptime-statussensorer kan trigge øyeblikkelig varsel
+
+    Felles for alle:
       - Én ignore-liste for entities og devices (gjelder alle sjekkene)
       - Debug-detaljer slås på én gang
 
@@ -28,10 +32,10 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.14
+    Blueprint versjon: 2026.07.00
   domain: automation
   author: WebHome
-  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
   homeassistant:
     min_version: 2025.11.0
 
@@ -153,9 +157,25 @@ blueprint:
           selector:
             boolean:
 
+    uptime_kuma:
+      name: "Del 4 – Uptime Kuma"
+      description: "Innstillinger for Uptime Kuma i samlet enhetsvarsel."
+      input:
+        urgent_sensors:
+          name: Kritiske status-sensorer (øyeblikkelig varsel)
+          description: >
+            Velg Uptime Kuma Status-sensorer som skal varsles umiddelbart ved statusendring.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: sensor
+                  device_class: enum
+
     varsling:
       name: "Varsling (Pushover)"
-      description: "Innstillinger for Pushover-varsler. Gjelder alle tre sjekkene."
+      description: "Innstillinger for Pushover-varsler. Gjelder alle sjekkene."
       input:
         pushover_destination:
           name: Pushover destination
@@ -165,9 +185,31 @@ blueprint:
             text:
 
         pushover_priority:
-          name: Pushover priority
-          description: Prioritet brukt for varsling
+          name: Pushover priority - generell
+          description: Prioritet brukt for vanlige varsler
           default: 0
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_priority_urgent_offline:
+          name: Pushover priority - kritisk enhet offline
+          description: Prioritet brukt når kritisk valgt Uptime-sensor går offline
+          default: 1
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_priority_urgent_other:
+          name: Pushover priority - kritisk enhet online/annen endring
+          description: Prioritet brukt når kritisk Uptime-sensor går online eller skifter til annen ikke-offline status
+          default: -1
           selector:
             number:
               min: -2
@@ -217,6 +259,18 @@ trigger:
     id: ha_start
     enabled: !input run_on_startup
 
+  # Del 4 – Uptime Kuma kritiske sensorer (øyeblikkelig)
+  - platform: state
+    entity_id: !input urgent_sensors
+    to: "down"
+    id: urgent_sensor_trigger
+
+  - platform: state
+    entity_id: !input urgent_sensors
+    from: "down"
+    to: "up"
+    id: urgent_sensor_trigger
+
 condition: []
 
 action:
@@ -233,7 +287,10 @@ action:
       debug_on: !input include_debug_details
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
+      pushover_priority_urgent_offline: !input pushover_priority_urgent_offline
+      pushover_priority_urgent_other: !input pushover_priority_urgent_other
       pushover_ttl: !input pushover_ttl
+      urgent_sensors_input: !input urgent_sensors
 
       # Del 2 – langsomt signal: terskel i sekunder og label
       max_age_seconds: >-
@@ -283,10 +340,212 @@ action:
       trigger_is_time_pattern: "{{ (not manual_run) and trigger_id_raw == 'time_pattern_check' }}"
       trigger_is_scheduled: "{{ (not manual_run) and trigger_id_raw == 'scheduled_check' }}"
       trigger_is_ha_start: "{{ (not manual_run) and trigger_id_raw == 'ha_start' }}"
+      trigger_is_urgent: "{{ (not manual_run) and trigger_id_raw == 'urgent_sensor_trigger' }}"
       trigger_label: "{{ trigger_id_raw if trigger_id_raw | trim != '' else 'manual/unknown' }}"
+      show_all_down_uptime: "{{ manual_run or trigger_is_scheduled or trigger_is_ha_start or trigger_is_urgent }}"
+      urgent_trigger_device_name: >-
+        {%- if trigger_is_urgent -%}
+          {%- set did = device_id(trigger.entity_id) -%}
+          {{ device_attr(did, 'name') | default(trigger.entity_id, true) }}
+        {%- else -%}
+          {{ '' }}
+        {%- endif -%}
+      urgent_trigger_went_online: >-
+        {%- if trigger_is_urgent -%}
+          {{ trigger.to_state is not none and trigger.to_state.state | lower == 'up' }}
+        {%- else -%}
+          false
+        {%- endif -%}
+      effective_priority: >-
+        {%- if trigger_is_urgent -%}
+          {%- if trigger.to_state is not none and trigger.to_state.state | lower != 'up' -%}
+            {{ pushover_priority_urgent_offline | int(1) }}
+          {%- else -%}
+            {{ pushover_priority_urgent_other | int(-1) }}
+          {%- endif -%}
+        {%- else -%}
+          {{ pushover_priority | int(0) }}
+        {%- endif -%}
+
+  - alias: "Steg 1U-A - Finn Uptime Kuma devices"
+    variables:
+      uptime_devices: |-
+        {%- set interval_s = 3600 -%}
+        {%- set now_ts = as_timestamp(now()) | int(0) -%}
+        {%- set ns = namespace(seen_devices=[], all_devices=[], debug=[]) -%}
+
+        {%- for s in states.sensor -%}
+          {%- set fname = state_attr(s.entity_id, 'friendly_name') | default(s.name, true) -%}
+          {%- if fname.endswith('Uptime (30 days)') -%}
+            {%- set did = device_id(s.entity_id) -%}
+            {%- if did and did not in ns.seen_devices -%}
+              {%- set ns.seen_devices = ns.seen_devices + [did] -%}
+              {%- set dev_name = device_attr(did, 'name') | default('Ukjent enhet', true) -%}
+              {%- set ents = device_entities(did) if did else [] -%}
+              {%- set found = namespace(status_eid='', uptime1_eid='', uptime30_eid='', uptime365_eid='') -%}
+
+              {%- for e in ents -%}
+                {%- set st_obj = states[e] -%}
+                {%- if st_obj is not none -%}
+                  {%- set fn = state_attr(e, 'friendly_name') | default(st_obj.name, true) -%}
+                  {%- if fn.endswith(' Status') and found.status_eid == '' -%}{%- set found.status_eid = e -%}{%- endif -%}
+                  {%- if fn.endswith('Uptime (1 day)') and found.uptime1_eid == '' -%}{%- set found.uptime1_eid = e -%}{%- endif -%}
+                  {%- if fn.endswith('Uptime (30 days)') and found.uptime30_eid == '' -%}{%- set found.uptime30_eid = e -%}{%- endif -%}
+                  {%- if fn.endswith('Uptime (365 days)') and found.uptime365_eid == '' -%}{%- set found.uptime365_eid = e -%}{%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+
+              {%- if found.status_eid != '' -%}
+                {%- set status_state = states(found.status_eid) | string -%}
+                {%- set is_up = (status_state | lower) == 'up' -%}
+                {%- set status_obj = states[found.status_eid] -%}
+                {%- set lc_ts = as_timestamp(status_obj.last_changed, default=0) | int(0) -%}
+                {%- set age_s = (now_ts - lc_ts) | int(0) -%}
+                {%- set is_new = (not is_up) and (age_s >= 0) and (age_s < interval_s) -%}
+                {%- set dev_info = {
+                  'device_name': dev_name,
+                  'status_eid': found.status_eid,
+                  'uptime1': states(found.uptime1_eid) if found.uptime1_eid != '' else 'ukjent',
+                  'uptime30': states(found.uptime30_eid) if found.uptime30_eid != '' else 'ukjent',
+                  'uptime365': states(found.uptime365_eid) if found.uptime365_eid != '' else 'ukjent',
+                  'is_up': is_up,
+                  'age_s': age_s,
+                  'is_new': is_new
+                } -%}
+                {%- set ns.all_devices = ns.all_devices + [dev_info] -%}
+              {%- endif -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {{ {'all_devices': (ns.all_devices | sort(attribute='device_name')), 'total_count': (ns.all_devices | count), 'debug': ns.debug} | tojson }}
+
+  - alias: "Steg 1U-B - Bygg Uptime Kuma rapportpayload"
+    variables:
+      uptime_report_payload: |-
+        {%- set d = uptime_devices if uptime_devices is mapping else uptime_devices | from_json -%}
+        {%- set urgent_eids = urgent_sensors_input | default([]) -%}
+        {%- set ns = namespace(down_all=[], down_new=[], unstable=[]) -%}
+
+        {%- for dev in d.all_devices -%}
+          {%- if not dev.is_up -%}
+            {%- set ns.down_all = ns.down_all + [dev] -%}
+            {%- if dev.is_new and dev.status_eid not in urgent_eids -%}
+              {%- set ns.down_new = ns.down_new + [dev] -%}
+            {%- endif -%}
+          {%- elif (dev.uptime1 | float(100)) < 99.5 -%}
+            {%- set ns.unstable = ns.unstable + [dev] -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {{ {
+          'devices_found': d.total_count,
+          'down_count': ns.down_all | count,
+          'new_down_count': ns.down_new | count,
+          'should_notify': (show_all_down_uptime or ((ns.down_new | count) > 0)) and ((ns.down_all | count) > 0),
+          'down_all': ns.down_all | sort(attribute='device_name'),
+          'down_new': ns.down_new | sort(attribute='device_name'),
+          'down_existing': (ns.down_all | rejectattr('is_new') | list | sort(attribute='device_name')),
+          'unstable_devices': ns.unstable | sort(attribute='device_name'),
+          'unstable_count': ns.unstable | count,
+          'debug': d.debug
+        } | tojson }}
+
+  - alias: "Steg 1U-C - Bygg Uptime Kuma melding"
+    variables:
+      uptime_notification_title: >-
+        {% set p = uptime_report_payload if uptime_report_payload is mapping else uptime_report_payload | from_json %}
+        {% set urgent_dev = urgent_trigger_device_name | trim %}
+        {% if urgent_dev != '' and urgent_trigger_went_online | bool(false) %}
+          🟢 {{ urgent_dev }} er online
+        {% elif p.should_notify %}
+          {% if urgent_dev != '' %}
+            🔴 {{ urgent_dev }} er offline
+          {% elif not show_all_down_uptime and p.new_down_count == 1 %}
+            🔴 {{ p.down_new[0].device_name }} gikk offline
+          {% elif not show_all_down_uptime and p.new_down_count > 1 %}
+            🔴 {{ p.new_down_count }} nye enheter gikk offline
+          {% elif p.down_count == 1 %}
+            🔴 {{ p.down_all[0].device_name }} er offline
+          {% else %}
+            🔴 {{ p.down_count }} enheter offline
+          {% endif %}
+        {% else %}
+          UptimeKuma
+        {% endif %}
+      uptime_combined_message: >-
+        {% set p = uptime_report_payload if uptime_report_payload is mapping else uptime_report_payload | from_json %}
+        {% set ns = namespace(out=[]) %}
+        {% macro format_device_line(it) -%}
+          {% set age_s = it.age_s | int(0) %}
+          {% set d = (age_s // 86400) | int(0) %}
+          {% set h = ((age_s % 86400) // 3600) | int(0) %}
+          {% set m = ((age_s % 3600) // 60) | int(0) %}
+          {% if d > 0 %}{% set age_txt = d|string ~ "d " ~ h|string ~ "h" %}
+          {% elif h > 0 %}{% set age_txt = h|string ~ "h " ~ m|string ~ "m" %}
+          {% elif m > 0 %}{% set age_txt = m|string ~ "m" %}
+          {% else %}{% set age_txt = (age_s % 60)|string ~ "s" %}
+          {% endif %}
+          {% set u1 = (it.uptime1 | float(0)) | int %}
+          {% set u30 = (it.uptime30 | float(0)) | int %}
+          {% set u365 = (it.uptime365 | float(0)) | int %}
+          {% set umin = [u1, u30, u365] | min %}
+          {% set umax = [u1, u30, u365] | max %}
+          {{ "- " ~ it.device_name ~ " | " ~ age_txt ~ " / " ~ umin|string ~ "-" ~ umax|string ~ "%" }}
+        {%- endmacro %}
+        {% macro render_device_lines(items) -%}
+          {% set rn = namespace(lines=[]) %}
+          {% for it in items | sort(attribute='age_s') %}
+            {% set rn.lines = rn.lines + [format_device_line(it) | trim] %}
+          {% endfor %}
+          {{ rn.lines | join('\n') }}
+        {%- endmacro %}
+
+        {% if p.should_notify %}
+          {% if not show_all_down_uptime and p.new_down_count > 0 %}
+            {% set ns.out = ns.out + ["Enheter som nylig gikk offline:", (render_device_lines(p.down_new) | trim)] %}
+          {% endif %}
+          {% if show_all_down_uptime or (p.down_existing | count > 0) %}
+            {% if ns.out | count > 0 %}{% set ns.out = ns.out + [""] %}{% endif %}
+            {% set offline_list = p.down_all if show_all_down_uptime else p.down_existing %}
+            {% set ns.out = ns.out + ["Enheter som er offline:", (render_device_lines(offline_list) | trim)] %}
+          {% endif %}
+          {% if p.unstable_count > 0 %}
+            {% set ns.out = ns.out + ["", "Ustabile enheter siste døgn:"] %}
+            {% for it in p.unstable_devices %}
+              {% set ns.out = ns.out + [format_device_line(it) | trim] %}
+            {% endfor %}
+          {% endif %}
+          {% set ns.out = ns.out + ["", "Struktur: Navn | tid / min-max%"] %}
+        {% elif urgent_trigger_went_online | bool(false) and urgent_trigger_device_name | trim != '' %}
+          {% set ns.out = ["Alle overvåkede enheter er nå online."] %}
+        {% endif %}
+
+        {{ (ns.out | join('\n')) | trim }}
+      uptime_should_notify_unified: "{{ (uptime_combined_message | trim) != '' }}"
 
   # ─── Velg logikk basert på trigger ───────────────────────────────────────────
   - choose:
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DEL 4 – UPTIME KUMA KRITISK (øyeblikkelig statusendring)
+    # ═══════════════════════════════════════════════════════════════════════════
+    - conditions:
+        - condition: template
+          value_template: "{{ trigger_is_urgent }}"
+      sequence:
+        - alias: "Steg 2U - Send øyeblikkelig Uptime Kuma varsel"
+          if:
+            - condition: template
+              value_template: "{{ uptime_should_notify_unified }}"
+          then:
+            - action: script.varsel_pushover_send_melding_webhome
+              data:
+                title: "{{ uptime_notification_title | trim }}"
+                message: "{{ uptime_combined_message }}"
+                destination: "{{ pushover_destination }}"
+                priority: "{{ effective_priority | int(0) }}"
+                ttl: "{{ pushover_ttl | int(604800) }}"
 
     # ═══════════════════════════════════════════════════════════════════════════
     # DEL 3 – RASKT SIGNAL (time_pattern – kjøres hver time)
@@ -923,10 +1182,14 @@ action:
                 {%- endif -%}
               {%- endfor -%}
               {%- set cnt = ns.names | count -%}
-              {%- if cnt == 1 -%}
+              {%- if cnt > 0 and uptime_should_notify_unified -%}
+                🔴 Enhetsvarsel (nylige avvik)
+              {%- elif cnt == 1 -%}
                 🔴 {{ ns.names[0] }} mistet signal
               {%- elif cnt > 1 -%}
                 🔴 {{ cnt }} nye batteri enheter mistet signal
+              {%- elif uptime_should_notify_unified -%}
+                {{ uptime_notification_title }}
               {%- else -%}
                 🔴 Nylig mistet signal
               {%- endif -%}
@@ -961,6 +1224,15 @@ action:
                 {% endif %}
                 {% set parts.lines = parts.lines + ["Struktur: Navn | Sist sett / Batteri %."] %}
               {% endif %}
+              {% if uptime_should_notify_unified %}
+                {% if parts.lines | count > 0 %}
+                  {% set parts.lines = parts.lines + [""] %}
+                {% endif %}
+                {% set parts.lines = parts.lines + [
+                  "Uptime Kuma:",
+                  uptime_combined_message
+                ] %}
+              {% endif %}
               {% if debug_on %}
                 {% set parts.lines = parts.lines + [
                   "---",
@@ -981,14 +1253,14 @@ action:
         - alias: "Steg 6R - Send varsel (raskt signal)"
           if:
             - condition: template
-              value_template: "{{ nylig_mistet_clean | trim != '' }}"
+              value_template: "{{ (nylig_mistet_clean | trim != '') or uptime_should_notify_unified }}"
           then:
             - action: script.varsel_pushover_send_melding_webhome
               data:
                 title: "{{ notification_title | trim }}"
                 message: "{{ combined_message }}"
                 destination: "{{ pushover_destination }}"
-                priority: "{{ pushover_priority | int(0) }}"
+                priority: "{{ effective_priority | int(0) }}"
                 ttl: "{{ pushover_ttl | int(604800) }}"
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1799,7 +2071,12 @@ action:
             {%- set total_cnt = total_ns.names | count -%}
             {%- set has_signal_loss = (lang_offline_clean | trim) != '' or (offline_full_final | trim) != '' -%}
             {%- set has_low_battery = (lite_batteri_prosent_clean | trim) != '' or (lite_batteri_digital_final | trim) != '' -%}
-            {%- if manual_run and total_cnt > 0 -%}
+            {%- set has_uptime_issue = uptime_should_notify_unified -%}
+            {%- if has_uptime_issue and (has_signal_loss or has_low_battery) -%}
+              🔴 Enhetsvarsel (samlet)
+            {%- elif has_uptime_issue -%}
+              {{ uptime_notification_title }}
+            {%- elif manual_run and total_cnt > 0 -%}
               {%- if total_cnt == 1 -%}
                 {{ '🔴' if has_signal_loss else '🟠' }} 1 enhet med avvik
               {%- else -%}
@@ -1831,8 +2108,14 @@ action:
               {% endif %}
               {% set parts.lines = parts.lines + [combined_message_batteri_final | trim] %}
             {% endif %}
+            {% if uptime_should_notify_unified %}
+              {% if parts.lines | count > 0 %}
+                {% set parts.lines = parts.lines + [''] %}
+              {% endif %}
+              {% set parts.lines = parts.lines + ['Uptime Kuma:', uptime_combined_message | trim] %}
+            {% endif %}
             {% if parts.lines | count > 0 %}
-              {% set parts.lines = parts.lines + ['', 'Struktur: Navn | Sist sett / Batteri %.'] %}
+              {% set parts.lines = parts.lines + ['', 'Struktur: Navn | Sist sett / Batteri % / Uptime.'] %}
             {% endif %}
             {{ (parts.lines | join('\n')) | trim }}
 
@@ -1847,5 +2130,5 @@ action:
               title: "{{ notification_title | trim }}"
               message: "{{ merged_message }}"
               destination: "{{ pushover_destination }}"
-              priority: "{{ pushover_priority | int(0) }}"
+              priority: "{{ effective_priority | int(0) }}"
               ttl: "{{ pushover_ttl | int(604800) }}"

@@ -1,5 +1,5 @@
 blueprint:
-  name: Varsel - UptimeKuma Rapport (WebHome Automation)
+  name: ⚠️ Deprecated - Varsel - UptimeKuma Rapport (WebHome Automation)
   description: >
     Overvåker Uptime Kuma-enheter automatisk (ingen manuell entity-velging nødvendig)
     ved å oppdage devices som har en entity hvis friendly_name slutter på "Uptime (30 days)".
@@ -32,7 +32,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.28
+    Blueprint versjon: 2026.07.29
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
