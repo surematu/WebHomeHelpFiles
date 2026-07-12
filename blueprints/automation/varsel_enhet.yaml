@@ -32,7 +32,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.01
+    Blueprint versjon: 2026.07.02
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -508,15 +508,14 @@ action:
           {% if show_all_down_uptime or (p.down_existing | count > 0) %}
             {% if ns.out | count > 0 %}{% set ns.out = ns.out + [""] %}{% endif %}
             {% set offline_list = p.down_all if show_all_down_uptime else p.down_existing %}
-            {% set ns.out = ns.out + ["Enheter som er offline:", (render_device_lines(offline_list) | trim)] %}
+            {% set ns.out = ns.out + ["Enheter som er nede, iht UptimeKuma. (| Endret / oppetid%):", (render_device_lines(offline_list) | trim)] %}
           {% endif %}
           {% if p.unstable_count > 0 %}
-            {% set ns.out = ns.out + ["", "Ustabile enheter siste døgn:"] %}
+            {% set ns.out = ns.out + ["", "Ustabile enheter iht UptimeKuma. (| Endret / oppetid%):"] %}
             {% for it in p.unstable_devices %}
               {% set ns.out = ns.out + [format_device_line(it) | trim] %}
             {% endfor %}
           {% endif %}
-          {% set ns.out = ns.out + ["", "Struktur: Navn | tid / min-max%"] %}
         {% elif urgent_trigger_went_online | bool(false) and urgent_trigger_device_name | trim != '' %}
           {% set ns.out = ["Alle overvåkede enheter er nå online."] %}
         {% endif %}
@@ -1203,14 +1202,14 @@ action:
                 ] %}
                 {% if (lang_offline_clean | trim) != '' %}
                   {% set parts.lines = parts.lines + [
-                    "Disse enhetene har ikke hatt signal på over " ~ (max_age_label | string) ~ ":",
+                    "Ikke sett siste " ~ (max_age_label | string) ~ ". (| Endret):",
                     lang_offline_clean,
                     ""
                   ] %}
                 {% endif %}
                 {% if (lite_batteri_prosent_clean | trim) != '' %}
                   {% set parts.lines = parts.lines + [
-                    "Disse enhetene har batterinivå under " ~ (threshold | string) ~ "%:",
+                    "Lavt batteri, under " ~ (threshold | string) ~ "%. (| Endret / Batteri%):",
                     lite_batteri_prosent_clean,
                     ""
                   ] %}
@@ -1222,14 +1221,12 @@ action:
                     ""
                   ] %}
                 {% endif %}
-                {% set parts.lines = parts.lines + ["Struktur: Navn | Sist sett / Batteri %."] %}
               {% endif %}
               {% if uptime_should_notify_unified %}
                 {% if parts.lines | count > 0 %}
                   {% set parts.lines = parts.lines + [""] %}
                 {% endif %}
                 {% set parts.lines = parts.lines + [
-                  "Uptime Kuma:",
                   uptime_combined_message
                 ] %}
               {% endif %}
@@ -1452,7 +1449,7 @@ action:
           combined_message_batteri: >-
             {% set parts = namespace(lines=[]) %}
             {% if (lite_batteri_prosent_clean | trim) != '' %}
-              {% set parts.lines = parts.lines + ["Disse enhetene har batterinivå under " ~ (threshold | string) ~ "%:", lite_batteri_prosent_clean, ""] %}
+              {% set parts.lines = parts.lines + ["Lavt batteri, under " ~ (threshold | string) ~ "%. (| Endret / Batteri%):", lite_batteri_prosent_clean, ""] %}
             {% endif %}
             {% if (lite_batteri_digital_clean | trim) != '' %}
               {% set parts.lines = parts.lines + ["Disse enhetene rapporterer digitalt lavt batteri:", lite_batteri_digital_clean, ""] %}
@@ -1948,12 +1945,7 @@ action:
         variables:
           combined_message_signal: >-
             {% set parts = namespace(lines=[]) %}
-            {% set msg = namespace(signal_intro='') %}
-            {% if manual_run %}
-              {% set msg.signal_intro = "Disse enhetene er ikke hørt fra på over " ~ (max_age_label | string) ~ ":" %}
-            {% else %}
-              {% set msg.signal_intro = "Disse enhetene utløste varselet – ikke hørt fra på over " ~ (max_age_label | string) ~ ":" %}
-            {% endif %}
+            {% set msg = namespace(signal_intro="Ikke sett siste " ~ (max_age_label | string) ~ ". (| Endret):") %}
             {% if (lang_offline_clean | trim) != '' %}
               {% set parts.lines = parts.lines + [
                 msg.signal_intro,
@@ -1962,7 +1954,7 @@ action:
               ] %}
               {% if (offline_full_final | trim) != '' %}
                 {% set parts.lines = parts.lines + [
-                  "Alle enheter uten signal siden " ~ (threshold_label | string) ~ ":",
+                  "Ikke sett siste " ~ (threshold_label | string) ~ ". (| Endret):",
                   offline_full_final,
                   ""
                 ] %}
@@ -2022,7 +2014,7 @@ action:
           combined_message_batteri_final: >-
             {% set parts = namespace(lines=[]) %}
             {% if (lite_batteri_prosent_clean | trim) != '' %}
-              {% set parts.lines = parts.lines + ["Disse enhetene har batterinivå under " ~ (threshold | string) ~ "%:", lite_batteri_prosent_clean, ""] %}
+              {% set parts.lines = parts.lines + ["Lavt batteri, under " ~ (threshold | string) ~ "%. (| Endret / Batteri%):", lite_batteri_prosent_clean, ""] %}
             {% endif %}
             {% if (lite_batteri_digital_final | trim) != '' %}
               {% set parts.lines = parts.lines + ["Disse enhetene rapporterer digitalt lavt batteri:", lite_batteri_digital_final, ""] %}
@@ -2112,10 +2104,7 @@ action:
               {% if parts.lines | count > 0 %}
                 {% set parts.lines = parts.lines + [''] %}
               {% endif %}
-              {% set parts.lines = parts.lines + ['Uptime Kuma:', uptime_combined_message | trim] %}
-            {% endif %}
-            {% if parts.lines | count > 0 %}
-              {% set parts.lines = parts.lines + ['', 'Struktur: Navn | Sist sett / Batteri % / Uptime.'] %}
+              {% set parts.lines = parts.lines + [uptime_combined_message | trim] %}
             {% endif %}
             {{ (parts.lines | join('\n')) | trim }}
 
