@@ -508,7 +508,7 @@ action:
           {% if show_all_down_uptime or (p.down_existing | count > 0) %}
             {% if ns.out | count > 0 %}{% set ns.out = ns.out + [""] %}{% endif %}
             {% set offline_list = p.down_all if show_all_down_uptime else p.down_existing %}
-            {% set ns.out = ns.out + ["Enheter som er nede, iht UptimeKuma. (| Endret / oppetid%):", (render_device_lines(offline_list) | trim)] %}
+            {% set ns.out = ns.out + ["Svarer ikke. (| Endret / oppetid %):", (render_device_lines(offline_list) | trim)] %}
           {% endif %}
           {% if p.unstable_count > 0 %}
             {% set ns.out = ns.out + ["", "Ustabile enheter iht UptimeKuma. (| Endret / oppetid%):"] %}
