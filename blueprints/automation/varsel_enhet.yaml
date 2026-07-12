@@ -1662,8 +1662,10 @@ action:
             {{ (parts.lines | join('\n')) | trim }}
 
       # Steg 11B – Beregn om varselet skal sendes
-      # For time_pattern-kjøringer: send kun dersom nylig-mistet-seksjonen eller Uptime Kuma har innhold.
-      # For planlagte/manuelle kjøringer: send alltid dersom meldingen ikke er tom.
+      # Felles krav: merged_message må ikke være tom.
+      # time_pattern-kjøringer: i tillegg kreves nylig-mistet-seksjon eller Uptime Kuma-innhold
+      #   (for å unngå tomme time_pattern-varsler der ingenting nytt har skjedd).
+      # Planlagte/manuelle kjøringer: ingen ekstra krav utover ikke-tom melding.
       - alias: "Steg 11B - Beregn should_send"
         variables:
           should_send: >-
