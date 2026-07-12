@@ -32,7 +32,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.04
+    Blueprint versjon: 2026.07.05
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -758,8 +758,7 @@ action:
                   {%- set s = (age_s % 60) | int(0) -%}
                   {%- set age_txt = s|string ~ 's' -%}
                 {%- endif -%}
-                {%- set pct_txt = (it.state ~ '%') if (it.state | is_number) else 'Ukjent' -%}
-                {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt ~ ' / ' ~ pct_txt] -%}
+                {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt] -%}
               {%- endfor -%}
               {{ ns.lines | join('\n') }}
 
@@ -938,8 +937,7 @@ action:
                 {%- else -%}
                   {%- set age_txt = (age_s % 60)|string ~ 's' -%}
                 {%- endif -%}
-                {%- set pct_txt = (it.state ~ '%') if (it.state | is_number) else 'Ukjent' -%}
-                {%- set ns.lines = ns.lines + ['- ' ~ it.base ~ ' | ' ~ age_txt ~ ' / ' ~ pct_txt] -%}
+                {%- set ns.lines = ns.lines + ['- ' ~ it.base ~ ' | ' ~ age_txt] -%}
               {%- endfor -%}
               {{ ns.lines | join('\n') }}
 
@@ -1660,8 +1658,7 @@ action:
                 {%- set s = (age_s % 60) | int(0) -%}
                 {%- set age_txt = s|string ~ 's' -%}
               {%- endif -%}
-              {%- set pct_txt = (it.state ~ '%') if (it.state | is_number) else 'Ukjent' -%}
-              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt ~ ' / ' ~ pct_txt] -%}
+              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt] -%}
             {%- endfor -%}
             {{ ns.lines | join('\n') }}
 
@@ -1863,8 +1860,7 @@ action:
                 {%- set s = (age_s % 60) | int(0) -%}
                 {%- set age_txt = s|string ~ 's' -%}
               {%- endif -%}
-              {%- set pct_txt = (it.state ~ '%') if (it.state | is_number) else 'Ukjent' -%}
-              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt ~ ' / ' ~ pct_txt] -%}
+              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt] -%}
             {%- endfor -%}
             {{ ns.lines | join('\n') }}
 
