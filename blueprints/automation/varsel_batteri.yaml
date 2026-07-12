@@ -1675,9 +1675,10 @@ action:
         variables:
           combined_message_signal: >-
             {% set parts = namespace(lines=[]) %}
+            {% set signal_intro = "Disse enhetene er ikke hørt fra på over " ~ (max_age_label | string) ~ ":" if manual_run else "Disse enhetene utløste varselet – ikke hørt fra på over " ~ (max_age_label | string) ~ ":" %}
             {% if (lang_offline_clean | trim) != '' %}
               {% set parts.lines = parts.lines + [
-                ("Disse enhetene er ikke hørt fra på over " ~ (max_age_label | string) ~ ":" if manual_run else "Disse enhetene utløste varselet – ikke hørt fra på over " ~ (max_age_label | string) ~ ":"),
+                signal_intro,
                 lang_offline_clean,
                 ""
               ] %}
