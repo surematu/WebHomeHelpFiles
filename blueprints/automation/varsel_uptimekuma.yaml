@@ -423,10 +423,6 @@ action:
             {% set offline_list = p.down_all if show_all_down else p.down_existing %}
             {% set ns.out = ns.out + [render_device_lines(offline_list) | trim] %}
           {% endif %}
-          {% if ns.out | count == 0 %}
-            {% set ns.out = ns.out + ["Enheter som er offline:"] %}
-            {% set ns.out = ns.out + [render_device_lines(p.down_all) | trim] %}
-          {% endif %}
           {% if p.unstable_count > 0 %}
             {% set ns.out = ns.out + ["", "Ustabile enheter siste døgn:"] %}
             {% for it in p.unstable_devices %}
