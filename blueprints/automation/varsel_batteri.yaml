@@ -12,6 +12,7 @@ blueprint:
       - Trigger: minst én enhet har ikke rapportert inn på over angitt tid (standard 72 timer)
       - Meldingen inkluderer alle enheter uten signal fra terskel (standard 2 timer) og opp
       - Enheter som allerede er listet i en tidligere del av samme varsel vises ikke på nytt senere
+      - Ved manuell kjøring beskrives listen nøytralt (ikke som "utløste varselet")
 
     Del 3 – Nylig mistet signal (time_pattern – kjøres hver time):
       - Varsler kun enheter som nettopp har krysset terskelen:
@@ -27,7 +28,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.10
+    Blueprint versjon: 2026.07.11
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
