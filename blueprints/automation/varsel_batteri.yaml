@@ -1698,7 +1698,7 @@ action:
         variables:
           lite_batteri_digital_final: >-
             {% set ns = namespace(lines=[]) %}
-            {% set offline_full_names = ((lang_offline_clean | default('')) ~ '\n' ~ (offline_full_final | default('')))
+            {% set offline_full_names = (offline_full_clean | default(''))
               .split('\n')
               | map('trim')
               | select('match','^- ')
