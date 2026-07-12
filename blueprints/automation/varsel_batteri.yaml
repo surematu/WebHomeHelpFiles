@@ -1627,7 +1627,7 @@ action:
       - alias: "Steg 9S-D - Fjern duplikater mellom signal-lister"
         variables:
           offline_full_final: >-
-            {% set out = namespace(lines=[]) %}
+            {% set filtered = namespace(lines=[]) %}
             {% set lang_names = (lang_offline_clean | default(''))
               .split('\n')
               | map('trim')
@@ -1641,11 +1641,11 @@ action:
               | list
             %}
             {% for line in (offline_full_clean | default('')).split('\n') %}
-              {% set l = line | trim %}
-              {% if l == '' %}
-              {% elif not l.startswith('- ') %}
+              {% set current_line = line | trim %}
+              {% if current_line == '' %}
+              {% elif not current_line.startswith('- ') %}
               {% else %}
-                {% set name_norm = (l
+                {% set name_norm = (current_line
                   | regex_replace('^-\s*','')
                   | regex_replace('\s*\|.*$','')
                   | regex_replace('(?i)\s+level\s*$','')
@@ -1653,11 +1653,11 @@ action:
                   | trim
                   | lower) %}
                 {% if name_norm not in lang_names %}
-                  {% set out.lines = out.lines + [l] %}
+                  {% set filtered.lines = filtered.lines + [current_line] %}
                 {% endif %}
               {% endif %}
             {% endfor %}
-            {{ out.lines | join('\n') }}
+            {{ filtered.lines | join('\n') }}
 
       # Steg 10S – Bygg endelig langsomt signal-melding
       - alias: "Steg 10S - Bygg endelig signal-melding (vært offline en stund)"
