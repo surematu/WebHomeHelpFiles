@@ -28,7 +28,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.11
+    Blueprint versjon: 2026.07.12
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -1775,18 +1775,43 @@ action:
       - alias: "Steg 11 - Bygg samlet varsel (planlagt sjekk)"
         variables:
           notification_title: >-
-            {%- set ns = namespace(names=[]) -%}
+            {%- set ns = namespace(
+              reason_names=[],
+              total_names=[]
+            ) -%}
             {%- for line in (lang_offline_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
               {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
-              {%- if name != '' and (name | lower) not in (ns.names | map('lower') | list) -%}
-                {%- set ns.names = ns.names + [name] -%}
+              {%- if name != '' and (name | lower) not in (ns.reason_names | map('lower') | list) -%}
+                {%- set ns.reason_names = ns.reason_names + [name] -%}
+              {%- endif -%}
+              {%- if name != '' and (name | lower) not in (ns.total_names | map('lower') | list) -%}
+                {%- set ns.total_names = ns.total_names + [name] -%}
               {%- endif -%}
             {%- endfor -%}
-            {%- set cnt = ns.names | count -%}
-            {%- if cnt == 1 -%}
-              🟠 {{ ns.names[0] }} uten signal
-            {%- elif cnt > 1 -%}
-              🟠 {{ cnt }} enheter uten signal
+            {%- for section in [
+              offline_full_final | default(''),
+              lite_batteri_prosent_clean | default(''),
+              lite_batteri_digital_final | default('')
+            ] -%}
+              {%- for line in section.split('\n') | map('trim') | select('match', '^- ') -%}
+                {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
+                {%- if name != '' and (name | lower) not in (ns.total_names | map('lower') | list) -%}
+                  {%- set ns.total_names = ns.total_names + [name] -%}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endfor -%}
+            {%- set reason_cnt = ns.reason_names | count -%}
+            {%- set total_cnt = ns.total_names | count -%}
+            {%- if manual_run and total_cnt > 0 -%}
+              {%- if total_cnt == 1 -%}
+                🟠 1 enhet med avvik
+              {%- else -%}
+                🟠 {{ total_cnt }} enheter med avvik
+              {%- endif -%}
+            {%- elif reason_cnt == 1 -%}
+              🟠 {{ ns.reason_names[0] }} uten signal
+            {%- elif reason_cnt > 1 -%}
+              🟠 {{ reason_cnt }} enheter uten signal
             {%- else -%}
               🟠 Enheter uten signal
             {%- endif -%}
