@@ -833,231 +833,235 @@ action:
             {{ ns.idx | to_json }}
             {# Merk: output er JSON; størrelse er proporsjonal med antall unike devices. #}
 
-      # Steg 8R-A – Nylig mistet signal: rå liste (Del 3, kun ved time_pattern)
-      - alias: "Steg 8R-A - Nylig mistet signal rå liste (Del 3)"
-        variables:
-          nylig_mistet_raw: |-
-            {%- if not trigger_is_time_pattern -%}
-            {{ '' }}
-            {%- else -%}
-            {%- set threshold_s = (threshold_seconds | int(0)) -%}
-            {%- set interval_s = (interval_seconds | int(0)) -%}
-            {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
-            {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
-            {%- set _raw_idx = device_activity_index | default({}) -%}
-            {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
-            {%- set ns = namespace(map={}, lines=[]) -%}
+      # Steg 8R – Nylig mistet signal (Del 3, kun ved time_pattern)
+      - if:
+          - condition: template
+            value_template: "{{ trigger_is_time_pattern }}"
+        then:
+          # Steg 8R-A – Nylig mistet signal: rå liste
+          - alias: "Steg 8R-A - Nylig mistet signal rå liste (Del 3)"
+            variables:
+              nylig_mistet_raw: |-
+                {%- set threshold_s = (threshold_seconds | int(0)) -%}
+                {%- set interval_s = (interval_seconds | int(0)) -%}
+                {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+                {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+                {%- set _raw_idx = device_activity_index | default({}) -%}
+                {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
+                {%- set ns = namespace(map={}, lines=[]) -%}
 
-            {# ===== sensor battery ===== #}
-            {%- for s in states.sensor
-                  | selectattr('attributes.device_class','defined')
-                  | selectattr('attributes.device_class','eq','battery') -%}
-              {%- set eid = s.entity_id -%}
-              {%- set did = device_id(eid) -%}
-              {%- if eid in ignore_e or (did and did in ignore_d) -%}
-              {%- else -%}
-                {%- set base = s.name
-                    | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
-                    | replace(' Battery+', '')
-                    | regex_replace('\\s{2,}', ' ')
-                    | regex_replace('\\s*\\+\\s*$', '')
-                    | regex_replace('(?i)\\s*level\\s*$', '')
-                    | trim -%}
-                {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
-                {%- if did and did in idx -%}
-                  {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
-                {%- else -%}
-                  {%- set ts = as_timestamp(s.last_changed, default=0) | float(0) -%}
-                  {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
-                {%- endif -%}
-                {%- set st = s.state -%}
-                {%- set is_unavail = st in ['unknown','unavailable'] -%}
-                {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
-                {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
-                  {%- if norm != '' -%}
-                    {%- set keep = false -%}
-                    {%- if norm not in ns.map -%}
-                      {%- set keep = true -%}
+                {# ===== sensor battery ===== #}
+                {%- for s in states.sensor
+                      | selectattr('attributes.device_class','defined')
+                      | selectattr('attributes.device_class','eq','battery') -%}
+                  {%- set eid = s.entity_id -%}
+                  {%- set did = device_id(eid) -%}
+                  {%- if eid in ignore_e or (did and did in ignore_d) -%}
+                  {%- else -%}
+                    {%- set base = s.name
+                        | regex_replace('(?i)(?:\\s|^)(battery|batteri|level)(?:\\s|$)', ' ')
+                        | replace(' Battery+', '')
+                        | regex_replace('\\s{2,}', ' ')
+                        | regex_replace('\\s*\\+\\s*$', '')
+                        | regex_replace('(?i)\\s*level\\s*$', '')
+                        | trim -%}
+                    {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
+                    {%- if did and did in idx -%}
+                      {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
                     {%- else -%}
-                      {%- set cur = ns.map[norm] -%}
-                      {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
-                      {%- if is_unavail and not cur_unavail -%}
-                        {%- set keep = true -%}
-                      {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
-                        {%- set keep = true -%}
+                      {%- set ts = as_timestamp(s.last_changed, default=0) | float(0) -%}
+                      {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+                    {%- endif -%}
+                    {%- set st = s.state -%}
+                    {%- set is_unavail = st in ['unknown','unavailable'] -%}
+                    {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+                    {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                      {%- if norm != '' -%}
+                        {%- set keep = false -%}
+                        {%- if norm not in ns.map -%}
+                          {%- set keep = true -%}
+                        {%- else -%}
+                          {%- set cur = ns.map[norm] -%}
+                          {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
+                          {%- if is_unavail and not cur_unavail -%}
+                            {%- set keep = true -%}
+                          {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                            {%- set keep = true -%}
+                          {%- endif -%}
+                        {%- endif -%}
+                        {%- if keep -%}
+                          {%- set ns.map = dict(ns.map, **{norm: {'base': base, 'age_s': age_s, 'state': st}}) -%}
+                        {%- endif -%}
                       {%- endif -%}
                     {%- endif -%}
-                    {%- if keep -%}
-                      {%- set ns.map = dict(ns.map, **{norm: {'base': base, 'age_s': age_s, 'state': st}}) -%}
-                    {%- endif -%}
                   {%- endif -%}
-                {%- endif -%}
-              {%- endif -%}
-            {%- endfor -%}
+                {%- endfor -%}
 
-            {# ===== binary_sensor battery ===== #}
-            {%- for b in states.binary_sensor
-                  | selectattr('attributes.device_class','eq','battery') -%}
-              {%- set eid = b.entity_id -%}
-              {%- set did = device_id(eid) -%}
-              {%- if eid in ignore_e or (did and did in ignore_d) -%}
-              {%- else -%}
-                {%- set base = b.name
-                    | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
-                    | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
-                    | regex_replace('(?i)\\bbattery\\b:?',' ')
-                    | regex_replace('(?i)\\bbatteri\\b:?',' ')
-                    | regex_replace('\\s*\\+\\s*$','')
-                    | regex_replace('\\s*:\\s*$','')
-                    | regex_replace('\\s{2,}',' ')
-                    | trim -%}
-                {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
-                {%- if did and did in idx -%}
-                  {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
-                {%- else -%}
-                  {%- set ts = as_timestamp(b.last_changed, default=0) | float(0) -%}
-                  {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
-                {%- endif -%}
-                {%- set st = b.state -%}
-                {%- set is_unavail = st in ['unknown','unavailable'] -%}
-                {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
-                {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
-                  {%- if norm != '' -%}
-                    {%- set keep = false -%}
-                    {%- if norm not in ns.map -%}
-                      {%- set keep = true -%}
+                {# ===== binary_sensor battery ===== #}
+                {%- for b in states.binary_sensor
+                      | selectattr('attributes.device_class','eq','battery') -%}
+                  {%- set eid = b.entity_id -%}
+                  {%- set did = device_id(eid) -%}
+                  {%- if eid in ignore_e or (did and did in ignore_d) -%}
+                  {%- else -%}
+                    {%- set base = b.name
+                        | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
+                        | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
+                        | regex_replace('(?i)\\bbattery\\b:?',' ')
+                        | regex_replace('(?i)\\bbatteri\\b:?',' ')
+                        | regex_replace('\\s*\\+\\s*$','')
+                        | regex_replace('\\s*:\\s*$','')
+                        | regex_replace('\\s{2,}',' ')
+                        | trim -%}
+                    {%- set norm = base | lower | regex_replace('[^\\w\\s:]', '') | regex_replace('\\s{2,}', ' ') | trim -%}
+                    {%- if did and did in idx -%}
+                      {%- set age_s = idx[did]['winner_age_s'] | int(0) -%}
                     {%- else -%}
-                      {%- set cur = ns.map[norm] -%}
-                      {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
-                      {%- if is_unavail and not cur_unavail -%}
-                        {%- set keep = true -%}
-                      {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
-                        {%- set keep = true -%}
+                      {%- set ts = as_timestamp(b.last_changed, default=0) | float(0) -%}
+                      {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
+                    {%- endif -%}
+                    {%- set st = b.state -%}
+                    {%- set is_unavail = st in ['unknown','unavailable'] -%}
+                    {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+                    {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                      {%- if norm != '' -%}
+                        {%- set keep = false -%}
+                        {%- if norm not in ns.map -%}
+                          {%- set keep = true -%}
+                        {%- else -%}
+                          {%- set cur = ns.map[norm] -%}
+                          {%- set cur_unavail = cur['state'] in ['unknown','unavailable'] -%}
+                          {%- if is_unavail and not cur_unavail -%}
+                            {%- set keep = true -%}
+                          {%- elif (age_s | int(0)) > (cur['age_s'] | int(0)) -%}
+                            {%- set keep = true -%}
+                          {%- endif -%}
+                        {%- endif -%}
+                        {%- if keep -%}
+                          {%- set ns.map = dict(ns.map, **{norm: {'base': base, 'age_s': age_s, 'state': st}}) -%}
+                        {%- endif -%}
                       {%- endif -%}
                     {%- endif -%}
-                    {%- if keep -%}
-                      {%- set ns.map = dict(ns.map, **{norm: {'base': base, 'age_s': age_s, 'state': st}}) -%}
+                  {%- endif -%}
+                {%- endfor -%}
+
+                {# ===== Render sortert (eldst først) ===== #}
+                {%- set items = namespace(lst=[]) -%}
+                {%- for norm, it in ns.map.items() -%}
+                  {%- set items.lst = items.lst + [{'age_s': it['age_s']|int(0), 'base': it['base']|string, 'state': it['state']|string}] -%}
+                {%- endfor -%}
+                {%- for it in (items.lst | sort(attribute='age_s', reverse=true)) -%}
+                  {%- set age_s = it.age_s -%}
+                  {%- set base = it.base -%}
+                  {%- set d = (age_s // 86400) | int(0) -%}
+                  {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
+                  {%- set m = ((age_s % 3600) // 60) | int(0) -%}
+                  {%- if d > 0 -%}
+                    {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
+                  {%- elif h > 0 -%}
+                    {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
+                  {%- elif m > 0 -%}
+                    {%- set age_txt = m|string ~ 'm' -%}
+                  {%- else -%}
+                    {%- set s = (age_s % 60) | int(0) -%}
+                    {%- set age_txt = s|string ~ 's' -%}
+                  {%- endif -%}
+                  {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt] -%}
+                {%- endfor -%}
+                {{ ns.lines | join('\n') }}
+              # Alltid synlig i trace – viser hvilken entity/kilde som ga nyeste aktivitet
+              nylig_mistet_debug: |-
+                {%- set threshold_s = (threshold_seconds | int(0)) -%}
+                {%- set interval_s = (interval_seconds | int(0)) -%}
+                {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+                {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+                {%- set _raw_idx = device_activity_index | default({}) -%}
+                {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
+                {%- set ns = namespace(out=[]) -%}
+                {%- for s in states.sensor
+                      | selectattr('attributes.device_class','defined')
+                      | selectattr('attributes.device_class','eq','battery') -%}
+                  {%- set eid = s.entity_id -%}
+                  {%- set did = device_id(eid) -%}
+                  {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
+                    {%- if did and did in idx -%}
+                      {%- set w = idx[did] -%}
+                      {%- set age_s = w['winner_age_s'] | int(0) -%}
+                    {%- else -%}
+                      {%- set age_s = (as_timestamp(now()) - as_timestamp(s.last_changed, default=0) | float(0)) | int(0) -%}
+                      {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
+                    {%- endif -%}
+                    {%- set st = s.state -%}
+                    {%- set is_unavail = st in ['unknown','unavailable'] -%}
+                    {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+                    {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                      {%- set ns.out = ns.out + [{'entity_id': eid, 'name': s.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
                     {%- endif -%}
                   {%- endif -%}
-                {%- endif -%}
-              {%- endif -%}
-            {%- endfor -%}
-
-            {# ===== Render sortert (eldst først) ===== #}
-            {%- set items = namespace(lst=[]) -%}
-            {%- for norm, it in ns.map.items() -%}
-              {%- set items.lst = items.lst + [{'age_s': it['age_s']|int(0), 'base': it['base']|string, 'state': it['state']|string}] -%}
-            {%- endfor -%}
-            {%- for it in (items.lst | sort(attribute='age_s', reverse=true)) -%}
-              {%- set age_s = it.age_s -%}
-              {%- set base = it.base -%}
-              {%- set d = (age_s // 86400) | int(0) -%}
-              {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
-              {%- set m = ((age_s % 3600) // 60) | int(0) -%}
-              {%- if d > 0 -%}
-                {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
-              {%- elif h > 0 -%}
-                {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
-              {%- elif m > 0 -%}
-                {%- set age_txt = m|string ~ 'm' -%}
-              {%- else -%}
-                {%- set s = (age_s % 60) | int(0) -%}
-                {%- set age_txt = s|string ~ 's' -%}
-              {%- endif -%}
-              {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt] -%}
-            {%- endfor -%}
-            {{ ns.lines | join('\n') }}
-            {%- endif -%}
-          nylig_mistet_debug: |-
-            {%- if not trigger_is_time_pattern -%}
-            {{ '' }}
-            {%- else -%}
-            {%- set threshold_s = (threshold_seconds | int(0)) -%}
-            {%- set interval_s = (interval_seconds | int(0)) -%}
-            {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
-            {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
-            {%- set _raw_idx = device_activity_index | default({}) -%}
-            {%- set idx = _raw_idx if _raw_idx is mapping else (_raw_idx | default('{}') | from_json) -%}
-            {%- set ns = namespace(out=[]) -%}
-            {%- for s in states.sensor
-                  | selectattr('attributes.device_class','defined')
-                  | selectattr('attributes.device_class','eq','battery') -%}
-              {%- set eid = s.entity_id -%}
-              {%- set did = device_id(eid) -%}
-              {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
-                {%- if did and did in idx -%}
-                  {%- set w = idx[did] -%}
-                  {%- set age_s = w['winner_age_s'] | int(0) -%}
-                {%- else -%}
-                  {%- set age_s = (as_timestamp(now()) - as_timestamp(s.last_changed, default=0) | float(0)) | int(0) -%}
-                  {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
-                {%- endif -%}
-                {%- set st = s.state -%}
-                {%- set is_unavail = st in ['unknown','unavailable'] -%}
-                {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
-                {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
-                  {%- set ns.out = ns.out + [{'entity_id': eid, 'name': s.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
-                {%- endif -%}
-              {%- endif -%}
-            {%- endfor -%}
-            {%- for b in states.binary_sensor
-                  | selectattr('attributes.device_class','eq','battery') -%}
-              {%- set eid = b.entity_id -%}
-              {%- set did = device_id(eid) -%}
-              {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
-                {%- if did and did in idx -%}
-                  {%- set w = idx[did] -%}
-                  {%- set age_s = w['winner_age_s'] | int(0) -%}
-                {%- else -%}
-                  {%- set age_s = (as_timestamp(now()) - as_timestamp(b.last_changed, default=0) | float(0)) | int(0) -%}
-                  {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
-                {%- endif -%}
-                {%- set st = b.state -%}
-                {%- set is_unavail = st in ['unknown','unavailable'] -%}
-                {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
-                {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
-                  {%- set ns.out = ns.out + [{'entity_id': eid, 'name': b.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
-                {%- endif -%}
-              {%- endif -%}
-            {%- endfor -%}
-            {{ ns.out | to_json }}
-            {%- endif -%}
-
-      # Steg 8R-B – Nylig mistet signal: renset (Del 3)
-      - alias: "Steg 8R-B - Nylig mistet signal renset (Del 3)"
-        variables:
-          nylig_mistet_clean: >-
-            {% set out = namespace(map={}, order=[]) %}
-            {% for line in (nylig_mistet_raw | default('')).split('\n') %}
-              {% set l = line | trim %}
-              {% if l == '' %}
-              {% elif not l.startswith('- ') %}
-              {% else %}
-                {% set name = (l | regex_replace('^-\\s*','') | regex_replace('\\s*\\|.*$','') | trim) %}
-                {% set canon = name
-                  | regex_replace('(?i)\\s+level\\s*$','')
-                  | regex_replace('\\s{2,}',' ')
-                  | trim
-                  | lower %}
-                {% if name != '' and canon != 'battery' %}
-                  {% if canon not in out.map %}
-                    {% set out.map = dict(out.map, **{canon: l}) %}
-                    {% set out.order = out.order + [canon] %}
+                {%- endfor -%}
+                {%- for b in states.binary_sensor
+                      | selectattr('attributes.device_class','eq','battery') -%}
+                  {%- set eid = b.entity_id -%}
+                  {%- set did = device_id(eid) -%}
+                  {%- if eid not in ignore_e and not (did and did in ignore_d) -%}
+                    {%- if did and did in idx -%}
+                      {%- set w = idx[did] -%}
+                      {%- set age_s = w['winner_age_s'] | int(0) -%}
+                    {%- else -%}
+                      {%- set age_s = (as_timestamp(now()) - as_timestamp(b.last_changed, default=0) | float(0)) | int(0) -%}
+                      {%- set w = {'winner_entity': eid, 'winner_source': 'meta:last_changed', 'winner_age_s': age_s} -%}
+                    {%- endif -%}
+                    {%- set st = b.state -%}
+                    {%- set is_unavail = st in ['unknown','unavailable'] -%}
+                    {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
+                    {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                      {%- set ns.out = ns.out + [{'entity_id': eid, 'name': b.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endfor -%}
+                {{ ns.out | to_json }}
+          # Steg 8R-B – Nylig mistet signal: renset
+          - alias: "Steg 8R-B - Nylig mistet signal renset (Del 3)"
+            variables:
+              nylig_mistet_clean: >-
+                {% set out = namespace(map={}, order=[]) %}
+                {% for line in (nylig_mistet_raw | default('')).split('\n') %}
+                  {% set l = line | trim %}
+                  {% if l == '' %}
+                  {% elif not l.startswith('- ') %}
                   {% else %}
-                    {% set current = out.map[canon] %}
-                    {% set current_name = (current | regex_replace('^-\\s*','') | regex_replace('\\s*\\|.*$','') | trim) %}
-                    {% if (name | length) < (current_name | length) %}
-                      {% set out.map = dict(out.map, **{canon: l}) %}
+                    {% set name = (l | regex_replace('^-\\s*','') | regex_replace('\\s*\\|.*$','') | trim) %}
+                    {% set canon = name
+                      | regex_replace('(?i)\\s+level\\s*$','')
+                      | regex_replace('\\s{2,}',' ')
+                      | trim
+                      | lower %}
+                    {% if name != '' and canon != 'battery' %}
+                      {% if canon not in out.map %}
+                        {% set out.map = dict(out.map, **{canon: l}) %}
+                        {% set out.order = out.order + [canon] %}
+                      {% else %}
+                        {% set current = out.map[canon] %}
+                        {% set current_name = (current | regex_replace('^-\\s*','') | regex_replace('\\s*\\|.*$','') | trim) %}
+                        {% if (name | length) < (current_name | length) %}
+                          {% set out.map = dict(out.map, **{canon: l}) %}
+                        {% endif %}
+                      {% endif %}
                     {% endif %}
                   {% endif %}
-                {% endif %}
-              {% endif %}
-            {% endfor %}
-            {% set lines = namespace(lst=[]) %}
-            {% for canon in out.order %}
-              {% set lines.lst = lines.lst + [out.map[canon]] %}
-            {% endfor %}
-            {{ lines.lst | join('\n') }}
+                {% endfor %}
+                {% set lines = namespace(lst=[]) %}
+                {% for canon in out.order %}
+                  {% set lines.lst = lines.lst + [out.map[canon]] %}
+                {% endfor %}
+                {{ lines.lst | join('\n') }}
+        else:
+          # Ikke time_pattern – sett tomme variabler så etterfølgende steg kan referere dem
+          - alias: "Steg 8R - Ikke time_pattern, tomme variabler"
+            variables:
+              nylig_mistet_raw: ""
+              nylig_mistet_debug: ""
+              nylig_mistet_clean: ""
 
       # Steg 8S – Finn batteri-enheter uten signal på lenge (langsomt, rå)
       - alias: "Steg 8S - Finn batteri-enheter uten signal på lenge (langsomt, rå)"
