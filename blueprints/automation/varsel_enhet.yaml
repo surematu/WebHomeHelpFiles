@@ -1425,7 +1425,7 @@ action:
         variables:
           offline_full_final: >-
             {% set filtered = namespace(lines=[]) %}
-            {% set already_shown_names = (
+            {% set devices_in_prior_sections = (
                 (nylig_mistet_clean | default(''))
                 ~ '\n' ~
                 (lang_offline_clean | default(''))
@@ -1452,7 +1452,7 @@ action:
                   | regex_replace('\s{2,}',' ')
                   | trim
                   | lower) %}
-                {% if name_norm not in already_shown_names %}
+                {% if name_norm not in devices_in_prior_sections %}
                   {% set filtered.lines = filtered.lines + [current_line] %}
                 {% endif %}
               {% endif %}
@@ -1661,17 +1661,26 @@ action:
             {% endif %}
             {{ (parts.lines | join('\n')) | trim }}
 
+      # Steg 11B – Beregn om varselet skal sendes
+      # For time_pattern-kjøringer: send kun dersom nylig-mistet-seksjonen eller Uptime Kuma har innhold.
+      # For planlagte/manuelle kjøringer: send alltid dersom meldingen ikke er tom.
+      - alias: "Steg 11B - Beregn should_send"
+        variables:
+          should_send: >-
+            {{
+              merged_message | trim != ''
+              and (
+                not trigger_is_time_pattern
+                or (nylig_mistet_clean | trim) != ''
+                or uptime_should_notify_unified
+              )
+            }}
+
       # Steg 12 – Send samlet varsel (planlagt sjekk)
       - alias: "Steg 12 - Send samlet varsel (planlagt sjekk)"
         if:
           - condition: template
-            value_template: >-
-              {{
-                merged_message | trim != ''
-                and (not trigger_is_time_pattern
-                  or (nylig_mistet_clean | trim) != ''
-                  or uptime_should_notify_unified)
-              }}
+            value_template: "{{ should_send }}"
         then:
           - action: script.varsel_pushover_send_melding_webhome
             data:
