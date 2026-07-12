@@ -380,6 +380,7 @@ action:
         {% set p = report_payload if report_payload is mapping else report_payload | from_json %}
         {% set dev_list = devices if devices is mapping else devices | from_json %}
         {% set ns = namespace(out=[]) %}
+        {# Format: device name | offline duration / min-max uptime % #}
         {% macro format_device_line(it) -%}
           {% set age_s = it.age_s | int(0) %}
           {% set d = (age_s // 86400) | int(0) %}
