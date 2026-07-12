@@ -369,7 +369,7 @@ action:
           🟢 {{ urgent_dev }} er online
         {% elif manual_run and p.should_notify %}
           {% if p.down_count == 1 %}
-            🔴 1 enhet offline
+            🔴 {{ p.down_all[0].device_name }} er offline
           {% else %}
             🔴 {{ p.down_count }} enheter offline
           {% endif %}
