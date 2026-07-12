@@ -1,5 +1,5 @@
 blueprint:
-  name: Varsel - Enhet (batteri + signal + uptime) (WebHome)
+  name: Varsel - Enhet (batteri + signal + uptime) (WebHome Automation)
   description: >
     Samlet overvåkning av batteri-enheter og Uptime Kuma i én automasjon:
 
@@ -32,7 +32,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.00
+    Blueprint versjon: 2026.07.01
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
