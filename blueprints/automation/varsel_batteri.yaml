@@ -11,6 +11,8 @@ blueprint:
     Del 2 – Vært offline en stund (planlagt sjekk, samme tid som Del 1):
       - Trigger: minst én enhet har ikke rapportert inn på over angitt tid (standard 72 timer)
       - Meldingen inkluderer alle enheter uten signal fra terskel (standard 2 timer) og opp
+      - Enheter som allerede er listet i en tidligere del av samme varsel vises ikke på nytt senere
+      - Ved manuell kjøring beskrives listen nøytralt (ikke som "utløste varselet")
 
     Del 3 – Nylig mistet signal (time_pattern – kjøres hver time):
       - Varsler kun enheter som nettopp har krysset terskelen:
@@ -26,7 +28,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.08
+    Blueprint versjon: 2026.07.11
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -274,6 +276,15 @@ action:
         {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
         {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
 
+      trigger_id_raw: "{{ trigger.id if trigger is defined and trigger.id is defined else '' }}"
+      run_started_by_user: >-
+        {{ this is defined and this.context is defined and (this.context.user_id | default('', true) | string | trim) != '' }}
+      manual_run: "{{ run_started_by_user or trigger_id_raw == '' }}"
+      trigger_is_time_pattern: "{{ (not manual_run) and trigger_id_raw == 'time_pattern_check' }}"
+      trigger_is_scheduled: "{{ (not manual_run) and trigger_id_raw == 'scheduled_check' }}"
+      trigger_is_ha_start: "{{ (not manual_run) and trigger_id_raw == 'ha_start' }}"
+      trigger_label: "{{ trigger_id_raw if trigger_id_raw | trim != '' else 'manual/unknown' }}"
+
   # ─── Velg logikk basert på trigger ───────────────────────────────────────────
   - choose:
 
@@ -282,7 +293,7 @@ action:
     # ═══════════════════════════════════════════════════════════════════════════
     - conditions:
         - condition: template
-          value_template: "{{ trigger.id == 'time_pattern_check' }}"
+          value_template: "{{ trigger_is_time_pattern }}"
       sequence:
 
         # Steg 2R – Bygg per-device aktivitetsindeks (raskt signal)
@@ -954,7 +965,8 @@ action:
                 {% set parts.lines = parts.lines + [
                   "---",
                   "Debug (Del 3 – nylig mistet signal):",
-                  "- trigger: " ~ trigger.id,
+                  "- trigger: " ~ trigger_label,
+                  "- manual_run: " ~ (manual_run | string),
                   "- terskel: " ~ (threshold_label | string),
                   "- threshold_seconds: " ~ (threshold_seconds | string),
                   "- interval_seconds (auto): " ~ (interval_seconds | string),
@@ -1177,7 +1189,8 @@ action:
               {% set parts.lines = parts.lines + [
                 "---",
                 "Debug (Del 1 – batteri nivå):",
-                "- trigger: " ~ trigger.id,
+                "- trigger: " ~ trigger_label,
+                "- manual_run: " ~ (manual_run | string),
                 "- threshold: " ~ (threshold | string) ~ "%",
                 "- include_digital: " ~ (include_digital | string),
                 "- ignored_entities: " ~ ((ignore_entities | count) | string),
@@ -1622,21 +1635,63 @@ action:
             {% endfor %}
             {{ lines.lst | join('\n') }}
 
+      # Steg 9S-D – Fjern duplikater mellom signal-lister (senere lister skal ikke gjenta tidligere)
+      - alias: "Steg 9S-D - Fjern duplikater mellom signal-lister"
+        variables:
+          offline_full_final: >-
+            {% set filtered = namespace(lines=[]) %}
+            {% set lang_names = (lang_offline_clean | default(''))
+              .split('\n')
+              | map('trim')
+              | select('match','^- ')
+              | map('regex_replace','^- ','')
+              | map('regex_replace','\s*\|.*$','')
+              | map('regex_replace','(?i)\s+level\s*$','')
+              | map('regex_replace','\s{2,}',' ')
+              | map('trim')
+              | map('lower')
+              | list
+            %}
+            {% for line in (offline_full_clean | default('')).split('\n') %}
+              {% set current_line = line | trim %}
+              {% if current_line == '' %}
+              {% elif not current_line.startswith('- ') %}
+              {% else %}
+                {% set name_norm = (current_line
+                  | regex_replace('^-\s*','')
+                  | regex_replace('\s*\|.*$','')
+                  | regex_replace('(?i)\s+level\s*$','')
+                  | regex_replace('\s{2,}',' ')
+                  | trim
+                  | lower) %}
+                {% if name_norm not in lang_names %}
+                  {% set filtered.lines = filtered.lines + [current_line] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ filtered.lines | join('\n') }}
+
       # Steg 10S – Bygg endelig langsomt signal-melding
       - alias: "Steg 10S - Bygg endelig signal-melding (vært offline en stund)"
         variables:
           combined_message_signal: >-
             {% set parts = namespace(lines=[]) %}
+            {% set msg = namespace(signal_intro='') %}
+            {% if manual_run %}
+              {% set msg.signal_intro = "Disse enhetene er ikke hørt fra på over " ~ (max_age_label | string) ~ ":" %}
+            {% else %}
+              {% set msg.signal_intro = "Disse enhetene utløste varselet – ikke hørt fra på over " ~ (max_age_label | string) ~ ":" %}
+            {% endif %}
             {% if (lang_offline_clean | trim) != '' %}
               {% set parts.lines = parts.lines + [
-                "Disse enhetene utløste varselet – ikke hørt fra på over " ~ (max_age_label | string) ~ ":",
+                msg.signal_intro,
                 lang_offline_clean,
                 ""
               ] %}
-              {% if (offline_full_clean | trim) != '' %}
+              {% if (offline_full_final | trim) != '' %}
                 {% set parts.lines = parts.lines + [
                   "Alle enheter uten signal siden " ~ (threshold_label | string) ~ ":",
-                  offline_full_clean,
+                  offline_full_final,
                   ""
                 ] %}
               {% endif %}
@@ -1645,7 +1700,8 @@ action:
               {% set parts.lines = parts.lines + [
                 "---",
                 "Debug (Del 2 – vært offline en stund):",
-                "- trigger: " ~ trigger.id,
+                "- trigger: " ~ trigger_label,
+                "- manual_run: " ~ (manual_run | string),
                 "- max_age: " ~ (max_age_label | string),
                 "- max_age_seconds: " ~ (max_age_seconds | string),
                 "- terskel: " ~ (threshold_label | string),
@@ -1703,7 +1759,8 @@ action:
               {% set parts.lines = parts.lines + [
                 "---",
                 "Debug (Del 1 – batteri nivå):",
-                "- trigger: " ~ trigger.id,
+                "- trigger: " ~ trigger_label,
+                "- manual_run: " ~ (manual_run | string),
                 "- threshold: " ~ (threshold | string) ~ "%",
                 "- include_digital: " ~ (include_digital | string),
                 "- ignored_entities: " ~ ((ignore_entities | count) | string),

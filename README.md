@@ -42,6 +42,8 @@ Samlet overvåkning av batteri-enheter i tre deler, alle med felles ignore-liste
 - **Del 1 – Batteri lavt nivå** (planlagt sjekk): Rapporterer `sensor.*` med `device_class: battery` under terskel (%), og `binary_sensor.*` med `device_class: battery` (digital lav-signal). Deduper per renset navn og beholder laveste verdi.
 - **Del 2 – Signal langsomt** (planlagt sjekk, samme tidspunkt som Del 1): Finner batteri-enheter som ikke har rapportert inn innen angitt terskel (standard 72 timer).
 - **Del 3 – Signal raskt** (time_pattern – kjøres automatisk med konfigurerbart intervall): Finner enheter som *nylig* har mistet kontakten, ved å varsle kun enheter innenfor varsel-vinduet `last_seen_threshold ≤ alder < check_interval`. Inkluderer oversikt over alle andre aktive batteri-problemer (langsomt signal og lavt batterinivå) i samme varsel.
+- **Viktig regel for alle meldinger med flere seksjoner/lister:** Hvis en enhet er nevnt i en tidligere liste i samme varsel, skal den ikke listes på nytt i senere lister.
+- Ved **manuell kjøring** formuleres Del 2 nøytralt (`ikke hørt fra`) og ikke som at enhetene "utløste varselet".
 
 Erstattet `varsel_signal_batterienhet.yaml` (Del 2) og `varsel_signal_batterienhet_rask.yaml` (Del 3).
 

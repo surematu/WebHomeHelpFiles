@@ -32,7 +32,7 @@ blueprint:
     Oppetid vises som "(Endret/dag%/måned%/år%)" uten desimaler, basert på sensorene
     "Uptime (1 day)", "Uptime (30 days)" og "Uptime (365 days)".
 
-    Blueprint versjon: 2026.07.26
+    Blueprint versjon: 2026.07.27
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_uptimekuma.yaml
@@ -175,23 +175,28 @@ action:
 
       interval_seconds: 3600
 
-      manual_run: "{{ trigger is not defined or trigger.id is not defined or trigger.id == 'scheduled_check' }}"
-      show_all_down: "{{ trigger is not defined or trigger.id is not defined or trigger.id == 'scheduled_check' or trigger.id == 'urgent_sensor_trigger' }}"
+      trigger_id_raw: "{{ trigger.id if trigger is defined and trigger.id is defined else '' }}"
+      run_started_by_user: >-
+        {{ this is defined and this.context is defined and (this.context.user_id | default('', true) | string | trim) != '' }}
+      manual_run: "{{ run_started_by_user or trigger_id_raw == '' }}"
+      trigger_is_scheduled: "{{ (not manual_run) and trigger_id_raw == 'scheduled_check' }}"
+      trigger_is_urgent: "{{ (not manual_run) and trigger_id_raw == 'urgent_sensor_trigger' }}"
+      show_all_down: "{{ manual_run or trigger_is_scheduled or trigger_is_urgent }}"
       urgent_trigger_device_name: >-
-        {%- if trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' -%}
+        {%- if trigger_is_urgent -%}
           {%- set did = device_id(trigger.entity_id) -%}
           {{ device_attr(did, 'name') | default(trigger.entity_id, true) }}
         {%- else -%}
           {{ '' }}
         {%- endif -%}
       urgent_trigger_went_online: >-
-        {%- if trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' -%}
+        {%- if trigger_is_urgent -%}
           {{ trigger.to_state is not none and trigger.to_state.state | lower == 'up' }}
         {%- else -%}
           false
         {%- endif -%}
       effective_priority: >-
-        {%- if trigger is defined and trigger.id is defined and trigger.id == 'urgent_sensor_trigger' -%}
+        {%- if trigger_is_urgent -%}
           {%- if trigger.to_state is not none and trigger.to_state.state | lower != 'up' -%}
             {{ pushover_priority_urgent_offline | int(1) }}
           {%- else -%}
@@ -483,8 +488,9 @@ action:
             "",
             "---",
             "Debug:",
-            "- trigger: " ~ (trigger.id if trigger is defined and trigger.id is defined else 'manual/unknown'),
+            "- trigger: " ~ (trigger_id_raw if trigger_id_raw | trim != '' else 'manual/unknown'),
             "- manual_run: " ~ (manual_run | string),
+            "- run_started_by_user: " ~ (run_started_by_user | string),
             "- show_all_down: " ~ (show_all_down | string),
             "- urgent_trigger_device: " ~ (urgent_trigger_device_name | trim if urgent_trigger_device_name | trim != '' else 'n/a'),
             "- urgent_trigger_went_online: " ~ (urgent_trigger_went_online | string),
