@@ -57,6 +57,10 @@ Samlet overvåkning av batteri-enheter i tre deler, alle med felles ignore-liste
 - Ved **manuell kjøring** formuleres Del 2 nøytralt (`ikke hørt fra`) og ikke som at enhetene "utløste varselet".
 
 Erstattet av `varsel_enhet.yaml`.
+Migrering:
+- Opprett ny automasjon fra `varsel_enhet.yaml`.
+- Flytt over terskler, ignore-lister og varsling-innstillinger.
+- Deaktiver gammel automasjon basert på `varsel_batteri.yaml`.
 
 ---
 
@@ -96,6 +100,10 @@ Auto-detekterer printer-/skriversensorer og sender varsel ved lav blekk/toner (u
 ### ⚠️ varsel_uptimekuma.yaml — Deprecated
 
 Erstattet av `varsel_enhet.yaml`.
+Migrering:
+- Legg til Uptime Kuma kritiske sensorer i `urgent_sensors` i `varsel_enhet.yaml`.
+- Flytt over varsling-prioriteter og TTL.
+- Deaktiver gammel automasjon basert på `varsel_uptimekuma.yaml`.
 
 ---
 
