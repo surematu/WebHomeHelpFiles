@@ -35,7 +35,18 @@ Steg X+2  →  send notification
 
 ## Automation blueprints
 
-### varsel_batteri.yaml — Varsel - Batteri (nivå + signal)
+### varsel_enhet.yaml — Varsel - Enhet (batteri + signal + uptime)
+
+Samlet overvåkning av batteri-enheter og Uptime Kuma i én blueprint:
+
+- **Time_pattern (hver time):** Sender én samlet varsling med nylig mistet batterisignal + Uptime Kuma-enheter som nylig gikk offline.
+- **Planlagt/manuell sjekk:** Sender én samlet varsling med batterinivå, langsomt signal og full Uptime Kuma-status.
+- **Kritisk Uptime-sensor:** Kan utløse øyeblikkelig varsling ved statusendring.
+- **Viktig regel for alle meldinger med flere seksjoner/lister:** Hvis en enhet er nevnt i en tidligere liste i samme varsel, skal den ikke listes på nytt i senere lister.
+
+---
+
+### ⚠️ varsel_batteri.yaml — Deprecated
 
 Samlet overvåkning av batteri-enheter i tre deler, alle med felles ignore-liste og én debug-toggle:
 
@@ -45,7 +56,7 @@ Samlet overvåkning av batteri-enheter i tre deler, alle med felles ignore-liste
 - **Viktig regel for alle meldinger med flere seksjoner/lister:** Hvis en enhet er nevnt i en tidligere liste i samme varsel, skal den ikke listes på nytt i senere lister.
 - Ved **manuell kjøring** formuleres Del 2 nøytralt (`ikke hørt fra`) og ikke som at enhetene "utløste varselet".
 
-Erstattet `varsel_signal_batterienhet.yaml` (Del 2) og `varsel_signal_batterienhet_rask.yaml` (Del 3).
+Erstattet av `varsel_enhet.yaml`.
 
 ---
 
@@ -82,9 +93,9 @@ Auto-detekterer printer-/skriversensorer og sender varsel ved lav blekk/toner (u
 
 ---
 
-### varsel_uptimekuma.yaml — Varsel - UptimeKuma Rapport
+### ⚠️ varsel_uptimekuma.yaml — Deprecated
 
-Overvåker Uptime Kuma-enheter automatisk (ingen manuell entity-velging nødvendig) ved å oppdage devices som har en entity hvis `friendly_name` slutter på `"Uptime (30 days)"`. Sender planlagte rapporter og umiddelbare varsler ved statusendringer (offline/ustabil).
+Erstattet av `varsel_enhet.yaml`.
 
 ---
 
