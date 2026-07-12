@@ -411,19 +411,19 @@ action:
 
         {% if p.should_notify %}
           {% if not show_all_down and p.new_down_count > 0 %}
-            {% set ns.out = ns.out + ["Enheter som nylig gikk offline"] %}
+            {% set ns.out = ns.out + ["Enheter som nylig gikk offline:"] %}
             {% set ns.out = ns.out + [render_device_lines(p.down_new) | trim] %}
           {% endif %}
           {% if show_all_down or (p.down_existing | count > 0) %}
             {% if ns.out | count > 0 %}
               {% set ns.out = ns.out + [""] %}
             {% endif %}
-            {% set ns.out = ns.out + ["Enheter som er offline"] %}
+            {% set ns.out = ns.out + ["Enheter som er offline:"] %}
             {% set offline_list = p.down_all if show_all_down else p.down_existing %}
             {% set ns.out = ns.out + [render_device_lines(offline_list) | trim] %}
           {% endif %}
           {% if ns.out | count == 0 %}
-            {% set ns.out = ns.out + ["Enheter som er offline"] %}
+            {% set ns.out = ns.out + ["Enheter som er offline:"] %}
             {% set ns.out = ns.out + [render_device_lines(p.down_all) | trim] %}
           {% endif %}
           {% if p.unstable_count > 0 %}
