@@ -1776,16 +1776,16 @@ action:
         variables:
           notification_title: >-
             {%- set ns = namespace(
-              reason_names=[],
-              total_names=[]
+              trigger_reason_device_names=[],
+              all_devices_with_issues=[]
             ) -%}
             {%- for line in (lang_offline_clean | default('')).split('\n') | map('trim') | select('match', '^- ') -%}
               {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
-              {%- if name != '' and (name | lower) not in (ns.reason_names | map('lower') | list) -%}
-                {%- set ns.reason_names = ns.reason_names + [name] -%}
+              {%- if name != '' and (name | lower) not in (ns.trigger_reason_device_names | map('lower') | list) -%}
+                {%- set ns.trigger_reason_device_names = ns.trigger_reason_device_names + [name] -%}
               {%- endif -%}
-              {%- if name != '' and (name | lower) not in (ns.total_names | map('lower') | list) -%}
-                {%- set ns.total_names = ns.total_names + [name] -%}
+              {%- if name != '' and (name | lower) not in (ns.all_devices_with_issues | map('lower') | list) -%}
+                {%- set ns.all_devices_with_issues = ns.all_devices_with_issues + [name] -%}
               {%- endif -%}
             {%- endfor -%}
             {%- for section in [
@@ -1795,13 +1795,13 @@ action:
             ] -%}
               {%- for line in section.split('\n') | map('trim') | select('match', '^- ') -%}
                 {%- set name = line | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
-                {%- if name != '' and (name | lower) not in (ns.total_names | map('lower') | list) -%}
-                  {%- set ns.total_names = ns.total_names + [name] -%}
+                {%- if name != '' and (name | lower) not in (ns.all_devices_with_issues | map('lower') | list) -%}
+                  {%- set ns.all_devices_with_issues = ns.all_devices_with_issues + [name] -%}
                 {%- endif -%}
               {%- endfor -%}
             {%- endfor -%}
-            {%- set reason_cnt = ns.reason_names | count -%}
-            {%- set total_cnt = ns.total_names | count -%}
+            {%- set reason_cnt = ns.trigger_reason_device_names | count -%}
+            {%- set total_cnt = ns.all_devices_with_issues | count -%}
             {%- if manual_run and total_cnt > 0 -%}
               {%- if total_cnt == 1 -%}
                 🟠 1 enhet med avvik
@@ -1809,7 +1809,7 @@ action:
                 🟠 {{ total_cnt }} enheter med avvik
               {%- endif -%}
             {%- elif reason_cnt == 1 -%}
-              🟠 {{ ns.reason_names[0] }} uten signal
+              🟠 {{ ns.trigger_reason_device_names[0] }} uten signal
             {%- elif reason_cnt > 1 -%}
               🟠 {{ reason_cnt }} enheter uten signal
             {%- else -%}
