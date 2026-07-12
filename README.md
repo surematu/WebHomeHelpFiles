@@ -10,6 +10,29 @@ When editing files in `blueprints/automation`:
 
 ---
 
+## Coding convention – step-by-step with named variables
+
+When writing or updating automation action sequences, break the logic into **many small, well-named steps** — one step per meaningful unit of work — and store all intermediate results in **named variables**.
+
+Rules:
+- Each template variable should compute **one specific thing** (e.g. build a raw list, clean a list, deduplicate, build the final message). Do not combine multiple unrelated computations into a single variable.
+- Give variables descriptive names that reflect what they contain (e.g. `slow_list_raw`, `slow_list_clean`, `low_list_percent_clean`).
+- Use separate `variables:` steps rather than merging everything into one large template block.
+- This makes every intermediate value visible in the Home Assistant **trace viewer**, which is essential for troubleshooting.
+
+Example pattern (used consistently in `varsel_batteri.yaml`):
+```
+Steg X-A  →  raw list (collect + deduplicate into a map)
+Steg X-B  →  cleaned list (filter meaningless entries, render lines)
+Steg X-C  →  dedup against other lists
+Steg X-D  →  final clean pass
+Steg X+1  →  build notification title (separate variable)
+Steg X+1  →  build notification message body (separate variable)
+Steg X+2  →  send notification
+```
+
+---
+
 ## Automation blueprints
 
 ### varsel_batteri.yaml — Varsel - Batteri (nivå + signal)
@@ -18,7 +41,7 @@ Samlet overvåkning av batteri-enheter i tre deler, alle med felles ignore-liste
 
 - **Del 1 – Batteri lavt nivå** (planlagt sjekk): Rapporterer `sensor.*` med `device_class: battery` under terskel (%), og `binary_sensor.*` med `device_class: battery` (digital lav-signal). Deduper per renset navn og beholder laveste verdi.
 - **Del 2 – Signal langsomt** (planlagt sjekk, samme tidspunkt som Del 1): Finner batteri-enheter som ikke har rapportert inn innen angitt terskel (standard 72 timer).
-- **Del 3 – Signal raskt** (time_pattern – kjøres automatisk med konfigurerbart intervall): Finner enheter som *nylig* har mistet kontakten, ved å varsle kun enheter innenfor varsel-vinduet `last_seen_threshold ≤ alder < check_interval`.
+- **Del 3 – Signal raskt** (time_pattern – kjøres automatisk med konfigurerbart intervall): Finner enheter som *nylig* har mistet kontakten, ved å varsle kun enheter innenfor varsel-vinduet `last_seen_threshold ≤ alder < check_interval`. Inkluderer oversikt over alle andre aktive batteri-problemer (langsomt signal og lavt batterinivå) i samme varsel.
 
 Erstattet `varsel_signal_batterienhet.yaml` (Del 2) og `varsel_signal_batterienhet_rask.yaml` (Del 3).
 
