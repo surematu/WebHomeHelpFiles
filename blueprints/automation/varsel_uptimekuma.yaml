@@ -332,6 +332,7 @@ action:
 
         {%- set sorted_down = ns.down_all | sort(attribute='device_name') -%}
         {%- set sorted_down_new = ns.down_new | sort(attribute='device_name') -%}
+        {# dev.is_new is set in Steg 2 for every collected device #}
         {%- set sorted_down_existing = ns.down_all
           | rejectattr('is_new')
           | list
