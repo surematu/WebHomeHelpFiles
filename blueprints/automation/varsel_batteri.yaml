@@ -28,7 +28,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.12
+    Blueprint versjon: 2026.07.13
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml
@@ -924,11 +924,11 @@ action:
               {%- endfor -%}
               {%- set cnt = ns.names | count -%}
               {%- if cnt == 1 -%}
-                🟠 {{ ns.names[0] }} tapte signal
+                🔴 {{ ns.names[0] }} mistet signal
               {%- elif cnt > 1 -%}
-                🟠 {{ cnt }} enheter tapte signal
+                🔴 {{ cnt }} nye batteri enheter mistet signal
               {%- else -%}
-                🟠 Nylig mistet signal
+                🔴 Nylig mistet signal
               {%- endif -%}
             combined_message: >-
               {% set parts = namespace(lines=[]) %}
@@ -1797,18 +1797,28 @@ action:
             {%- endfor -%}
             {%- set reason_cnt = ns.trigger_reason_device_names | count -%}
             {%- set total_cnt = total_ns.names | count -%}
+            {%- set has_signal_loss = (lang_offline_clean | trim) != '' or (offline_full_final | trim) != '' -%}
+            {%- set has_low_battery = (lite_batteri_prosent_clean | trim) != '' or (lite_batteri_digital_final | trim) != '' -%}
             {%- if manual_run and total_cnt > 0 -%}
               {%- if total_cnt == 1 -%}
-                🟠 1 enhet med avvik
+                {{ '🔴' if has_signal_loss else '🟠' }} 1 enhet med avvik
               {%- else -%}
-                🟠 {{ total_cnt }} enheter med avvik
+                {{ '🔴' if has_signal_loss else '🟠' }} {{ total_cnt }} enheter med avvik
               {%- endif -%}
-            {%- elif reason_cnt == 1 -%}
-              🟠 {{ ns.trigger_reason_device_names[0] }} uten signal
-            {%- elif reason_cnt > 1 -%}
-              🟠 {{ reason_cnt }} enheter uten signal
+            {%- elif has_signal_loss and reason_cnt == 1 -%}
+              🔴 {{ ns.trigger_reason_device_names[0] }} uten signal
+            {%- elif has_signal_loss and reason_cnt > 1 -%}
+              🔴 {{ reason_cnt }} enheter uten signal
+            {%- elif has_signal_loss -%}
+              🔴 Enheter uten signal
+            {%- elif has_low_battery and total_cnt == 1 -%}
+              🟠 1 enhet med lavt batteri
+            {%- elif has_low_battery and total_cnt > 1 -%}
+              🟠 {{ total_cnt }} enheter med lavt batteri
+            {%- elif has_low_battery -%}
+              🟠 Lavt batterinivå
             {%- else -%}
-              🟠 Enheter uten signal
+              🟠 Batterivarsel
             {%- endif -%}
           merged_message: >-
             {% set parts = namespace(lines=[]) %}
