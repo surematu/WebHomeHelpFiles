@@ -33,7 +33,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.06
+    Blueprint versjon: 2026.07.07
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -1562,7 +1562,18 @@ action:
                 .split('\n') | select('match', '^- ') | list | count -%}
             {%- if trigger_is_time_pattern and nylig_cnt > 0 -%}
               {%- if uptime_should_notify_unified -%}
-                🔴 Enhetsvarsel (nylige avvik)
+                {%- set _pu = uptime_report_payload if uptime_report_payload is mapping else uptime_report_payload | from_json -%}
+                {%- set _uptime_new = _pu.new_down_count | int(0) -%}
+                {%- set _total_new = nylig_cnt + _uptime_new -%}
+                {%- if _total_new == 1 and nylig_cnt == 1 -%}
+                  {%- set _first = (nylig_mistet_clean | trim).split('\n')[0]
+                      | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
+                  🔴 {{ _first }} mistet signal
+                {%- elif _total_new == 1 and _uptime_new == 1 -%}
+                  🔴 {{ _pu.down_new[0].device_name }} gikk offline
+                {%- else -%}
+                  🔴 {{ _total_new }} nye enheter med avvik
+                {%- endif -%}
               {%- elif nylig_cnt == 1 -%}
                 {%- set _first = (nylig_mistet_clean | trim).split('\n')[0]
                     | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
@@ -1604,7 +1615,9 @@ action:
             {%- endif -%}
             {%- set reason_cnt = ns.trigger_reason_device_names | count -%}
             {%- set total_cnt = total_ns.names | count -%}
-            {%- if has_uptime_issue and (has_signal_loss or has_low_battery) -%}
+            {%- if has_uptime_issue and trigger_is_time_pattern -%}
+              {{ uptime_notification_title }}
+            {%- elif has_uptime_issue and (has_signal_loss or has_low_battery) -%}
               {%- if total_cnt == 1 -%}
                 🔴 1 enhet med avvik
               {%- else -%}
