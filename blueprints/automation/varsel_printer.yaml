@@ -1,5 +1,5 @@
 blueprint:
-  name: Varsel - Printer - Blekk/Toner lavt (WebHome)
+  name: Varsel - Printer - Blekk/Toner lavt (WebHome Automation)
   description: >
     Auto-detekterer printer/skriversensorer og sender varsel ved:
       - Lav blekk/toner under terskel (%)
@@ -10,7 +10,7 @@ blueprint:
       - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.07.01
+    Blueprint versjon: 2026.07.02
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome

@@ -1,5 +1,5 @@
 blueprint:
-  name: ⚠️ Deprecated - Varsel - Batteri (nivå + signal) (WebHome)
+  name: ⚠️ Deprecated - Varsel - Batteri (nivå + signal) (WebHome Automation)
   description: >
     Samlet overvåkning av batteri-enheter i tre deler:
 
@@ -28,7 +28,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.14
+    Blueprint versjon: 2026.07.15
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_batteri.yaml

@@ -1,5 +1,5 @@
 blueprint:
-  name: "⚠️ AVVIKLET – Varsel - Batteri-enheter uten signal på lenge (WebHome)"
+  name: "⚠️ AVVIKLET – Varsel - Batteri-enheter uten signal på lenge (WebHome Automation)"
   description: >
     AVVIKLET: Funksjonaliteten i denne blueprinten er slått sammen med
     varsel_batteri.yaml (Del 2 – Signal langsomt). Bruk varsel_batteri.yaml
@@ -32,7 +32,7 @@ blueprint:
     Terskel:
       - Kan settes som duration (f.eks. 00:05:00 for test), default 72 timer.
 
-    Blueprint versjon: 2026.07.02
+    Blueprint versjon: 2026.07.03
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_signal_batterienhet.yaml

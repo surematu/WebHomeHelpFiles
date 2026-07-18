@@ -1,5 +1,5 @@
 blueprint:
-  name: Varmepumpe (Rom) Robot (WebHome)
+  name: Varmepumpe (Rom) Robot (WebHome Automation)
   description: >
     Regulerer varmepumpe-settpunkt lineært mellom:
       - Offset ved 0% pådrag (default -3°C fra basis)
@@ -28,7 +28,7 @@ blueprint:
     Betinget på inum_max_step: heltall-steg (1, 2, 3, …) gir alltid heltalls-settpunkt;
     halvt steg (0.5, 1.5, 2.5, …) tillater halvgrads-verdier (f.eks. 22.5).
 
-    Blueprint versjon: 2026.03.16
+    Blueprint versjon: 2026.07.00
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome

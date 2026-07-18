@@ -1,12 +1,12 @@
 blueprint:
-  name: Temperature Sensor Alarm (WebHome)
+  name: Temperature Sensor Alarm (WebHome Automation)
   description: >
     Sends a notification if a temperature sensor:
       - goes above limit 1 for 15 minutes
       - goes above limit 2 for 60 minutes
       - goes 'unknown' for 15 minutes
 
-    Blueprint versjon:
+    Blueprint versjon: 2026.07.00
     2026.07.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/temperature_sensor_alarm.yaml
