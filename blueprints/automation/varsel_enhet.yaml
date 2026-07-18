@@ -14,7 +14,7 @@ blueprint:
       - Enheter som allerede er listet i en tidligere del av samme varsel vises ikke på nytt senere
       - Ved manuell kjøring beskrives listen nøytralt (ikke som "utløste varselet")
 
-    Del 3 – Nylig mistet signal (time_pattern – kjøres hver time):
+    Del 3 – Nylig mistet signal (time_pattern – kjøres hver 4. time):
       - Varsler enheter som nettopp har krysset terskelen:
         nylig_mistet_terskel <= alder < (nylig_mistet_terskel + 1 time)
       - Presenteres øverst i varselet, etterfulgt av ordinær Del 1- og
@@ -33,7 +33,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.07
+    Blueprint versjon: 2026.07.08
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -46,7 +46,7 @@ blueprint:
       name: "Planlagt sjekk"
       description: >
         Tidspunkt og ukedager for batteri nivå (Del 1) og langsomt signal (Del 2).
-        Den raske signal-sjekken (Del 3) kjøres automatisk hver time via time_pattern.
+        Den raske signal-sjekken (Del 3) kjøres automatisk hver 4. time via time_pattern.
       input:
         check_time:
           name: Tid for planlagt sjekk
@@ -70,12 +70,6 @@ blueprint:
                 - { label: Fredag, value: fri }
                 - { label: Lørdag, value: sat }
                 - { label: Søndag, value: sun }
-
-        run_on_startup:
-          name: Kjør Del 1 og Del 2 ved oppstart av Home Assistant
-          default: false
-          selector:
-            boolean:
 
     filtrering:
       name: "Filtrering (gjelder alle sjekkene)"
@@ -122,41 +116,39 @@ blueprint:
       description: >
         Varsler batteri-enheter som ikke har rapportert inn på lenge.
         Kjøres ved planlagt sjekk (samme tid som Del 1).
-        NB: Shelly WiFi-temperatursensorer responderer noen ganger ikke på 1–2 timer.
+        NB: Shelly WiFi-temperatursensorer responderer noen ganger ikke på 2-3 timer.
       input:
         max_age:
           name: Maks tid siden sist signal
           description: "Varsle hvis enhet ikke er sett på mer enn dette. Standard: 72 timer."
-          default:
-            hours: 72
+          default: 72
           selector:
-            duration:
+            number:
+              min: 24
+              max: 72
+              step: 4
+              unit_of_measurement: "h"
+              mode: slider
 
     signal_raskt:
       name: "Del 3 – Signal raskt"
       description: >
-        Varsler batteri-enheter som nylig mistet kontakten (kjøres hver time).
-        Varsel-vinduet er nøyaktig én time bredt: last_seen_threshold <= alder < (last_seen_threshold + 1t).
-        Hver enhet rapporteres kun én gang – første time den passerer terskelen.
-        NB: Shelly WiFi-temperatursensorer responderer noen ganger ikke på 1–2 timer.
+        Varsler batteri-enheter som nylig mistet kontakten (kjøres hver 4. time).
+        Varsel-vinduet er nøyaktig 4 timer bredt: last_seen_threshold <= alder < (last_seen_threshold + 4t).
+        Hver enhet rapporteres kun én gang – første 4-timers syklus den passerer terskelen.
       input:
         last_seen_threshold:
           name: Nedre grense – minimum tid siden sist signal
           description: >
-            Enheter sett for kortere tid enn dette ignoreres. Standard: 2 timer.
-          default:
-            hours: 2
+            Enheter sett for kortere tid enn dette ignoreres. Standard: 4 timer.
+          default: 4
           selector:
-            duration:
-
-        include_unavailable:
-          name: Ta med unknown/unavailable i varselet (raskt signal)
-          description: >
-            Hvis på: enheter der batteri-entity er unknown/unavailable tas med.
-            Slå av hvis du opplever støy.
-          default: true
-          selector:
-            boolean:
+            number:
+              min: 4
+              max: 24
+              step: 4
+              unit_of_measurement: "h"
+              mode: slider
 
     uptime_kuma:
       name: "Del 4 – Uptime Kuma"
@@ -243,9 +235,9 @@ blueprint:
 mode: restart
 
 trigger:
-  # Del 3 – raskt signal: kjøres hver time
+  # Del 3 – raskt signal: kjøres hver 4. time
   - platform: time_pattern
-    hours: /1
+    hours: /4
     id: time_pattern_check
 
   # Del 1 + Del 2 – planlagt sjekk
@@ -253,12 +245,6 @@ trigger:
     at: !input check_time
     weekday: !input check_weekdays
     id: scheduled_check
-
-  # Del 1 + Del 2 – ved HA-oppstart (valgfritt)
-  - platform: homeassistant
-    event: start
-    id: ha_start
-    enabled: !input run_on_startup
 
   # Del 4 – Uptime Kuma kritiske sensorer (øyeblikkelig)
   - platform: state
@@ -282,7 +268,7 @@ action:
       include_digital: !input include_digital_battery_sensors
       max_age: !input max_age
       last_seen_threshold: !input last_seen_threshold
-      include_unavailable: !input include_unavailable
+      include_unavailable: true
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
       debug_on: !input include_debug_details
@@ -294,45 +280,13 @@ action:
       urgent_sensors_input: !input urgent_sensors
 
       # Del 2 – langsomt signal: terskel i sekunder og label
-      max_age_seconds: >-
-        {% set d = max_age %}
-        {{ (d.get('days',0)|int * 86400)
-         + (d.get('hours',0)|int * 3600)
-         + (d.get('minutes',0)|int * 60)
-         + (d.get('seconds',0)|int) }}
-      max_age_label: >-
-        {% set d = max_age %}
-        {% set days = d.get('days',0)|int %}
-        {% set hours = d.get('hours',0)|int %}
-        {% set mins = d.get('minutes',0)|int %}
-        {% set secs = d.get('seconds',0)|int %}
-        {% set parts = namespace(p=[]) %}
-        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
-        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
-        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
-        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
-        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
+      max_age_seconds: "{{ max_age | int(72) * 3600 }}"
+      max_age_label: "{{ max_age | int(72) | string ~ 'h' }}"
 
-      # Del 3 – raskt signal: terskel i sekunder og label; intervall = terskel + 1t (1 sjekk-syklus)
-      threshold_seconds: >-
-        {% set d = last_seen_threshold %}
-        {{ (d.get('days',0)|int * 86400)
-         + (d.get('hours',0)|int * 3600)
-         + (d.get('minutes',0)|int * 60)
-         + (d.get('seconds',0)|int) }}
-      interval_seconds: "{{ threshold_seconds | int(0) + 3600 }}"  # 3600s = 1h = one time_pattern trigger cycle → each device reported at most once
-      threshold_label: >-
-        {% set d = last_seen_threshold %}
-        {% set days = d.get('days',0)|int %}
-        {% set hours = d.get('hours',0)|int %}
-        {% set mins = d.get('minutes',0)|int %}
-        {% set secs = d.get('seconds',0)|int %}
-        {% set parts = namespace(p=[]) %}
-        {% if days > 0 %}{% set parts.p = parts.p + [days|string ~ 'd'] %}{% endif %}
-        {% if hours > 0 %}{% set parts.p = parts.p + [hours|string ~ 'h'] %}{% endif %}
-        {% if mins > 0 %}{% set parts.p = parts.p + [mins|string ~ 'm'] %}{% endif %}
-        {% if secs > 0 and (days==0 and hours==0) %}{% set parts.p = parts.p + [secs|string ~ 's'] %}{% endif %}
-        {{ parts.p | join(' ') if parts.p | count > 0 else '0s' }}
+      # Del 3 – raskt signal: terskel i sekunder og label; intervall = terskel + 4t (1 sjekk-syklus)
+      threshold_seconds: "{{ last_seen_threshold | int(4) * 3600 }}"
+      interval_seconds: "{{ threshold_seconds | int(0) + 14400 }}"  # 14400s = 4h = one time_pattern trigger cycle → each device reported at most once
+      threshold_label: "{{ last_seen_threshold | int(4) | string ~ 'h' }}"
 
       trigger_id_raw: "{{ trigger.id if trigger is defined and trigger.id is defined else '' }}"
       run_started_by_user: >-
@@ -340,10 +294,9 @@ action:
       manual_run: "{{ run_started_by_user or trigger_id_raw == '' }}"
       trigger_is_time_pattern: "{{ (not manual_run) and trigger_id_raw == 'time_pattern_check' }}"
       trigger_is_scheduled: "{{ (not manual_run) and trigger_id_raw == 'scheduled_check' }}"
-      trigger_is_ha_start: "{{ (not manual_run) and trigger_id_raw == 'ha_start' }}"
       trigger_is_urgent: "{{ (not manual_run) and trigger_id_raw == 'urgent_sensor_trigger' }}"
       trigger_label: "{{ trigger_id_raw if trigger_id_raw | trim != '' else 'manual/unknown' }}"
-      show_all_down_uptime: "{{ manual_run or trigger_is_scheduled or trigger_is_ha_start or trigger_is_urgent }}"
+      show_all_down_uptime: "{{ manual_run or trigger_is_scheduled or trigger_is_urgent }}"
       urgent_trigger_device_name: >-
         {%- if trigger_is_urgent -%}
           {%- set did = device_id(trigger.entity_id) -%}
