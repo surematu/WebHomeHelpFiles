@@ -33,7 +33,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.09
+    Blueprint versjon: 2026.07.10
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -104,12 +104,6 @@ blueprint:
               max: 100
               step: 1
               unit_of_measurement: "%"
-
-        include_digital_battery_sensors:
-          name: "Ta med digitale batterisensorer (binary_sensor device_class: battery)"
-          default: true
-          selector:
-            boolean:
 
     signal_langsomt:
       name: "Del 2 – Signal langsomt"
@@ -265,10 +259,8 @@ action:
   - alias: "Steg 1 - Sett grunnvariabler"
     variables:
       threshold: !input threshold_percent
-      include_digital: !input include_digital_battery_sensors
       max_age: !input max_age
       last_seen_threshold: !input last_seen_threshold
-      include_unavailable: true
       ignore_entities: !input ignore_entities
       ignore_devices: !input ignore_devices
       debug_on: !input include_debug_details
@@ -576,48 +568,43 @@ action:
             {%- set ns = namespace(lines=[]) -%}
             {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
             {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+            {%- set items = states.binary_sensor
+                | selectattr('attributes.device_class','eq','battery')
+                | selectattr('state','eq','on')
+                | sort(attribute='name') | list -%}
 
-            {%- if not include_digital -%}
-              {{ '' }}
-            {%- else -%}
-              {%- set items = states.binary_sensor
-                  | selectattr('attributes.device_class','eq','battery')
-                  | rejectattr('state','eq','off')
-                  | sort(attribute='name') | list -%}
-
-              {%- for e in items -%}
-                {%- set eid = e.entity_id -%}
-                {%- set did = device_id(eid) -%}
-                {%- if eid in ignore_e or (did and did in ignore_d) -%}
-                  {# Ignorert #}
+            {%- for e in items -%}
+              {%- set eid = e.entity_id -%}
+              {%- set did = device_id(eid) -%}
+              {%- if eid in ignore_e or (did and did in ignore_d) -%}
+                {# Ignorert #}
+              {%- else -%}
+                {%- set base = e.name
+                    | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
+                    | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
+                    | regex_replace('(?i)\\bbattery\\b:?',' ')
+                    | regex_replace('(?i)\\bbatteri\\b:?',' ')
+                    | regex_replace('\\s*\\+\\s*$','')
+                    | regex_replace('\\s*:\\s*$','')
+                    | regex_replace('\\s{2,}',' ')
+                    | trim -%}
+                {%- set age_s = (as_timestamp(now()) - as_timestamp(e.last_changed, default=0) | float(0)) | int(0) -%}
+                {%- set d = (age_s // 86400) | int(0) -%}
+                {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
+                {%- set m = ((age_s % 3600) // 60) | int(0) -%}
+                {%- if d > 0 -%}
+                  {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
+                {%- elif h > 0 -%}
+                  {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
+                {%- elif m > 0 -%}
+                  {%- set age_txt = m|string ~ 'm' -%}
                 {%- else -%}
-                  {%- set base = e.name
-                      | regex_replace('(?i)\\bbattery\\s*low\\b:?',' ')
-                      | regex_replace('(?i)\\bbatteri\\s*lav\\b:?',' ')
-                      | regex_replace('(?i)\\bbattery\\b:?',' ')
-                      | regex_replace('(?i)\\bbatteri\\b:?',' ')
-                      | regex_replace('\\s*\\+\\s*$','')
-                      | regex_replace('\\s*:\\s*$','')
-                      | regex_replace('\\s{2,}',' ')
-                      | trim -%}
-                  {%- set age_s = (as_timestamp(now()) - as_timestamp(e.last_changed, default=0) | float(0)) | int(0) -%}
-                  {%- set d = (age_s // 86400) | int(0) -%}
-                  {%- set h = ((age_s % 86400) // 3600) | int(0) -%}
-                  {%- set m = ((age_s % 3600) // 60) | int(0) -%}
-                  {%- if d > 0 -%}
-                    {%- set age_txt = d|string ~ 'd ' ~ h|string ~ 'h' -%}
-                  {%- elif h > 0 -%}
-                    {%- set age_txt = h|string ~ 'h ' ~ m|string ~ 'm' -%}
-                  {%- elif m > 0 -%}
-                    {%- set age_txt = m|string ~ 'm' -%}
-                  {%- else -%}
-                    {%- set age_txt = (age_s % 60)|string ~ 's' -%}
-                  {%- endif -%}
-                  {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt ~ ' / Ukjent'] -%}
+                  {%- set age_txt = (age_s % 60)|string ~ 's' -%}
                 {%- endif -%}
-              {%- endfor -%}
-              {{ ns.lines | join('\n') }}
-            {%- endif -%}
+                {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {{ ns.lines | join('\n') }}
 
       # Steg 4B – Fjern duplikater (digital vs prosent)
       - alias: "Steg 4B - Fjern duplikater (digital vs prosent)"
@@ -702,7 +689,6 @@ action:
                 "- trigger: " ~ trigger_label,
                 "- manual_run: " ~ (manual_run | string),
                 "- threshold: " ~ (threshold | string) ~ "%",
-                "- include_digital: " ~ (include_digital | string),
                 "- ignored_entities: " ~ ((ignore_entities | count) | string),
                 "- ignored_devices: " ~ ((ignore_devices | count) | string)
               ] %}
@@ -828,7 +814,7 @@ action:
                     {%- set st = s.state -%}
                     {%- set is_unavail = st in ['unknown','unavailable'] -%}
                     {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
-                    {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                    {%- if in_alert_window -%}
                       {%- if norm != '' -%}
                         {%- set keep = false -%}
                         {%- if norm not in ns.map -%}
@@ -876,7 +862,7 @@ action:
                     {%- set st = b.state -%}
                     {%- set is_unavail = st in ['unknown','unavailable'] -%}
                     {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
-                    {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                    {%- if in_alert_window -%}
                       {%- if norm != '' -%}
                         {%- set keep = false -%}
                         {%- if norm not in ns.map -%}
@@ -947,7 +933,7 @@ action:
                     {%- set st = s.state -%}
                     {%- set is_unavail = st in ['unknown','unavailable'] -%}
                     {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
-                    {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                    {%- if in_alert_window -%}
                       {%- set ns.out = ns.out + [{'entity_id': eid, 'name': s.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
                     {%- endif -%}
                   {%- endif -%}
@@ -967,7 +953,7 @@ action:
                     {%- set st = b.state -%}
                     {%- set is_unavail = st in ['unknown','unavailable'] -%}
                     {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
-                    {%- if in_alert_window or (include_unavailable and is_unavail and age_s < interval_s) -%}
+                    {%- if in_alert_window -%}
                       {%- set ns.out = ns.out + [{'entity_id': eid, 'name': b.name, 'state': st, 'age_s': age_s, 'winner_entity': w['winner_entity'], 'winner_source': w['winner_source'], 'winner_age_s': w['winner_age_s']}] -%}
                     {%- endif -%}
                   {%- endif -%}
@@ -1498,7 +1484,6 @@ action:
                 "- trigger: " ~ trigger_label,
                 "- manual_run: " ~ (manual_run | string),
                 "- threshold: " ~ (threshold | string) ~ "%",
-                "- include_digital: " ~ (include_digital | string),
                 "- ignored_entities: " ~ ((ignore_entities | count) | string),
                 "- ignored_devices: " ~ ((ignore_devices | count) | string)
               ] %}
