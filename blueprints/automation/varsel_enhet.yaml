@@ -33,7 +33,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.08
+    Blueprint versjon: 2026.07.09
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -457,15 +457,15 @@ action:
 
         {% if p.should_notify %}
           {% if not show_all_down_uptime and p.new_down_count > 0 %}
-            {% set ns.out = ns.out + ["Enheter som nylig gikk offline:", (render_device_lines(p.down_new) | trim)] %}
+            {% set ns.out = ns.out + ["Enheter som nylig gikk offline (| Endret / oppetid %):", (render_device_lines(p.down_new) | trim)] %}
           {% endif %}
           {% if show_all_down_uptime or (p.down_existing | count > 0) %}
             {% if ns.out | count > 0 %}{% set ns.out = ns.out + [""] %}{% endif %}
             {% set offline_list = p.down_all if show_all_down_uptime else p.down_existing %}
-            {% set ns.out = ns.out + ["Svarer ikke. (| Endret / oppetid %):", (render_device_lines(offline_list) | trim)] %}
+            {% set ns.out = ns.out + ["Enheter som er offline. (| Endret / oppetid %):", (render_device_lines(offline_list) | trim)] %}
           {% endif %}
           {% if p.unstable_count > 0 %}
-            {% set ns.out = ns.out + ["", "Ustabil oppetid. (| Endret / oppetid %):"] %}
+            {% set ns.out = ns.out + ["", "Ustabil oppetid (| Endret / oppetid %):"] %}
             {% for it in p.unstable_devices %}
               {% set ns.out = ns.out + [format_device_line(it) | trim] %}
             {% endfor %}
