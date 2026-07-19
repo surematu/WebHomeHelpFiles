@@ -812,7 +812,6 @@ action:
                       {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
                     {%- endif -%}
                     {%- set st = s.state -%}
-                    {%- set is_unavail = st in ['unknown','unavailable'] -%}
                     {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
                     {%- if in_alert_window -%}
                       {%- if norm != '' -%}
@@ -860,7 +859,6 @@ action:
                       {%- set age_s = (as_timestamp(now()) - ts) | int(0) -%}
                     {%- endif -%}
                     {%- set st = b.state -%}
-                    {%- set is_unavail = st in ['unknown','unavailable'] -%}
                     {%- set in_alert_window = (age_s >= threshold_s) and (age_s < interval_s) -%}
                     {%- if in_alert_window -%}
                       {%- if norm != '' -%}
