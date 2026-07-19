@@ -568,6 +568,7 @@ action:
             {%- set ns = namespace(lines=[]) -%}
             {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
             {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
+            {# Bare eksplisitt lavt-batteri signal skal varsles her; unknown/unavailable håndteres av signal-sjekkene. #}
             {%- set items = states.binary_sensor
                 | selectattr('attributes.device_class','eq','battery')
                 | selectattr('state','eq','on')
@@ -601,7 +602,7 @@ action:
                 {%- else -%}
                   {%- set age_txt = (age_s % 60)|string ~ 's' -%}
                 {%- endif -%}
-                {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt] -%}
+                {%- set ns.lines = ns.lines + ['- ' ~ base ~ ' | ' ~ age_txt ~ ' / Lavt'] -%}
               {%- endif -%}
             {%- endfor -%}
             {{ ns.lines | join('\n') }}
