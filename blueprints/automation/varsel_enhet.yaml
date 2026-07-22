@@ -33,7 +33,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.10
+    Blueprint versjon: 2026.07.11
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -318,6 +318,8 @@ action:
       uptime_devices: |-
         {%- set interval_s = 3600 -%}
         {%- set now_ts = as_timestamp(now()) | int(0) -%}
+        {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
+        {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
         {%- set ns = namespace(seen_devices=[], all_devices=[], debug=[]) -%}
 
         {%- for s in states.sensor -%}
@@ -326,6 +328,7 @@ action:
             {%- set did = device_id(s.entity_id) -%}
             {%- if did and did not in ns.seen_devices -%}
               {%- set ns.seen_devices = ns.seen_devices + [did] -%}
+              {%- if did not in ignore_d -%}
               {%- set dev_name = device_attr(did, 'name') | default('Ukjent enhet', true) -%}
               {%- set ents = device_entities(did) if did else [] -%}
               {%- set found = namespace(status_eid='', uptime1_eid='', uptime30_eid='', uptime365_eid='') -%}
@@ -341,7 +344,7 @@ action:
                 {%- endif -%}
               {%- endfor -%}
 
-              {%- if found.status_eid != '' -%}
+              {%- if found.status_eid != '' and found.status_eid not in ignore_e -%}
                 {%- set status_state = states(found.status_eid) | string -%}
                 {%- set is_up = (status_state | lower) == 'up' -%}
                 {%- set status_obj = states[found.status_eid] -%}
@@ -359,6 +362,7 @@ action:
                   'is_new': is_new
                 } -%}
                 {%- set ns.all_devices = ns.all_devices + [dev_info] -%}
+              {%- endif -%}
               {%- endif -%}
             {%- endif -%}
           {%- endif -%}
