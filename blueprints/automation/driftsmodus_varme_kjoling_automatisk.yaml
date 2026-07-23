@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.10
+    Blueprint versjon: 2026.07.11
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -551,7 +551,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 2 - Start kjøling ved etablert varmt vær"
               decision_reason: >-
-                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og makstemperatur inkl. soltillegg ({{ forecast_max_with_solar | round(1) }}) er over grense ({{ t_start_cooling_limit | int }}). Match på regel 2.
+                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er over grense ({{ t_start_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ (cloud_avg_10_18 | round(0)) | int }}%.{% endif %} Match på regel 2.
               decision_is_rule2_cooling: true
               decision_found: true
 
