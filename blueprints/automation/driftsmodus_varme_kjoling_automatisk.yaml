@@ -3,8 +3,6 @@ blueprint:
   description: |
     Velger driftsmodus VARME/KJØLING én gang daglig kl. 20:00 basert på
     temperaturgrunnlag, værprognose, skydekning og kalenderperioder.
-    Oppdaterer også en digital kjølestatus-helper som kan brukes til
-    langtidsstatistikk for kjøling.
 
     Beslutningsregler (i prioritert rekkefølge):
     - Regel 1: Vinterperiode => VARME
@@ -18,21 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Eksempel helper for driftsstatus:
-    input_boolean:
-      cool_mode:
-        name: CoolMode
-
-    Eksempel helper for snitt siste 72 timer:
-    sensor:
-      - platform: statistics
-        name: OutdoorTempAvg72h
-        entity_id: sensor.outdoor_temperature
-        state_characteristic: average_step
-        max_age:
-          hours: 72
-
-    Blueprint versjon: 2026.07.01
+    Blueprint versjon: 2026.07.02
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -50,15 +34,6 @@ blueprint:
           selector:
             entity:
               domain: input_select
-
-        cool_mode_entity:
-          name: Kjølestatus helper (input_boolean)
-          description: >
-            Digital helper som settes til på ved KJØLING og av ved VARME.
-            Kan brukes til langtidsstatistikk, for eksempel CoolMode.
-          selector:
-            entity:
-              domain: input_boolean
 
         weather_entity:
           name: Vær entitet
@@ -238,14 +213,6 @@ blueprint:
       icon: mdi:bell-outline
       collapsed: true
       input:
-        status_text_entity:
-          name: Status input_text (valgfri)
-          description: Oppdaterer input_text med resultat fra siste beregning.
-          default: ""
-          selector:
-            entity:
-              domain: input_text
-
         pushover_destination:
           name: Pushover destination (valgfri)
           description: Mottakergruppe i script.varsel_pushover_send_melding_webhome.
@@ -283,14 +250,12 @@ actions:
   - alias: Steg 0 - Innstillinger og input
     variables:
       io_mode_entity: !input mode_target_entity
-      io_cool_mode_entity: !input cool_mode_entity
       io_weather_entity: !input weather_entity
       io_temp_now_entity: !input outdoor_temp_entity
       io_temp_avg_72h_entity: !input outdoor_temp_avg_72h_entity
       io_mode_heat: !input mode_heat_value
       io_mode_cool: !input mode_cool_value
 
-      io_status_text_entity: !input status_text_entity
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
@@ -360,8 +325,6 @@ actions:
       current_mode_heat_ref: "{{ io_mode_heat | string | trim }}"
       current_mode_cool_ref: "{{ io_mode_cool | string | trim }}"
       is_current_cooling: "{{ current_mode_raw == current_mode_cool_ref }}"
-      current_cool_mode_helper_raw: "{{ states(io_cool_mode_entity) | default('', true) | string | trim | lower }}"
-      is_cool_mode_helper_on: "{{ current_cool_mode_helper_raw == 'on' }}"
 
   - alias: Steg 4 - Temperaturgrunnlag (72t snitt -> nåverdi -> mangler)
     variables:
@@ -634,8 +597,6 @@ actions:
   - alias: Steg 20 - Sammenlign beregnet og gjeldende modus
     variables:
       mode_changed: "{{ (calculated_mode | string | trim) != (current_mode_raw | string | trim) }}"
-      should_set_cool_mode_on: "{{ (calculated_mode | string | trim) == (io_mode_cool | string | trim) }}"
-      cool_mode_helper_changed: "{{ should_set_cool_mode_on != is_cool_mode_helper_on }}"
       final_result_text: >-
         {% if mode_changed %}
           Driftsmodus endret
@@ -651,10 +612,8 @@ actions:
       value_cloud_text: "{{ (cloud_avg_10_18 | round(0)) ~ '%' if cloud_avg_available else 'ikke tilgjengelig' }}"
       value_solar_text: "{{ solar_addition | round(1) }}"
       value_fc_max_solar_text: "{{ (forecast_max_with_solar | round(1)) if forecast_max_available else 'ikke tilgjengelig' }}"
-      value_cool_mode_helper_text: "{{ 'på' if should_set_cool_mode_on else 'av' }}"
       status_text_long: >-
         {{ final_result_text }} | Regel={{ decision_rule }} | {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} -> {{ calculated_mode }} |
-        CoolMode={{ value_cool_mode_helper_text }} |
         Periode={{ active_period_name }} |
         Snitt72={{ value_avg_72h_text }}°C (kilde={{ temp_basis_source }}) |
         Nå={{ value_now_temp_text }}°C |
@@ -676,36 +635,7 @@ actions:
             data:
               option: "{{ calculated_mode }}"
 
-  - alias: Steg 23 - Oppdater digital kjølestatus helper
-    choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ cool_mode_helper_changed and should_set_cool_mode_on }}"
-        sequence:
-          - action: input_boolean.turn_on
-            target:
-              entity_id: "{{ io_cool_mode_entity }}"
-      - conditions:
-          - condition: template
-            value_template: "{{ cool_mode_helper_changed and (not should_set_cool_mode_on) }}"
-        sequence:
-          - action: input_boolean.turn_off
-            target:
-              entity_id: "{{ io_cool_mode_entity }}"
-
-  - alias: Steg 24 - Oppdater valgfri status input_text
-    choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ io_status_text_entity is not none and (io_status_text_entity | string | trim) != '' }}"
-        sequence:
-          - action: input_text.set_value
-            target:
-              entity_id: "{{ io_status_text_entity }}"
-            data:
-              value: "{{ status_text_short }}"
-
-  - alias: Steg 25 - Varsel ved modusendring
+  - alias: Steg 23 - Varsel ved modusendring
     choose:
       - conditions:
           - condition: template
@@ -723,7 +653,6 @@ actions:
                 Nåværende utetemperatur: {{ value_now_temp_text }} °C
                 Prognosert maksimumstemperatur neste døgn: {{ value_fc_max_text }} °C
                 Prognosert skydekning kl. 10:00-18:00: {{ value_cloud_text }}
-                Kjølestatus helper (CoolMode): {{ value_cool_mode_helper_text }}
                 Soltillegg: {{ value_solar_text }} °C
                 Makstemperatur neste døgn inkl. soltillegg: {{ value_fc_max_solar_text }} °C
 
@@ -733,7 +662,7 @@ actions:
               priority: "{{ pushover_priority | int(0) }}"
               ttl: "{{ pushover_ttl | int(604800) }}"
 
-  - alias: Steg 26 - Varsel ved vesentlig datamangel uten modusendring
+  - alias: Steg 24 - Varsel ved vesentlig datamangel uten modusendring
     choose:
       - conditions:
           - condition: template
