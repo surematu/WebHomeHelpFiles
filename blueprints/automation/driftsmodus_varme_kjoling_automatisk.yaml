@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.12
+    Blueprint versjon: 2026.07.13
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -518,6 +518,7 @@ actions:
       calculated_mode: "{{ io_mode_heat }}"
       decision_rule: "Regel 7 - Velg varme når kjølebehov ikke er påvist"
       decision_reason: "Ingen tidligere regler ble oppfylt. VARME er normalmodus."
+      decision_short_text: ""
       decision_is_rule2_cooling: false
       decision_found: false
 
@@ -551,7 +552,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 2 - Start kjøling ved etablert varmt vær"
               decision_reason: >-
-                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er over grense ({{ t_start_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ (cloud_avg_10_18 | round(0)) | int }}%.{% endif %} Match på regel 2.
+                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er over grense ({{ t_start_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Match på regel 2.
               decision_is_rule2_cooling: true
               decision_found: true
 
@@ -588,7 +589,9 @@ actions:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 4 - Behold kjøling ved fortsatt forventet kjølebehov"
-              decision_reason: "Gjeldende modus er KJØLING og makstemperatur inkl. soltillegg er over stoppgrense."
+              decision_reason: >-
+                {% if has_temp_basis %}Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og {% endif %}makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er over grense fortsett kjøling ({{ t_stop_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Match på regel 4.
+              decision_short_text: "fortsett med kjøling grunnet fortsatt forventet kjølebehov"
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -704,8 +707,9 @@ actions:
                 Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
                 Utløsende regel: {{ decision_rule }}.
                 {% else %}
-                Driftsmodus uendret ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }}).
-                Utløsende regel: {{ decision_rule }}.
+                {% if decision_short_text %}Driftsmodus uendret, {{ decision_short_text }}.
+                {% else %}Driftsmodus uendret ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }}).
+                Utløsende regel: {{ decision_rule }}.{% endif %}
                 {% endif %}
                 {% if inkluder_begrunnelse %}Begrunnelse: {{ decision_reason_display }}{% endif %}
                 {% if missing_data_lines | count > 0 %}

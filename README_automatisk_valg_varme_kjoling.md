@@ -110,8 +110,12 @@ Etter beregning sammenlignes beregnet modus med gjeldende modus:
 
 Varsel ved modusendring skal inkludere:
 - Tittel i formatet `🌡️ Driftsmodus <modus>`
-- Kort starttekst (for Regel 2: `Endret til kjøling for kommende natt og morgendagen grunnet vedvarende varmt vær.`)
-- Begrunnelse med `Match på regel 2.` på slutten for Regel 2 (vises kun hvis `Vis ekstra begrunnelse` er aktivert, standard: på)
+- Kort starttekst:
+  - Regel 2: `Endret til kjøling for kommende natt og morgendagen grunnet vedvarende varmt vær.`
+  - Regel 4 (uendret): `Driftsmodus uendret, fortsett med kjøling grunnet fortsatt forventet kjølebehov.`
+  - Andre regler (uendret): `Driftsmodus uendret (<modus>). Utløsende regel: <regel>.`
+  - Modusendring: `Driftsmodus er endret fra <gammel> til <ny>. Utløsende regel: <regel>.`
+- Begrunnelse med `Match på regel X.` på slutten for Regel 2 og Regel 4 (vises kun hvis `Vis ekstra begrunnelse` er aktivert, standard: på)
 - Manglende data (kun når data faktisk mangler)
 - `Manuelt kjørt sjekk.` på slutten av begrunnelsen når automasjonen er manuelt kjørt
 
