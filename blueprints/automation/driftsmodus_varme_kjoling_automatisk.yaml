@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.03
+    Blueprint versjon: 2026.07.04
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -476,6 +476,7 @@ actions:
       calculated_mode: "{{ io_mode_heat }}"
       decision_rule: "Regel 7 - Velg varme når kjølebehov ikke er påvist"
       decision_reason: "Ingen tidligere regler ble oppfylt. VARME er normalmodus."
+      decision_is_rule2_cooling: false
       decision_found: false
 
   - alias: Steg 14 - Regel 1 (vinter sperrer kjøling)
@@ -488,6 +489,7 @@ actions:
               calculated_mode: "{{ io_mode_heat }}"
               decision_rule: "Regel 1 - Sikre varmedrift i vinterperioden"
               decision_reason: "Dato ligger i fast vinterperiode."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 15 - Regel 2 (start kjøling ved etablert varmt vær)
@@ -506,7 +508,9 @@ actions:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 2 - Start kjøling ved etablert varmt vær"
-              decision_reason: "Snitt 72t og makstemperatur inkl. soltillegg er over startgrenser."
+              decision_reason: >-
+                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | float }}) og makstemperatur inkl. soltillegg ({{ forecast_max_with_solar | round(1) }}) er over grense ({{ t_start_cooling_limit | float }}).
+              decision_is_rule2_cooling: true
               decision_found: true
 
   - alias: Steg 16 - Regel 3 (start kjøling ved ekstrem varme)
@@ -524,6 +528,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 3 - Start kjøling før varslet ekstrem varme"
               decision_reason: "Prognosert maksimumstemperatur neste døgn er over ekstremgrense."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 17 - Regel 4 (behold kjøling ved fortsatt behov)
@@ -542,6 +547,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 4 - Behold kjøling ved fortsatt forventet kjølebehov"
               decision_reason: "Gjeldende modus er KJØLING og makstemperatur inkl. soltillegg er over stoppgrense."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 18 - Regel 5 (behold kjøling uten prognose)
@@ -561,6 +567,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 5 - Behold kjøling ved varmt vær når prognosen mangler"
               decision_reason: "Prognose mangler, men snitt 72t er over sommergrense og gjeldende modus er KJØLING."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 19 - Regel 6 (reserve ved manglende temperaturgrunnlag)
@@ -573,6 +580,7 @@ actions:
               calculated_mode: "{{ io_mode_heat }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (vinter)"
               decision_reason: "Temperaturgrunnlag mangler, dato i vinterperiode."
+              decision_is_rule2_cooling: false
               decision_found: true
       - conditions:
           - condition: template
@@ -582,6 +590,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (sommer)"
               decision_reason: "Temperaturgrunnlag mangler, dato i sommerperiode."
+              decision_is_rule2_cooling: false
               decision_found: true
       - conditions:
           - condition: template
@@ -591,6 +600,7 @@ actions:
               calculated_mode: "{{ current_mode_raw if current_mode_raw != '' else io_mode_heat }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (overgang)"
               decision_reason: "Temperaturgrunnlag mangler i overgangsperiode, gjeldende modus beholdes."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 20 - Sammenlign beregnet og gjeldende modus
@@ -642,21 +652,20 @@ actions:
         sequence:
           - action: script.varsel_pushover_send_melding_webhome
             data:
-              title: "🌡️ Driftsmodus endret"
+              title: "LiBe - 🌡️ Driftsmodus {{ calculated_mode }}"
               message: |-
+                {% if decision_is_rule2_cooling %}
+                Start kjøling grunnet vedvarende varmt vær (Regel 2)
+                {% else %}
                 Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
                 Utløsende regel: {{ decision_rule }}.
+                {% endif %}
                 Begrunnelse: {{ decision_reason }}.
-
-                Gjennomsnittstemperatur siste 72 timer: {{ value_avg_72h_text }} °C
-                Nåværende utetemperatur: {{ value_now_temp_text }} °C
-                Prognosert maksimumstemperatur neste døgn: {{ value_fc_max_text }} °C
-                Prognosert skydekning kl. 10:00-18:00: {{ value_cloud_text }}
-                Soltillegg: {{ value_solar_text }} °C
-                Makstemperatur neste døgn inkl. soltillegg: {{ value_fc_max_solar_text }} °C
+                {% if missing_data_lines | count > 0 %}
 
                 Manglende data:
                 {{ missing_data_text }}
+                {% endif %}
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(0) }}"
               ttl: "{{ pushover_ttl | int(604800) }}"
