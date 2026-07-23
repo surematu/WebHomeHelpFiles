@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.02
+    Blueprint versjon: 2026.07.03
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -281,9 +281,8 @@ actions:
   - alias: Steg 1 - Dato og kalenderperioder
     variables:
       # MMDD-koding (måned*100 + dag) brukes for enkel sammenligning av dato-intervaller.
-      calc_now: "{{ now() }}"
-      calc_today_month: "{{ calc_now.month | int }}"
-      calc_today_day: "{{ calc_now.day | int }}"
+      calc_today_month: "{{ now().month | int }}"
+      calc_today_day: "{{ now().day | int }}"
       calc_today_md: "{{ (calc_today_month | int) * 100 + (calc_today_day | int) }}"
       calc_winter_start_md: "{{ (p_winter_start_month | int) * 100 + (p_winter_start_day | int) }}"
       calc_winter_end_md: "{{ (p_winter_end_month | int) * 100 + (p_winter_end_day | int) }}"
