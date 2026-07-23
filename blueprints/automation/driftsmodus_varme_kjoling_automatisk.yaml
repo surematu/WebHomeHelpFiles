@@ -1,22 +1,22 @@
 blueprint:
   name: Driftsmodus - Automatisk valg varme/kjøling (WebHome Automation)
   description: |
-    Velger driftsmodus VARME/KJØLING én gang daglig kl. 20:00 basert på
+    Velger driftsmodus VINTER/SOMMER én gang daglig kl. 20:00 basert på
     temperaturgrunnlag, værprognose, skydekning og kalenderperioder.
 
     Beslutningsregler (i prioritert rekkefølge):
-    - Regel 1: Vinterperiode => VARME
-    - Regel 2: Start kjøling ved etablert varmt vær
-    - Regel 3: Start kjøling ved ekstrem varme
-    - Regel 4: Behold kjøling ved fortsatt forventet kjølebehov
-    - Regel 5: Behold kjøling ved manglende prognose
+    - Regel 1: Vinterperiode => VINTER
+    - Regel 2: Start sommermodus ved etablert varmt vær
+    - Regel 3: Start sommermodus ved ekstrem varme
+    - Regel 4: Behold sommermodus ved fortsatt forventet kjølebehov
+    - Regel 5: Behold sommermodus ved manglende prognose
     - Regel 6: Reserve ved manglende temperaturgrunnlag
-    - Regel 7: Fallback => VARME
+    - Regel 7: Fallback => VINTER
 
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.13
+    Blueprint versjon: 2026.07.15
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -30,7 +30,7 @@ blueprint:
       input:
         mode_target_entity:
           name: Driftsmodus helper (input_select)
-          description: Input_select som skal settes til VARME eller KJØLING.
+          description: Input_select som skal settes til VINTER eller SOMMER.
           selector:
             entity:
               domain: input_select
@@ -42,35 +42,15 @@ blueprint:
             entity:
               domain: weather
 
-        outdoor_temp_entity:
-          name: Nåværende utetemperatur sensor
-          selector:
-            entity:
-              filter:
-                domain: sensor
-                device_class: temperature
-
-        outdoor_temp_avg_72h_entity:
-          name: Gjennomsnittstemperatur siste 72 timer (valgfri sensor)
-          description: >
-            Anbefalt statistics/helper sensor for 72t snitt. Hvis tom/mangler,
-            brukes nåværende utetemperatur.
-          default: ""
-          selector:
-            entity:
-              filter:
-                domain: sensor
-                device_class: temperature
-
         mode_heat_value:
-          name: Verdi for VARME i mode helper
-          default: VARME
+          name: Verdi for VINTER i mode helper
+          default: VINTER
           selector:
             text:
 
         mode_cool_value:
-          name: Verdi for KJØLING i mode helper
-          default: KJØLING
+          name: Verdi for SOMMER i mode helper
+          default: SOMMER
           selector:
             text:
 
@@ -284,8 +264,8 @@ actions:
     variables:
       io_mode_entity: !input mode_target_entity
       io_weather_entity: !input weather_entity
-      io_temp_now_entity: !input outdoor_temp_entity
-      io_temp_avg_72h_entity: !input outdoor_temp_avg_72h_entity
+      io_temp_now_entity: sensor.utetemperatur
+      io_temp_avg_72h_entity: sensor.utetemperatur_snitt_72_timer
       io_mode_heat: !input mode_heat_value
       io_mode_cool: !input mode_cool_value
 
@@ -369,12 +349,7 @@ actions:
 
   - alias: Steg 4 - Temperaturgrunnlag (72t snitt -> nåverdi -> mangler)
     variables:
-      avg72_source_raw: >-
-        {% if (io_temp_avg_72h_entity | string | trim) != '' %}
-          {{ states(io_temp_avg_72h_entity) }}
-        {% else %}
-          unavailable
-        {% endif %}
+      avg72_source_raw: "{{ states(io_temp_avg_72h_entity) }}"
       avg72_available: "{{ is_number(avg72_source_raw) }}"
       avg72_value: "{{ avg72_source_raw | float if avg72_available else none }}"
 
@@ -498,11 +473,14 @@ actions:
         {% if not cloud_avg_available %}
           {% set ns.lines = ns.lines + ['Skydekningsprognosen kl. 10:00-18:00 var ikke tilgjengelig (soltillegg satt til 0 °C).'] %}
         {% endif %}
-        {% if not avg72_available and now_temp_available %}
-          {% set ns.lines = ns.lines + ['Temperaturhistorikk var ikke tilgjengelig, nåværende utetemperatur ble brukt.'] %}
+        {% if not now_temp_available %}
+          {% set ns.lines = ns.lines + ['sensor.utetemperatur mangler eller har ingen gyldig verdi. Kontroller at entiteten eksisterer og rapporterer temperatur.'] %}
         {% endif %}
-        {% if not avg72_available and not now_temp_available %}
-          {% set ns.lines = ns.lines + ['Verken temperaturhistorikk eller nåværende utetemperatur var tilgjengelig.'] %}
+        {% if not avg72_available %}
+          {% set ns.lines = ns.lines + ['sensor.utetemperatur_snitt_72_timer mangler eller har ingen gyldig verdi. Kontroller at entiteten eksisterer og rapporterer temperatur.'] %}
+        {% endif %}
+        {% if not avg72_available and now_temp_available %}
+          {% set ns.lines = ns.lines + ['Nåværende utetemperatur (sensor.utetemperatur) ble brukt som grunnlag i stedet for 72t snitt.'] %}
         {% endif %}
         {{ ns.lines }}
       missing_data_text: >-
@@ -516,13 +494,13 @@ actions:
   - alias: Steg 13 - Initier beslutningsresultat (Regel 7 fallback)
     variables:
       calculated_mode: "{{ io_mode_heat }}"
-      decision_rule: "Regel 7 - Velg varme når kjølebehov ikke er påvist"
-      decision_reason: "Ingen tidligere regler ble oppfylt. VARME er normalmodus."
+      decision_rule: "Regel 7 - Velg vintermodus når kjølebehov ikke er påvist"
+      decision_reason: "Ingen tidligere regler ble oppfylt. VINTER er normalmodus."
       decision_short_text: ""
       decision_is_rule2_cooling: false
       decision_found: false
 
-  - alias: Steg 14 - Regel 1 (vinter sperrer kjøling)
+  - alias: Steg 14 - Regel 1 (vinter sperrer sommermodus)
     choose:
       - conditions:
           - condition: template
@@ -535,7 +513,7 @@ actions:
               decision_is_rule2_cooling: false
               decision_found: true
 
-  - alias: Steg 15 - Regel 2 (start kjøling ved etablert varmt vær)
+  - alias: Steg 15 - Regel 2 (start sommermodus ved etablert varmt vær)
     choose:
       - conditions:
           - condition: template
@@ -550,13 +528,13 @@ actions:
         sequence:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
-              decision_rule: "Regel 2 - Start kjøling ved etablert varmt vær"
+              decision_rule: "Regel 2 - Start sommermodus ved etablert varmt vær"
               decision_reason: >-
                 Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er over grense ({{ t_start_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Match på regel 2.
               decision_is_rule2_cooling: true
               decision_found: true
 
-  - alias: Steg 16 - Regel 3 (start kjøling ved ekstrem varme)
+  - alias: Steg 16 - Regel 3 (start sommermodus ved ekstrem varme)
     choose:
       - conditions:
           - condition: template
@@ -569,12 +547,12 @@ actions:
         sequence:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
-              decision_rule: "Regel 3 - Start kjøling før varslet ekstrem varme"
+              decision_rule: "Regel 3 - Start sommermodus før varslet ekstrem varme"
               decision_reason: "Prognosert maksimumstemperatur neste døgn er over ekstremgrense."
               decision_is_rule2_cooling: false
               decision_found: true
 
-  - alias: Steg 17 - Regel 4 (behold kjøling ved fortsatt behov)
+  - alias: Steg 17 - Regel 4 (behold sommermodus ved fortsatt behov)
     choose:
       - conditions:
           - condition: template
@@ -588,10 +566,10 @@ actions:
         sequence:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
-              decision_rule: "Regel 4 - Behold kjøling ved fortsatt forventet kjølebehov"
+              decision_rule: "Regel 4 - Behold sommermodus ved fortsatt forventet kjølebehov"
               decision_reason: >-
-                {% if has_temp_basis %}Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og {% endif %}makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er over grense fortsett kjøling ({{ t_stop_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Match på regel 4.
-              decision_short_text: "fortsett med kjøling grunnet fortsatt forventet kjølebehov"
+                {% if has_temp_basis %}Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og {% endif %}makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er over grense fortsett sommermodus ({{ t_stop_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Match på regel 4.
+              decision_short_text: "fortsett med sommermodus grunnet fortsatt forventet kjølebehov"
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -611,7 +589,7 @@ actions:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 5 - Behold kjøling ved varmt vær når prognosen mangler"
-              decision_reason: "Prognose mangler, men snitt 72t er over sommergrense og gjeldende modus er KJØLING."
+              decision_reason: "Prognose mangler, men snitt 72t er over sommergrense og gjeldende modus er SOMMER."
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -702,7 +680,7 @@ actions:
               title: "🌡️ Driftsmodus {{ calculated_mode }}"
               message: |-
                 {% if decision_is_rule2_cooling %}
-                Endret til kjøling for kommende natt og morgendagen grunnet vedvarende varmt vær.
+                Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.
                 {% elif mode_changed %}
                 Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
                 Utløsende regel: {{ decision_rule }}.
