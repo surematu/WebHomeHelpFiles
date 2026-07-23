@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.05
+    Blueprint versjon: 2026.07.06
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -240,6 +240,15 @@ blueprint:
               step: 60
               mode: box
 
+        inkluder_begrunnelse:
+          name: Inkluder begrunnelse i varsel
+          description: >
+            Velg om begrunnelsen (detaljert årsak til beslutningen) skal inkluderes
+            i varselet som sendes via Pushover. Deaktiver for kortere varsler.
+          default: true
+          selector:
+            boolean:
+
 mode: single
 
 triggers:
@@ -259,6 +268,7 @@ actions:
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
+      inkluder_begrunnelse: !input inkluder_begrunnelse
 
       p_winter_start_month: !input winter_start_month
       p_winter_start_day: !input winter_start_day
@@ -511,7 +521,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 2 - Start kjøling ved etablert varmt vær"
               decision_reason: >-
-                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og makstemperatur inkl. soltillegg ({{ forecast_max_with_solar | round(1) }}) er over grense ({{ t_start_cooling_limit | int }}). (Regel 2)
+                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og makstemperatur inkl. soltillegg ({{ forecast_max_with_solar | round(1) }}) er over grense ({{ t_start_cooling_limit | int }}). Match på regel 2.
               decision_is_rule2_cooling: true
               decision_found: true
 
@@ -656,10 +666,10 @@ actions:
         sequence:
           - action: script.varsel_pushover_send_melding_webhome
             data:
-              title: "LiBe - 🌡️ Driftsmodus {{ calculated_mode }}"
+              title: "🌡️ Driftsmodus {{ calculated_mode }}"
               message: |-
                 {% if decision_is_rule2_cooling %}
-                Kjøling grunnet vedvarende varmt vær.
+                Endret til kjøling for kommende natt og morgendagen grunnet vedvarende varmt vær.
                 {% elif mode_changed %}
                 Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
                 Utløsende regel: {{ decision_rule }}.
@@ -667,7 +677,9 @@ actions:
                 Driftsmodus uendret ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }}).
                 Utløsende regel: {{ decision_rule }}.
                 {% endif %}
+                {% if inkluder_begrunnelse %}
                 Begrunnelse: {{ decision_reason_display }}
+                {% endif %}
                 {% if missing_data_lines | count > 0 %}
 
                 Manglende data:
@@ -689,7 +701,9 @@ actions:
               message: |-
                 Beregning ble gjennomført uten modusendring ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} beholdt).
                 Utløsende regel: {{ decision_rule }}.
+                {% if inkluder_begrunnelse %}
                 Begrunnelse: {{ decision_reason_display }}
+                {% endif %}
 
                 Manglende data:
                 {{ missing_data_text }}

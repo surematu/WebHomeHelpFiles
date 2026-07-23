@@ -109,9 +109,9 @@ Etter beregning sammenlignes beregnet modus med gjeldende modus:
 ## 8) Varsling
 
 Varsel ved modusendring skal inkludere:
-- Tittel i formatet `LiBe - 🌡️ Driftsmodus <modus>`
-- Kort starttekst (for Regel 2: `Kjøling grunnet vedvarende varmt vær.`)
-- Kort begrunnelse med `(Regel 2)` på slutten for Regel 2
+- Tittel i formatet `🌡️ Driftsmodus <modus>`
+- Kort starttekst (for Regel 2: `Endret til kjøling for kommende natt og morgendagen grunnet vedvarende varmt vær.`)
+- Kort begrunnelse med `Match på regel 2.` på slutten for Regel 2 (vises kun hvis `inkluder_begrunnelse` er aktivert)
 - Manglende data (kun når data faktisk mangler)
 - `Manuelt kjørt sjekk.` på slutten av begrunnelsen når automasjonen er manuelt kjørt
 
