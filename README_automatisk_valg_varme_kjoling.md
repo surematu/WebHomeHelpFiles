@@ -1,8 +1,8 @@
-# Funksjonsbeskrivelse – Automatisk valg av varme- eller kjølemodus
+# Funksjonsbeskrivelse – Automatisk valg av vinter- eller sommermodus
 
 ## 1) Formål
 
-Denne funksjonen velger automatisk driftsmodus **VARME** eller **KJØLING**.
+Denne funksjonen velger automatisk driftsmodus **VINTER** eller **SOMMER**.
 Valgt modus brukes av andre reguleringsfunksjoner.
 
 Funksjonen skal **kun** velge tillatt driftsmodus, og skal ikke:
@@ -10,7 +10,7 @@ Funksjonen skal **kun** velge tillatt driftsmodus, og skal ikke:
 - styre varme-/kjøleeffekt direkte
 - starte/stoppe varmepumpen direkte
 
-Normalmodus er **VARME** når kjølebehov ikke er påvist.
+Normalmodus er **VINTER** når kjølebehov ikke er påvist.
 Det finnes ingen nøytral modus.
 
 ## 2) Kjøretid
@@ -22,16 +22,16 @@ Det finnes ingen nøytral modus.
 ## 3) Datagrunnlag
 
 Ved hver kjøring brukes følgende når tilgjengelig:
-- Gjennomsnittstemperatur siste 72 timer
-- Nåværende utetemperatur
+- Gjennomsnittstemperatur siste 72 timer (`sensor.utetemperatur_snitt_72_timer`)
+- Nåværende utetemperatur (`sensor.utetemperatur`)
 - Prognosert maksimumstemperatur neste døgn
 - Prognosert skydekning neste døgn kl. 10:00–18:00
 - Gjeldende dato
 - Gjeldende driftsmodus
 
 ### Prioritet temperaturgrunnlag
-1. Gjennomsnitt av tilgjengelige temperaturverdier siste 72 timer
-2. Nåværende utetemperatur hvis historikk mangler
+1. Gjennomsnitt av tilgjengelige temperaturverdier siste 72 timer (`sensor.utetemperatur_snitt_72_timer`)
+2. Nåværende utetemperatur (`sensor.utetemperatur`) hvis historikk mangler
 3. Kalenderbasert reservefunksjon hvis begge mangler
 
 ## 4) Beregnede verdier
@@ -75,11 +75,14 @@ Verdien brukes kun som beslutningsgrunnlag.
 
 ### Gjennomsnittstemperatur siste 72 timer
 
+Blueprinten bruker alltid `sensor.utetemperatur_snitt_72_timer` for 72t snitt
+og `sensor.utetemperatur` for nåværende utetemperatur (begge er hardkodet).
+
 ```yaml
 sensor:
   - platform: statistics
-    name: OutdoorTempAvg72h
-    entity_id: sensor.outdoor_temperature
+    name: utetemperatur_snitt_72_timer
+    entity_id: sensor.utetemperatur
     state_characteristic: average_step
     max_age:
       hours: 72
@@ -87,16 +90,16 @@ sensor:
 
 ## 6) Beslutningsregler (rekkefølge og stopp ved første treff)
 
-1. **Vinterperiode**: alltid VARME
-2. **Start kjøling ved etablert varmt vær**: snitt 72t over sommergrense **og** maks inkl. soltillegg over startgrense
-3. **Start kjøling ved ekstrem varme**: prognosert maks over ekstremgrense
-4. **Behold kjøling (hysterese)**: gjeldende KJØLING og maks inkl. soltillegg over stoppgrense
-5. **Behold kjøling ved manglende prognose**: prognose mangler, gjeldende KJØLING, snitt 72t over sommergrense
+1. **Vinterperiode**: alltid VINTER
+2. **Start sommermodus ved etablert varmt vær**: snitt 72t over sommergrense **og** maks inkl. soltillegg over startgrense
+3. **Start sommermodus ved ekstrem varme**: prognosert maks over ekstremgrense
+4. **Behold sommermodus (hysterese)**: gjeldende SOMMER og maks inkl. soltillegg over stoppgrense
+5. **Behold sommermodus ved manglende prognose**: prognose mangler, gjeldende SOMMER, snitt 72t over sommergrense
 6. **Reserve ved manglende temperaturgrunnlag**:
-   - VARME i vinterperiode
-   - KJØLING i sommerperiode
+   - VINTER i vinterperiode
+   - SOMMER i sommerperiode
    - behold gjeldende modus i overgangsperioder
-7. **Fallback**: VARME
+7. **Fallback**: VINTER
 
 ## 7) Gjennomføring av modusendring
 
@@ -111,8 +114,8 @@ Etter beregning sammenlignes beregnet modus med gjeldende modus:
 Varsel ved modusendring skal inkludere:
 - Tittel i formatet `🌡️ Driftsmodus <modus>`
 - Kort starttekst:
-  - Regel 2: `Endret til kjøling for kommende natt og morgendagen grunnet vedvarende varmt vær.`
-  - Regel 4 (uendret): `Driftsmodus uendret, fortsett med kjøling grunnet fortsatt forventet kjølebehov.`
+  - Regel 2: `Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.`
+  - Regel 4 (uendret): `Driftsmodus uendret, fortsett med sommermodus grunnet fortsatt forventet kjølebehov.`
   - Andre regler (uendret): `Driftsmodus uendret (<modus>). Utløsende regel: <regel>.`
   - Modusendring: `Driftsmodus er endret fra <gammel> til <ny>. Utløsende regel: <regel>.`
 - Begrunnelse med `Match på regel X.` på slutten for Regel 2 og Regel 4 (vises kun hvis `Vis ekstra begrunnelse` er aktivert, standard: på)
@@ -126,26 +129,27 @@ Avanserte innstillinger for varsling:
 
 ## 9) Virkning av valgt modus
 
-### VARME
+### VINTER
 - Tillat varmedrift
 - Tillat elektriske varmeovner
 - Sperr kjøledrift
 
-### KJØLING
+### SOMMER
 - Tillat kjøledrift
 - Sperr varmedrift
 - Sperr elektriske varmeovner
 
 ## 10) Feilhåndtering (prioritet)
 
-1. Vinterperiode => VARME
-2. Bruk historikk hvis tilgjengelig
-3. Ellers bruk nåverdi
+1. Vinterperiode => VINTER
+2. Bruk historikk hvis tilgjengelig (`sensor.utetemperatur_snitt_72_timer`)
+3. Ellers bruk nåverdi (`sensor.utetemperatur`)
 4. Hvis begge mangler: kalenderreserve
 5. Mangler temperaturprognose: hopp over prognose-regler
 6. Mangler skydekning: soltillegg = 0 °C
-7. Ved modusendring med manglende data: opplys i varsel
-8. Ved vesentlig datamangel uten endring: info-/avviksvarsel
+7. `sensor.utetemperatur` utilgjengelig: alltid varsel uavhengig av om historikk kompenserte
+8. Ved modusendring med manglende data: opplys i varsel
+9. Ved vesentlig datamangel uten endring: info-/avviksvarsel
 
 ## 11) Statusverdier for feilsøking
 
