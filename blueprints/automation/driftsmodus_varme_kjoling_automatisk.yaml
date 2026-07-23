@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.11
+    Blueprint versjon: 2026.07.12
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -133,7 +133,7 @@ blueprint:
 
         start_cooling_limit:
           name: Start kjøling - makstemperatur neste døgn inkl. soltillegg
-          default: 23
+          default: 25
           selector:
             number:
               min: -20
@@ -144,7 +144,7 @@ blueprint:
 
         stop_cooling_limit:
           name: Stopp kjøling - makstemperatur neste døgn inkl. soltillegg
-          default: 20
+          default: 22
           selector:
             number:
               min: -20
@@ -155,7 +155,7 @@ blueprint:
 
         extreme_heat_limit:
           name: Ekstrem varme - prognosert maksimumstemperatur neste døgn
-          default: 27
+          default: 28
           selector:
             number:
               min: -20
