@@ -116,8 +116,8 @@ Varsel ved modusendring skal inkludere:
 - `Manuelt kjørt sjekk.` på slutten av begrunnelsen når automasjonen er manuelt kjørt
 
 Avanserte innstillinger for varsling:
-- `Ikke kjør automatisk hver kveld` (standard: av) — sett til av for å deaktivere automatisk kjøring kl. 20:00
-- `Ikke send varsel ved manuell kjøring` (standard: av) — sett til av for å ikke sende varsel ved manuell kjøring
+- `Kjør automatisk kl. 20:00 hver kveld` (standard: av) — sett til på for å aktivere automatisk kjøring kl. 20:00; av for å deaktivere
+- `Send varsel ved manuell kjøring` (standard: av) — sett til på for å sende varsel ved manuell kjøring; av for ikke å sende varsel
 - `Vis ekstra begrunnelse` (standard: av) — aktiver for å inkludere detaljert begrunnelse i varselet
 
 ## 9) Virkning av valgt modus
