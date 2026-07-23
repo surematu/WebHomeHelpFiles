@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.08
+    Blueprint versjon: 2026.07.09
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -246,18 +246,20 @@ blueprint:
       collapsed: true
       input:
         auto_kjor_kveld:
-          name: Ikke kjør automatisk hver kveld
+          name: Kjør automatisk kl. 20:00 hver kveld
           description: >
-            Sett til false for å deaktivere automatisk kjøring kl. 20:00.
-            Automasjonen kan fortsatt kjøres manuelt.
+            Sett til true for å aktivere automatisk kjøring kl. 20:00.
+            Sett til false for å deaktivere automatisk kjøring –
+            automasjonen kan fortsatt kjøres manuelt.
           default: false
           selector:
             boolean:
 
         varsel_ved_manuell_kjoring:
-          name: Ikke send varsel ved manuell kjøring
+          name: Send varsel ved manuell kjøring
           description: >
-            Sett til false for å ikke sende varsel når automasjonen kjøres manuelt.
+            Sett til true for å sende varsel når automasjonen kjøres manuelt.
+            Sett til false for å ikke sende varsel ved manuell kjøring.
           default: false
           selector:
             boolean:
