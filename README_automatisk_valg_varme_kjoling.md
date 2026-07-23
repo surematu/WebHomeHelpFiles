@@ -114,11 +114,19 @@ Etter beregning sammenlignes beregnet modus med gjeldende modus:
 Varsel ved modusendring skal inkludere:
 - Tittel i formatet `🌡️ Driftsmodus <modus>`
 - Kort starttekst:
-  - Regel 2: `Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.`
+  - Regel 2 (endring til SOMMER): `Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.`
+  - Regel 7 (endring til VINTER): `Endret til vinter for kommende natt og morgendagen grunnet kaldt vær.`
   - Regel 4 (uendret): `Driftsmodus uendret, fortsett med sommermodus grunnet fortsatt forventet kjølebehov.`
+  - Regel 7 (uendret): `Driftsmodus uendret, ingen kjølebehov påvist, forblir vintermodus.`
   - Andre regler (uendret): `Driftsmodus uendret (<modus>). Utløsende regel: <regel>.`
-  - Modusendring: `Driftsmodus er endret fra <gammel> til <ny>. Utløsende regel: <regel>.`
-- Begrunnelse med `Match på regel X.` på slutten for Regel 2 og Regel 4 (vises kun hvis `Vis ekstra begrunnelse` er aktivert, standard: på)
+  - Modusendring (andre regler): `Driftsmodus er endret fra <gammel> til <ny>. Utløsende regel: <regel>.`
+- Begrunnelse med `Match på regel X.` på slutten for alle regler (vises kun hvis `Vis ekstra begrunnelse` er aktivert, standard: på)
+  - Regel 1: inkluderer aktuell dato og periodeintervall
+  - Regel 2: inkluderer snitt 72t, maks inkl. soltillegg, skydekke
+  - Regel 4: inkluderer maks inkl. soltillegg, evt. snitt 72t og skydekke
+  - Regel 5: inkluderer snitt 72t
+  - Regel 6: inkluderer aktuell dato og periodeinfo
+  - Regel 7: inkluderer snitt 72t, maks inkl. soltillegg, skydekke og ekstremgrense
 - Manglende data (kun når data faktisk mangler)
 - `Manuelt kjørt sjekk.` på slutten av begrunnelsen når automasjonen er manuelt kjørt
 

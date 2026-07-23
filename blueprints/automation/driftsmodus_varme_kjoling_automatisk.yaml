@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.15
+    Blueprint versjon: 2026.07.16
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -495,9 +495,17 @@ actions:
     variables:
       calculated_mode: "{{ io_mode_heat }}"
       decision_rule: "Regel 7 - Velg vintermodus når kjølebehov ikke er påvist"
-      decision_reason: "Ingen tidligere regler ble oppfylt. VINTER er normalmodus."
-      decision_short_text: ""
+      decision_reason: >-
+        {% if not has_temp_basis and not forecast_max_available %}
+        Mangler temperaturgrunnlag og prognose for neste døgn.
+        {% elif not forecast_max_available %}
+        Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) under grense ({{ t_summer_avg_limit | int }}). Ingen prognose tilgjengelig for neste døgn.
+        {% else %}
+        {% if has_temp_basis %}Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) under grense ({{ t_summer_avg_limit | int }}) eller {% endif %}makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er under grense ({{ t_stop_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Detektert temperatur i morgen ({{ forecast_max_next_day | round(1) }}) er under grense for ekstrem varme ({{ t_extreme_heat_limit | int }}).
+        {% endif %} Match på regel 7.
+      decision_short_text: "ingen kjølebehov påvist, forblir vintermodus"
       decision_is_rule2_cooling: false
+      decision_is_rule7_heating: true
       decision_found: false
 
   - alias: Steg 14 - Regel 1 (vinter sperrer sommermodus)
@@ -509,7 +517,8 @@ actions:
           - variables:
               calculated_mode: "{{ io_mode_heat }}"
               decision_rule: "Regel 1 - Sikre varmedrift i vinterperioden"
-              decision_reason: "Dato ligger i fast vinterperiode."
+              decision_reason: >-
+                Dato ({{ calc_today_day }}/{{ calc_today_month }}) er innenfor fast vinterperiode ({{ p_winter_start_day }}/{{ p_winter_start_month }}–{{ p_winter_end_day }}/{{ p_winter_end_month }}). Match på regel 1.
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -589,7 +598,8 @@ actions:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 5 - Behold kjøling ved varmt vær når prognosen mangler"
-              decision_reason: "Prognose mangler, men snitt 72t er over sommergrense og gjeldende modus er SOMMER."
+              decision_reason: >-
+                Prognose for neste døgn mangler. Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og gjeldende modus er SOMMER. Match på regel 5.
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -602,7 +612,8 @@ actions:
           - variables:
               calculated_mode: "{{ io_mode_heat }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (vinter)"
-              decision_reason: "Temperaturgrunnlag mangler, dato i vinterperiode."
+              decision_reason: >-
+                Temperaturgrunnlag mangler. Dato ({{ calc_today_day }}/{{ calc_today_month }}) er i vinterperioden, setter VINTER. Match på regel 6.
               decision_is_rule2_cooling: false
               decision_found: true
       - conditions:
@@ -612,7 +623,8 @@ actions:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (sommer)"
-              decision_reason: "Temperaturgrunnlag mangler, dato i sommerperiode."
+              decision_reason: >-
+                Temperaturgrunnlag mangler. Dato ({{ calc_today_day }}/{{ calc_today_month }}) er i sommerperioden, setter SOMMER. Match på regel 6.
               decision_is_rule2_cooling: false
               decision_found: true
       - conditions:
@@ -622,7 +634,8 @@ actions:
           - variables:
               calculated_mode: "{{ current_mode_raw if current_mode_raw != '' else io_mode_heat }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (overgang)"
-              decision_reason: "Temperaturgrunnlag mangler i overgangsperiode, gjeldende modus beholdes."
+              decision_reason: >-
+                Temperaturgrunnlag mangler i overgangsperiode. Gjeldende modus ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }}) beholdes. Match på regel 6.
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -681,6 +694,8 @@ actions:
               message: |-
                 {% if decision_is_rule2_cooling %}
                 Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.
+                {% elif decision_is_rule7_heating and mode_changed %}
+                Endret til vinter for kommende natt og morgendagen grunnet kaldt vær.
                 {% elif mode_changed %}
                 Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
                 Utløsende regel: {{ decision_rule }}.
