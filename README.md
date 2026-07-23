@@ -33,6 +33,12 @@ Steg X+2  →  send notification
 
 ---
 
+## README check when changing automations
+
+When an automation blueprint is adjusted, check whether its related README/documentation still matches and update it when needed.
+
+---
+
 ## Automation blueprints
 
 ### driftsmodus_varme_kjoling_automatisk.yaml — Driftsmodus (automatisk valg varme/kjøling)
@@ -42,7 +48,7 @@ Velger automatisk driftsmodus **VARME** eller **KJØLING** én gang daglig kl. 2
 - Prognosert maksimumstemperatur neste døgn
 - Prognosert skydekning kl. 10:00–18:00 (soltillegg)
 - Faste vinter-/sommerperioder som sikkerhetsregler
-- Oppdatert digital helper for kjølestatus (`CoolMode`/`input_boolean`) som kan brukes til langtidsstatistikk
+- Pushover-varsel ved modusendring eller vesentlig datamangel uten endring
 
 Detaljert funksjonsbeskrivelse:
 - [README_automatisk_valg_varme_kjoling.md](./README_automatisk_valg_varme_kjoling.md)
