@@ -111,14 +111,14 @@ Etter beregning sammenlignes beregnet modus med gjeldende modus:
 Varsel ved modusendring skal inkludere:
 - Tittel i formatet `🌡️ Driftsmodus <modus>`
 - Kort starttekst (for Regel 2: `Endret til kjøling for kommende natt og morgendagen grunnet vedvarende varmt vær.`)
-- Begrunnelse med `Match på regel 2.` på slutten for Regel 2 (vises kun hvis `Vis ekstra begrunnelse` er aktivert, standard: av)
+- Begrunnelse med `Match på regel 2.` på slutten for Regel 2 (vises kun hvis `Vis ekstra begrunnelse` er aktivert, standard: på)
 - Manglende data (kun når data faktisk mangler)
 - `Manuelt kjørt sjekk.` på slutten av begrunnelsen når automasjonen er manuelt kjørt
 
 Avanserte innstillinger for varsling:
-- `Kjør automatisk kl. 20:00 hver kveld` (standard: av) — sett til på for å aktivere automatisk kjøring kl. 20:00; av for å deaktivere
-- `Send varsel ved manuell kjøring` (standard: av) — sett til på for å sende varsel ved manuell kjøring; av for ikke å sende varsel
-- `Vis ekstra begrunnelse` (standard: av) — aktiver for å inkludere detaljert begrunnelse i varselet
+- `Kjør automatisk kl. 20:00 hver kveld` (standard: på) — sett til på for å aktivere automatisk kjøring kl. 20:00; av for å deaktivere
+- `Send varsel ved manuell kjøring` (standard: på) — sett til på for å sende varsel ved manuell kjøring; av for ikke å sende varsel
+- `Vis ekstra begrunnelse` (standard: på) — aktiver for å inkludere detaljert begrunnelse i varselet
 
 ## 9) Virkning av valgt modus
 
