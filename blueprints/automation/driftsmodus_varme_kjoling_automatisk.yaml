@@ -1,0 +1,701 @@
+blueprint:
+  name: Driftsmodus - Automatisk valg varme/kjøling (WebHome Automation)
+  description: >
+    Velger driftsmodus VARME/KJØLING én gang daglig kl. 20:00 basert på
+    temperaturgrunnlag, værprognose, skydekning og kalenderperioder.
+
+    Beslutningsregler (i prioritert rekkefølge):
+    - Regel 1: Vinterperiode => VARME
+    - Regel 2: Start kjøling ved etablert varmt vær
+    - Regel 3: Start kjøling ved ekstrem varme
+    - Regel 4: Behold kjøling ved fortsatt forventet kjølebehov
+    - Regel 5: Behold kjøling ved manglende prognose
+    - Regel 6: Reserve ved manglende temperaturgrunnlag
+    - Regel 7: Fallback => VARME
+
+    Blueprint versjon: 2026.07.00
+  domain: automation
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
+  author: WebHome
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    hoved:
+      name: Hovedinnganger
+      icon: mdi:thermostat-auto
+      input:
+        mode_target_entity:
+          name: Driftsmodus helper (input_select)
+          description: Input_select som skal settes til VARME eller KJØLING.
+          selector:
+            entity:
+              domain: input_select
+
+        weather_entity:
+          name: Vær entitet
+          description: Weather-entitet som støtter weather.get_forecasts (hourly).
+          selector:
+            entity:
+              domain: weather
+
+        outdoor_temp_entity:
+          name: Nåværende utetemperatur sensor
+          selector:
+            entity:
+              filter:
+                domain: sensor
+                device_class: temperature
+
+        outdoor_temp_avg_72h_entity:
+          name: Gjennomsnittstemperatur siste 72 timer (valgfri sensor)
+          description: >
+            Anbefalt statistics/helper sensor for 72t snitt. Hvis tom/mangler,
+            brukes nåværende utetemperatur.
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: sensor
+                device_class: temperature
+
+        mode_heat_value:
+          name: Verdi for VARME i mode helper
+          default: VARME
+          selector:
+            text:
+
+        mode_cool_value:
+          name: Verdi for KJØLING i mode helper
+          default: KJØLING
+          selector:
+            text:
+
+    perioder:
+      name: Kalenderperioder
+      icon: mdi:calendar
+      collapsed: true
+      input:
+        winter_start_month:
+          name: Fast vinterperiode start - måned
+          default: 11
+          selector: { number: { min: 1, max: 12, step: 1, mode: box } }
+        winter_start_day:
+          name: Fast vinterperiode start - dag
+          default: 1
+          selector: { number: { min: 1, max: 31, step: 1, mode: box } }
+
+        winter_end_month:
+          name: Fast vinterperiode slutt - måned
+          default: 3
+          selector: { number: { min: 1, max: 12, step: 1, mode: box } }
+        winter_end_day:
+          name: Fast vinterperiode slutt - dag
+          default: 1
+          selector: { number: { min: 1, max: 31, step: 1, mode: box } }
+
+        summer_start_month:
+          name: Fast sommerperiode start - måned
+          default: 6
+          selector: { number: { min: 1, max: 12, step: 1, mode: box } }
+        summer_start_day:
+          name: Fast sommerperiode start - dag
+          default: 1
+          selector: { number: { min: 1, max: 31, step: 1, mode: box } }
+
+        summer_end_month:
+          name: Fast sommerperiode slutt - måned
+          default: 8
+          selector: { number: { min: 1, max: 12, step: 1, mode: box } }
+        summer_end_day:
+          name: Fast sommerperiode slutt - dag
+          default: 31
+          selector: { number: { min: 1, max: 31, step: 1, mode: box } }
+
+    terskler:
+      name: Terskler og soltillegg
+      icon: mdi:tune
+      collapsed: true
+      input:
+        summer_avg_limit:
+          name: Sommergrense - gjennomsnittstemperatur siste 72 timer
+          default: 15
+          selector:
+            number:
+              min: -20
+              max: 40
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+        start_cooling_limit:
+          name: Start kjøling - makstemperatur neste døgn inkl. soltillegg
+          default: 23
+          selector:
+            number:
+              min: -20
+              max: 50
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+        stop_cooling_limit:
+          name: Stopp kjøling - makstemperatur neste døgn inkl. soltillegg
+          default: 20
+          selector:
+            number:
+              min: -20
+              max: 50
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+        extreme_heat_limit:
+          name: Ekstrem varme - prognosert maksimumstemperatur neste døgn
+          default: 27
+          selector:
+            number:
+              min: -20
+              max: 55
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+        solar_add_0_25:
+          name: Soltillegg ved 0-25 % skydekning
+          default: 3
+          selector:
+            number:
+              min: -10
+              max: 10
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+        solar_add_26_50:
+          name: Soltillegg ved 26-50 % skydekning
+          default: 2
+          selector:
+            number:
+              min: -10
+              max: 10
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+        solar_add_51_75:
+          name: Soltillegg ved 51-75 % skydekning
+          default: 1
+          selector:
+            number:
+              min: -10
+              max: 10
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+        solar_add_76_100:
+          name: Soltillegg ved 76-100 % skydekning
+          default: 0
+          selector:
+            number:
+              min: -10
+              max: 10
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+    optional:
+      name: Valgfritt
+      icon: mdi:bell-outline
+      collapsed: true
+      input:
+        status_text_entity:
+          name: Status input_text (valgfri)
+          description: Oppdaterer input_text med resultat fra siste beregning.
+          default: ""
+          selector:
+            entity:
+              domain: input_text
+
+        pushover_destination:
+          name: Pushover destination (valgfri)
+          description: Mottakergruppe i script.varsel_pushover_send_melding_webhome.
+          default: pushover
+          selector:
+            text:
+
+        pushover_priority:
+          name: Pushover priority
+          default: 0
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_ttl:
+          name: Pushover TTL (sekunder)
+          default: 604800
+          selector:
+            number:
+              min: 0
+              max: 604800
+              step: 60
+              mode: box
+
+mode: single
+
+triggers:
+  - trigger: time
+    at: "20:00:00"
+
+actions:
+  - alias: Steg 0 - Innstillinger og input
+    variables:
+      io_mode_entity: !input mode_target_entity
+      io_weather_entity: !input weather_entity
+      io_temp_now_entity: !input outdoor_temp_entity
+      io_temp_avg_72h_entity: !input outdoor_temp_avg_72h_entity
+      io_mode_heat: !input mode_heat_value
+      io_mode_cool: !input mode_cool_value
+
+      io_status_text_entity: !input status_text_entity
+      pushover_destination: !input pushover_destination
+      pushover_priority: !input pushover_priority
+      pushover_ttl: !input pushover_ttl
+
+      p_winter_start_month: !input winter_start_month
+      p_winter_start_day: !input winter_start_day
+      p_winter_end_month: !input winter_end_month
+      p_winter_end_day: !input winter_end_day
+      p_summer_start_month: !input summer_start_month
+      p_summer_start_day: !input summer_start_day
+      p_summer_end_month: !input summer_end_month
+      p_summer_end_day: !input summer_end_day
+
+      t_summer_avg_limit: !input summer_avg_limit
+      t_start_cooling_limit: !input start_cooling_limit
+      t_stop_cooling_limit: !input stop_cooling_limit
+      t_extreme_heat_limit: !input extreme_heat_limit
+      t_solar_add_0_25: !input solar_add_0_25
+      t_solar_add_26_50: !input solar_add_26_50
+      t_solar_add_51_75: !input solar_add_51_75
+      t_solar_add_76_100: !input solar_add_76_100
+
+  - alias: Steg 1 - Dato og kalenderperioder
+    variables:
+      # MMDD-koding (måned*100 + dag) brukes for enkel sammenligning av dato-intervaller.
+      calc_now: "{{ now() }}"
+      calc_today_month: "{{ calc_now.month | int }}"
+      calc_today_day: "{{ calc_now.day | int }}"
+      calc_today_md: "{{ (calc_today_month | int) * 100 + (calc_today_day | int) }}"
+      calc_winter_start_md: "{{ (p_winter_start_month | int) * 100 + (p_winter_start_day | int) }}"
+      calc_winter_end_md: "{{ (p_winter_end_month | int) * 100 + (p_winter_end_day | int) }}"
+      calc_summer_start_md: "{{ (p_summer_start_month | int) * 100 + (p_summer_start_day | int) }}"
+      calc_summer_end_md: "{{ (p_summer_end_month | int) * 100 + (p_summer_end_day | int) }}"
+
+  - alias: Steg 2 - Evaluer vinter/sommer/overgang
+    variables:
+      in_winter_period: >-
+        {% set now_md = calc_today_md | int %}
+        {% set start_md = calc_winter_start_md | int %}
+        {% set end_md = calc_winter_end_md | int %}
+        {% if start_md <= end_md %}
+          {{ start_md <= now_md <= end_md }}
+        {% else %}
+          {{ now_md >= start_md or now_md <= end_md }}
+        {% endif %}
+      in_summer_period: >-
+        {% set now_md = calc_today_md | int %}
+        {% set start_md = calc_summer_start_md | int %}
+        {% set end_md = calc_summer_end_md | int %}
+        {% if start_md <= end_md %}
+          {{ start_md <= now_md <= end_md }}
+        {% else %}
+          {{ now_md >= start_md or now_md <= end_md }}
+        {% endif %}
+      active_period_name: >-
+        {% if in_winter_period %}
+          Vinterperiode
+        {% elif in_summer_period %}
+          Sommerperiode
+        {% else %}
+          Overgangsperiode
+        {% endif %}
+
+  - alias: Steg 3 - Gjeldende driftsmodus
+    variables:
+      current_mode_raw: "{{ states(io_mode_entity) | default('', true) | string | trim }}"
+      current_mode_heat_ref: "{{ io_mode_heat | string | trim }}"
+      current_mode_cool_ref: "{{ io_mode_cool | string | trim }}"
+      is_current_cooling: "{{ current_mode_raw == current_mode_cool_ref }}"
+
+  - alias: Steg 4 - Temperaturgrunnlag (72t snitt -> nåverdi -> mangler)
+    variables:
+      avg72_source_raw: >-
+        {% if (io_temp_avg_72h_entity | string | trim) != '' %}
+          {{ states(io_temp_avg_72h_entity) }}
+        {% else %}
+          unavailable
+        {% endif %}
+      avg72_available: "{{ is_number(avg72_source_raw) }}"
+      avg72_value: "{{ avg72_source_raw | float if avg72_available else none }}"
+
+      now_temp_source_raw: "{{ states(io_temp_now_entity) }}"
+      now_temp_available: "{{ is_number(now_temp_source_raw) }}"
+      now_temp_value: "{{ now_temp_source_raw | float if now_temp_available else none }}"
+
+  - alias: Steg 5 - Endelig temperaturgrunnlag
+    variables:
+      avg_temp_72h: >-
+        {% if avg72_available %}
+          {{ avg72_value | float }}
+        {% elif now_temp_available %}
+          {{ now_temp_value | float }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+      has_temp_basis: "{{ avg_temp_72h is not none }}"
+      temp_basis_source: >-
+        {% if avg72_available %}
+          historikk_72h
+        {% elif now_temp_available %}
+          naverdi
+        {% else %}
+          mangler
+        {% endif %}
+
+  - alias: Steg 6 - Hent værvarsel (hourly)
+    action: weather.get_forecasts
+    target:
+      entity_id: "{{ io_weather_entity }}"
+    data:
+      type: hourly
+    response_variable: wf
+
+  - alias: Steg 7 - Finn forecastliste for valgt værentitet
+    variables:
+      wf_key: >-
+        {{ wf.keys() | list | first if wf is mapping and (wf | count > 0) else '' }}
+      fc_list: >-
+        {{ wf[wf_key]['forecast'] if wf_key and wf[wf_key] is mapping and 'forecast' in wf[wf_key] else [] }}
+      tomorrow_date: "{{ (now() + timedelta(days=1)).strftime('%Y-%m-%d') }}"
+
+  - alias: Steg 8 - Filter forecast for neste døgn
+    variables:
+      tomorrow_entries: >-
+        {% set ns = namespace(items=[]) %}
+        {% for item in fc_list %}
+          {% set dt = item.datetime | default('') %}
+          {% if dt and (dt | string)[:10] == tomorrow_date %}
+            {% set ns.items = ns.items + [item] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.items }}
+
+  - alias: Steg 9 - Prognosert maksimumstemperatur neste døgn
+    variables:
+      forecast_temp_values: >-
+        {% set ns = namespace(values=[]) %}
+        {% for item in tomorrow_entries %}
+          {% set t = item.temperature | default(none) %}
+          {% if t is not none and (t is number or t | float(none) is not none) %}
+            {% set ns.values = ns.values + [t | float] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.values }}
+      forecast_max_available: "{{ (forecast_temp_values | count) > 0 }}"
+      forecast_max_next_day: "{{ (forecast_temp_values | max) if forecast_max_available else none }}"
+
+  - alias: Steg 10 - Skydekning kl. 10-18 neste døgn
+    variables:
+      cloud_values_10_18: >-
+        {% set ns = namespace(values=[]) %}
+        {% for item in tomorrow_entries %}
+          {% set dt = item.datetime | default('') %}
+          {% set cc = item.cloud_coverage | default(none) %}
+          {% if dt and cc is not none and (cc is number or cc | float(none) is not none) %}
+            {% set hour = as_datetime(dt).hour %}
+            {% if 10 <= hour <= 18 %}
+              {% set ns.values = ns.values + [cc | float] %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.values }}
+      cloud_avg_available: "{{ (cloud_values_10_18 | count) > 0 }}"
+      cloud_avg_10_18: >-
+        {% if cloud_avg_available %}
+          {{ (cloud_values_10_18 | sum) / (cloud_values_10_18 | count) }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
+  - alias: Steg 11 - Soltillegg og makstemperatur inkl. soltillegg
+    variables:
+      solar_addition: >-
+        {% if not cloud_avg_available %}
+          0
+        {% elif (cloud_avg_10_18 | float) <= 25 %}
+          {{ t_solar_add_0_25 | float }}
+        {% elif (cloud_avg_10_18 | float) <= 50 %}
+          {{ t_solar_add_26_50 | float }}
+        {% elif (cloud_avg_10_18 | float) <= 75 %}
+          {{ t_solar_add_51_75 | float }}
+        {% else %}
+          {{ t_solar_add_76_100 | float }}
+        {% endif %}
+      forecast_max_with_solar: >-
+        {% if forecast_max_available %}
+          {{ (forecast_max_next_day | float) + (solar_addition | float) }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
+  - alias: Steg 12 - Status for manglende data
+    variables:
+      missing_data_lines: >-
+        {% set ns = namespace(lines=[]) %}
+        {% if not forecast_max_available %}
+          {% set ns.lines = ns.lines + ['Værprognosen for neste døgn var ikke tilgjengelig.'] %}
+        {% endif %}
+        {% if not cloud_avg_available %}
+          {% set ns.lines = ns.lines + ['Skydekningsprognosen kl. 10:00-18:00 var ikke tilgjengelig (soltillegg satt til 0 °C).'] %}
+        {% endif %}
+        {% if not avg72_available and now_temp_available %}
+          {% set ns.lines = ns.lines + ['Temperaturhistorikk var ikke tilgjengelig, nåværende utetemperatur ble brukt.'] %}
+        {% endif %}
+        {% if not avg72_available and not now_temp_available %}
+          {% set ns.lines = ns.lines + ['Verken temperaturhistorikk eller nåværende utetemperatur var tilgjengelig.'] %}
+        {% endif %}
+        {{ ns.lines }}
+      missing_data_text: >-
+        {% if (missing_data_lines | count) > 0 %}
+          {{ missing_data_lines | join('\n') }}
+        {% else %}
+          Ingen
+        {% endif %}
+      major_data_missing: "{{ (not forecast_max_available) or (not has_temp_basis) }}"
+
+  - alias: Steg 13 - Initier beslutningsresultat (Regel 7 fallback)
+    variables:
+      calculated_mode: "{{ io_mode_heat }}"
+      decision_rule: "Regel 7 - Velg varme når kjølebehov ikke er påvist"
+      decision_reason: "Ingen tidligere regler ble oppfylt. VARME er normalmodus."
+      decision_found: false
+
+  - alias: Steg 14 - Regel 1 (vinter sperrer kjøling)
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ not decision_found and in_winter_period }}"
+        sequence:
+          - variables:
+              calculated_mode: "{{ io_mode_heat }}"
+              decision_rule: "Regel 1 - Sikre varmedrift i vinterperioden"
+              decision_reason: "Dato ligger i fast vinterperiode."
+              decision_found: true
+
+  - alias: Steg 15 - Regel 2 (start kjøling ved etablert varmt vær)
+    choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{
+                not decision_found
+                and has_temp_basis
+                and forecast_max_available
+                and (avg_temp_72h | float) > (t_summer_avg_limit | float)
+                and (forecast_max_with_solar | float) > (t_start_cooling_limit | float)
+              }}
+        sequence:
+          - variables:
+              calculated_mode: "{{ io_mode_cool }}"
+              decision_rule: "Regel 2 - Start kjøling ved etablert varmt vær"
+              decision_reason: "Snitt 72t og makstemperatur inkl. soltillegg er over startgrenser."
+              decision_found: true
+
+  - alias: Steg 16 - Regel 3 (start kjøling ved ekstrem varme)
+    choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{
+                not decision_found
+                and forecast_max_available
+                and (forecast_max_next_day | float) > (t_extreme_heat_limit | float)
+              }}
+        sequence:
+          - variables:
+              calculated_mode: "{{ io_mode_cool }}"
+              decision_rule: "Regel 3 - Start kjøling før varslet ekstrem varme"
+              decision_reason: "Prognosert maksimumstemperatur neste døgn er over ekstremgrense."
+              decision_found: true
+
+  - alias: Steg 17 - Regel 4 (behold kjøling ved fortsatt behov)
+    choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{
+                not decision_found
+                and is_current_cooling
+                and forecast_max_available
+                and (forecast_max_with_solar | float) > (t_stop_cooling_limit | float)
+              }}
+        sequence:
+          - variables:
+              calculated_mode: "{{ io_mode_cool }}"
+              decision_rule: "Regel 4 - Behold kjøling ved fortsatt forventet kjølebehov"
+              decision_reason: "Gjeldende modus er KJØLING og makstemperatur inkl. soltillegg er over stoppgrense."
+              decision_found: true
+
+  - alias: Steg 18 - Regel 5 (behold kjøling uten prognose)
+    choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{
+                not decision_found
+                and (not forecast_max_available)
+                and has_temp_basis
+                and is_current_cooling
+                and (avg_temp_72h | float) > (t_summer_avg_limit | float)
+              }}
+        sequence:
+          - variables:
+              calculated_mode: "{{ io_mode_cool }}"
+              decision_rule: "Regel 5 - Behold kjøling ved varmt vær når prognosen mangler"
+              decision_reason: "Prognose mangler, men snitt 72t er over sommergrense og gjeldende modus er KJØLING."
+              decision_found: true
+
+  - alias: Steg 19 - Regel 6 (reserve ved manglende temperaturgrunnlag)
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ not decision_found and (not has_temp_basis) and in_winter_period }}"
+        sequence:
+          - variables:
+              calculated_mode: "{{ io_mode_heat }}"
+              decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (vinter)"
+              decision_reason: "Temperaturgrunnlag mangler, dato i vinterperiode."
+              decision_found: true
+      - conditions:
+          - condition: template
+            value_template: "{{ not decision_found and (not has_temp_basis) and in_summer_period }}"
+        sequence:
+          - variables:
+              calculated_mode: "{{ io_mode_cool }}"
+              decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (sommer)"
+              decision_reason: "Temperaturgrunnlag mangler, dato i sommerperiode."
+              decision_found: true
+      - conditions:
+          - condition: template
+            value_template: "{{ not decision_found and (not has_temp_basis) and (not in_winter_period) and (not in_summer_period) }}"
+        sequence:
+          - variables:
+              calculated_mode: "{{ current_mode_raw if current_mode_raw != '' else io_mode_heat }}"
+              decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (overgang)"
+              decision_reason: "Temperaturgrunnlag mangler i overgangsperiode, gjeldende modus beholdes."
+              decision_found: true
+
+  - alias: Steg 20 - Sammenlign beregnet og gjeldende modus
+    variables:
+      mode_changed: "{{ (calculated_mode | string | trim) != (current_mode_raw | string | trim) }}"
+      final_result_text: >-
+        {% if mode_changed %}
+          Driftsmodus endret
+        {% else %}
+          Driftsmodus uendret
+        {% endif %}
+
+  - alias: Steg 21 - Bygg statusmeldinger
+    variables:
+      value_avg_72h_text: "{{ (avg_temp_72h | round(1)) if has_temp_basis else 'ikke tilgjengelig' }}"
+      value_now_temp_text: "{{ (now_temp_value | round(1)) if now_temp_available else 'ikke tilgjengelig' }}"
+      value_fc_max_text: "{{ (forecast_max_next_day | round(1)) if forecast_max_available else 'ikke tilgjengelig' }}"
+      value_cloud_text: "{{ (cloud_avg_10_18 | round(0)) ~ '%' if cloud_avg_available else 'ikke tilgjengelig' }}"
+      value_solar_text: "{{ solar_addition | round(1) }}"
+      value_fc_max_solar_text: "{{ (forecast_max_with_solar | round(1)) if forecast_max_available else 'ikke tilgjengelig' }}"
+      status_text_long: >-
+        {{ final_result_text }} | Regel={{ decision_rule }} | {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} -> {{ calculated_mode }} |
+        Periode={{ active_period_name }} |
+        Snitt72={{ value_avg_72h_text }}°C (kilde={{ temp_basis_source }}) |
+        Nå={{ value_now_temp_text }}°C |
+        MaksNesteDøgn={{ value_fc_max_text }}°C |
+        Sky10-18={{ value_cloud_text }} |
+        Soltillegg={{ value_solar_text }}°C |
+        Maks+Sol={{ value_fc_max_solar_text }}°C
+      status_text_short: "{{ status_text_long[:250] }}"
+
+  - alias: Steg 22 - Oppdater mode helper ved endring
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ mode_changed }}"
+        sequence:
+          - action: input_select.select_option
+            target:
+              entity_id: "{{ io_mode_entity }}"
+            data:
+              option: "{{ calculated_mode }}"
+
+  - alias: Steg 23 - Oppdater valgfri status input_text
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ io_status_text_entity is not none and (io_status_text_entity | string | trim) != '' }}"
+        sequence:
+          - action: input_text.set_value
+            target:
+              entity_id: "{{ io_status_text_entity }}"
+            data:
+              value: "{{ status_text_short }}"
+
+  - alias: Steg 24 - Varsel ved modusendring
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ mode_changed and (pushover_destination | string | trim) != '' }}"
+        sequence:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "🌡️ Driftsmodus endret"
+              message: |-
+                Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
+                Utløsende regel: {{ decision_rule }}.
+                Begrunnelse: {{ decision_reason }}.
+
+                Gjennomsnittstemperatur siste 72 timer: {{ value_avg_72h_text }} °C
+                Nåværende utetemperatur: {{ value_now_temp_text }} °C
+                Prognosert maksimumstemperatur neste døgn: {{ value_fc_max_text }} °C
+                Prognosert skydekning kl. 10:00-18:00: {{ value_cloud_text }}
+                Soltillegg: {{ value_solar_text }} °C
+                Makstemperatur neste døgn inkl. soltillegg: {{ value_fc_max_solar_text }} °C
+
+                Manglende data:
+                {{ missing_data_text }}
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl: "{{ pushover_ttl | int(604800) }}"
+
+  - alias: Steg 25 - Varsel ved vesentlig datamangel uten modusendring
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ (not mode_changed) and major_data_missing and (pushover_destination | string | trim) != '' }}"
+        sequence:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "ℹ️ Driftsmodus uendret - manglende data"
+              message: |-
+                Beregning ble gjennomført uten modusendring ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} beholdt).
+                Utløsende regel: {{ decision_rule }}.
+                Begrunnelse: {{ decision_reason }}.
+
+                Manglende data:
+                {{ missing_data_text }}
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl: "{{ pushover_ttl | int(604800) }}"

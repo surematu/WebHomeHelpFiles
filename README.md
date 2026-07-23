@@ -35,6 +35,19 @@ Steg X+2  →  send notification
 
 ## Automation blueprints
 
+### driftsmodus_varme_kjoling_automatisk.yaml — Driftsmodus (automatisk valg varme/kjøling)
+
+Velger automatisk driftsmodus **VARME** eller **KJØLING** én gang daglig kl. 20:00, basert på:
+- Gjennomsnittstemperatur siste 72 timer (med fallback til nåværende utetemperatur)
+- Prognosert maksimumstemperatur neste døgn
+- Prognosert skydekning kl. 10:00–18:00 (soltillegg)
+- Faste vinter-/sommerperioder som sikkerhetsregler
+
+Detaljert funksjonsbeskrivelse:
+- [README_automatisk_valg_varme_kjoling.md](./README_automatisk_valg_varme_kjoling.md)
+
+---
+
 ### varsel_enhet.yaml — Varsel - Enhet (batteri + signal + uptime)
 
 Samlet overvåkning av batteri-enheter og Uptime Kuma i én blueprint:
