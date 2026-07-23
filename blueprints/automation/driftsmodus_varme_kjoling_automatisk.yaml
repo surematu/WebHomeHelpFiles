@@ -496,14 +496,12 @@ actions:
       calculated_mode: "{{ io_mode_heat }}"
       decision_rule: "Regel 7 - Velg vintermodus når kjølebehov ikke er påvist"
       decision_reason: >-
-        {% if has_temp_basis and forecast_max_available %}
-        Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) under grense ({{ t_summer_avg_limit | int }}) eller makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er under grense ({{ t_stop_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Detektert temperatur i morgen ({{ forecast_max_next_day | round(1) }}) er under grense for ekstrem varme ({{ t_extreme_heat_limit | int }}).
-        {% elif has_temp_basis %}
-        Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) under grense ({{ t_summer_avg_limit | int }}). Ingen prognose tilgjengelig for neste døgn.
-        {% elif forecast_max_available %}
-        Mangler temperaturgrunnlag. Makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er under grense ({{ t_stop_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Detektert temperatur i morgen ({{ forecast_max_next_day | round(1) }}) er under grense for ekstrem varme ({{ t_extreme_heat_limit | int }}).
-        {% else %}
+        {% if not has_temp_basis and not forecast_max_available %}
         Mangler temperaturgrunnlag og prognose for neste døgn.
+        {% elif not forecast_max_available %}
+        Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) under grense ({{ t_summer_avg_limit | int }}). Ingen prognose tilgjengelig for neste døgn.
+        {% else %}
+        {% if has_temp_basis %}Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) under grense ({{ t_summer_avg_limit | int }}) eller {% endif %}makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er under grense ({{ t_stop_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Detektert temperatur i morgen ({{ forecast_max_next_day | round(1) }}) er under grense for ekstrem varme ({{ t_extreme_heat_limit | int }}).
         {% endif %} Match på regel 7.
       decision_short_text: "ingen kjølebehov påvist, forblir vintermodus"
       decision_is_rule2_cooling: false
