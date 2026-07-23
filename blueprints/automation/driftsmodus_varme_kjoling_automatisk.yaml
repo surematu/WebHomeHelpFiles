@@ -489,6 +489,7 @@ actions:
               calculated_mode: "{{ io_mode_heat }}"
               decision_rule: "Regel 1 - Sikre varmedrift i vinterperioden"
               decision_reason: "Dato ligger i fast vinterperiode."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 15 - Regel 2 (start kjøling ved etablert varmt vær)
@@ -527,6 +528,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 3 - Start kjøling før varslet ekstrem varme"
               decision_reason: "Prognosert maksimumstemperatur neste døgn er over ekstremgrense."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 17 - Regel 4 (behold kjøling ved fortsatt behov)
@@ -545,6 +547,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 4 - Behold kjøling ved fortsatt forventet kjølebehov"
               decision_reason: "Gjeldende modus er KJØLING og makstemperatur inkl. soltillegg er over stoppgrense."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 18 - Regel 5 (behold kjøling uten prognose)
@@ -564,6 +567,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 5 - Behold kjøling ved varmt vær når prognosen mangler"
               decision_reason: "Prognose mangler, men snitt 72t er over sommergrense og gjeldende modus er KJØLING."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 19 - Regel 6 (reserve ved manglende temperaturgrunnlag)
@@ -576,6 +580,7 @@ actions:
               calculated_mode: "{{ io_mode_heat }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (vinter)"
               decision_reason: "Temperaturgrunnlag mangler, dato i vinterperiode."
+              decision_is_rule2_cooling: false
               decision_found: true
       - conditions:
           - condition: template
@@ -585,6 +590,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (sommer)"
               decision_reason: "Temperaturgrunnlag mangler, dato i sommerperiode."
+              decision_is_rule2_cooling: false
               decision_found: true
       - conditions:
           - condition: template
@@ -594,6 +600,7 @@ actions:
               calculated_mode: "{{ current_mode_raw if current_mode_raw != '' else io_mode_heat }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (overgang)"
               decision_reason: "Temperaturgrunnlag mangler i overgangsperiode, gjeldende modus beholdes."
+              decision_is_rule2_cooling: false
               decision_found: true
 
   - alias: Steg 20 - Sammenlign beregnet og gjeldende modus
