@@ -104,14 +104,16 @@ Etter beregning sammenlignes beregnet modus med gjeldende modus:
 - Ved forskjell: oppdater modus + send varsel
 - Ved lik modus: ingen endring i modus
 - Ved vesentlig datamangel uten endring: send info-/avviksvarsel
+- Ved manuelt kjørt sjekk: send alltid varsel uavhengig av modusendring
 
 ## 8) Varsling
 
 Varsel ved modusendring skal inkludere:
 - Tittel i formatet `LiBe - 🌡️ Driftsmodus <modus>`
-- Kort starttekst (for Regel 2: `Start kjøling grunnet vedvarende varmt vær (Regel 2)`)
-- Kort begrunnelse
+- Kort starttekst (for Regel 2: `Kjøling grunnet vedvarende varmt vær.`)
+- Kort begrunnelse med `(Regel 2)` på slutten for Regel 2
 - Manglende data (kun når data faktisk mangler)
+- `Manuelt kjørt sjekk.` på slutten av begrunnelsen når automasjonen er manuelt kjørt
 
 ## 9) Virkning av valgt modus
 

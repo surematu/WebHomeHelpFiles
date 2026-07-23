@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.04
+    Blueprint versjon: 2026.07.05
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -278,6 +278,8 @@ actions:
       t_solar_add_51_75: !input solar_add_51_75
       t_solar_add_76_100: !input solar_add_76_100
 
+      is_manual_run: "{{ trigger is none or trigger.platform != 'time' }}"
+
   - alias: Steg 1 - Dato og kalenderperioder
     variables:
       # MMDD-koding (måned*100 + dag) brukes for enkel sammenligning av dato-intervaller.
@@ -509,7 +511,7 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 2 - Start kjøling ved etablert varmt vær"
               decision_reason: >-
-                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | float }}) og makstemperatur inkl. soltillegg ({{ forecast_max_with_solar | round(1) }}) er over grense ({{ t_start_cooling_limit | float }}).
+                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og makstemperatur inkl. soltillegg ({{ forecast_max_with_solar | round(1) }}) er over grense ({{ t_start_cooling_limit | int }}). (Regel 2)
               decision_is_rule2_cooling: true
               decision_found: true
 
@@ -621,6 +623,8 @@ actions:
       value_cloud_text: "{{ (cloud_avg_10_18 | round(0)) ~ '%' if cloud_avg_available else 'ikke tilgjengelig' }}"
       value_solar_text: "{{ solar_addition | round(1) }}"
       value_fc_max_solar_text: "{{ (forecast_max_with_solar | round(1)) if forecast_max_available else 'ikke tilgjengelig' }}"
+      decision_reason_display: >-
+        {{ decision_reason }}{% if is_manual_run %} Manuelt kjørt sjekk.{% endif %}
       status_text_long: >-
         {{ final_result_text }} | Regel={{ decision_rule }} | {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} -> {{ calculated_mode }} |
         Periode={{ active_period_name }} |
@@ -648,19 +652,22 @@ actions:
     choose:
       - conditions:
           - condition: template
-            value_template: "{{ mode_changed and (pushover_destination | string | trim) != '' }}"
+            value_template: "{{ (mode_changed or is_manual_run) and (pushover_destination | string | trim) != '' }}"
         sequence:
           - action: script.varsel_pushover_send_melding_webhome
             data:
               title: "LiBe - 🌡️ Driftsmodus {{ calculated_mode }}"
               message: |-
                 {% if decision_is_rule2_cooling %}
-                Start kjøling grunnet vedvarende varmt vær (Regel 2)
-                {% else %}
+                Kjøling grunnet vedvarende varmt vær.
+                {% elif mode_changed %}
                 Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
                 Utløsende regel: {{ decision_rule }}.
+                {% else %}
+                Driftsmodus uendret ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }}).
+                Utløsende regel: {{ decision_rule }}.
                 {% endif %}
-                Begrunnelse: {{ decision_reason }}.
+                Begrunnelse: {{ decision_reason_display }}
                 {% if missing_data_lines | count > 0 %}
 
                 Manglende data:
@@ -674,7 +681,7 @@ actions:
     choose:
       - conditions:
           - condition: template
-            value_template: "{{ (not mode_changed) and major_data_missing and (pushover_destination | string | trim) != '' }}"
+            value_template: "{{ (not mode_changed) and (not is_manual_run) and major_data_missing and (pushover_destination | string | trim) != '' }}"
         sequence:
           - action: script.varsel_pushover_send_melding_webhome
             data:
@@ -682,7 +689,7 @@ actions:
               message: |-
                 Beregning ble gjennomført uten modusendring ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} beholdt).
                 Utløsende regel: {{ decision_rule }}.
-                Begrunnelse: {{ decision_reason }}.
+                Begrunnelse: {{ decision_reason_display }}
 
                 Manglende data:
                 {{ missing_data_text }}
