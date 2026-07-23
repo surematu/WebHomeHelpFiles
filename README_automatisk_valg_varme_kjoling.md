@@ -3,7 +3,9 @@
 ## 1) Formål
 
 Denne funksjonen velger automatisk driftsmodus **VARME** eller **KJØLING**.
-Valgt modus brukes av andre reguleringsfunksjoner.
+Valgt modus brukes av andre reguleringsfunksjoner, og en digital helper for
+kjølestatus holdes oppdatert slik at du kan hente langtidsstatistikk for
+kjøling/varme.
 
 Funksjonen skal **kun** velge tillatt driftsmodus, og skal ikke:
 - regulere temperatursettpunkter
@@ -71,6 +73,31 @@ Verdien brukes kun som beslutningsgrunnlag.
 | Soltillegg ved 51–75 % skydekning | 1 °C |
 | Soltillegg ved 76–100 % skydekning | 0 °C |
 
+## 5.1) Anbefalte helpers (eksempel-YAML)
+
+### Digital driftsstatus for kjøling
+
+```yaml
+input_boolean:
+  cool_mode:
+    name: CoolMode
+```
+
+Når `input_boolean.cool_mode` er `on`, betyr det at blueprinten har valgt
+**KJØLING**. Når den er `off`, betyr det **VARME**.
+
+### Gjennomsnittstemperatur siste 72 timer
+
+```yaml
+sensor:
+  - platform: statistics
+    name: OutdoorTempAvg72h
+    entity_id: sensor.outdoor_temperature
+    state_characteristic: average_step
+    max_age:
+      hours: 72
+```
+
 ## 6) Beslutningsregler (rekkefølge og stopp ved første treff)
 
 1. **Vinterperiode**: alltid VARME
@@ -87,8 +114,8 @@ Verdien brukes kun som beslutningsgrunnlag.
 ## 7) Gjennomføring av modusendring
 
 Etter beregning sammenlignes beregnet modus med gjeldende modus:
-- Ved forskjell: oppdater modus + send varsel
-- Ved lik modus: ingen endring
+- Ved forskjell: oppdater modus + oppdater digital kjølestatus helper + send varsel
+- Ved lik modus: ingen endring i modus, men digital kjølestatus helper synkroniseres ved behov
 - Ved vesentlig datamangel uten endring: send info-/avviksvarsel
 
 ## 8) Varsling
@@ -127,9 +154,14 @@ Varsel ved modusendring skal inkludere:
 
 Blueprinten skal gjøre sentrale mellomverdier synlige i trace (stegvis variabler), inkludert:
 - gjeldende/beregnet modus
+- ønsket tilstand for digital kjølestatus helper
 - utløsende regel
 - snitt 72t, nå-temp, prognose maks, skydekning 10–18, soltillegg, maks inkl. soltillegg
 - aktiv kalenderperiode
 - datatilgjengelighet (historikk/nå/prognose/skydekning)
 - om modus ble endret
 
+## 12) Dokumentasjon
+
+- Blueprint-beskrivelsen lenker til denne README-filen:
+  https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
