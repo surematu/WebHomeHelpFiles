@@ -476,6 +476,7 @@ actions:
       calculated_mode: "{{ io_mode_heat }}"
       decision_rule: "Regel 7 - Velg varme når kjølebehov ikke er påvist"
       decision_reason: "Ingen tidligere regler ble oppfylt. VARME er normalmodus."
+      decision_is_rule2_cooling: false
       decision_found: false
 
   - alias: Steg 14 - Regel 1 (vinter sperrer kjøling)
@@ -508,6 +509,7 @@ actions:
               decision_rule: "Regel 2 - Start kjøling ved etablert varmt vær"
               decision_reason: >-
                 Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | float }}) og makstemperatur inkl. soltillegg ({{ forecast_max_with_solar | round(1) }}) er over grense ({{ t_start_cooling_limit | float }}).
+              decision_is_rule2_cooling: true
               decision_found: true
 
   - alias: Steg 16 - Regel 3 (start kjøling ved ekstrem varme)
@@ -645,14 +647,14 @@ actions:
             data:
               title: "LiBe - 🌡️ Driftsmodus {{ calculated_mode }}"
               message: |-
-                {% if (decision_rule | string).startswith('Regel 2') %}
+                {% if decision_is_rule2_cooling %}
                 Start kjøling grunnet vedvarende varmt vær (Regel 2)
                 {% else %}
                 Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
                 Utløsende regel: {{ decision_rule }}.
                 {% endif %}
                 Begrunnelse: {{ decision_reason }}.
-                {% if (missing_data_lines | count) > 0 %}
+                {% if missing_data_lines | count > 0 %}
 
                 Manglende data:
                 {{ missing_data_text }}
