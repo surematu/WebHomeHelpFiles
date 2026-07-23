@@ -42,6 +42,7 @@ Velger automatisk driftsmodus **VARME** eller **KJØLING** én gang daglig kl. 2
 - Prognosert maksimumstemperatur neste døgn
 - Prognosert skydekning kl. 10:00–18:00 (soltillegg)
 - Faste vinter-/sommerperioder som sikkerhetsregler
+- Oppdatert digital helper for kjølestatus (`CoolMode`/`input_boolean`) som kan brukes til langtidsstatistikk
 
 Detaljert funksjonsbeskrivelse:
 - [README_automatisk_valg_varme_kjoling.md](./README_automatisk_valg_varme_kjoling.md)
