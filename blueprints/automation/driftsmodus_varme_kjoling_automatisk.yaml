@@ -645,7 +645,7 @@ actions:
             data:
               title: "LiBe - 🌡️ Driftsmodus {{ calculated_mode }}"
               message: |-
-                {% if decision_rule == 'Regel 2 - Start kjøling ved etablert varmt vær' %}
+                {% if (decision_rule | string).startswith('Regel 2') %}
                 Start kjøling grunnet vedvarende varmt vær (Regel 2)
                 {% else %}
                 Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
