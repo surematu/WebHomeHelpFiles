@@ -286,6 +286,7 @@ actions:
 
   - alias: Steg 1 - Dato og kalenderperioder
     variables:
+      # MMDD-koding (måned*100 + dag) brukes for enkel sammenligning av dato-intervaller.
       calc_now: "{{ now() }}"
       calc_today_month: "{{ calc_now.month | int }}"
       calc_today_day: "{{ calc_now.day | int }}"
@@ -339,15 +340,11 @@ actions:
         {% else %}
           unavailable
         {% endif %}
-      avg72_available: >-
-        {% set v = avg72_source_raw | string | lower %}
-        {{ v not in ['unknown', 'unavailable', 'none', 'nan', ''] and (avg72_source_raw is number or avg72_source_raw | float(none) is not none) }}
+      avg72_available: "{{ is_number(avg72_source_raw) }}"
       avg72_value: "{{ avg72_source_raw | float if avg72_available else none }}"
 
       now_temp_source_raw: "{{ states(io_temp_now_entity) }}"
-      now_temp_available: >-
-        {% set v = now_temp_source_raw | string | lower %}
-        {{ v not in ['unknown', 'unavailable', 'none', 'nan', ''] and (now_temp_source_raw is number or now_temp_source_raw | float(none) is not none) }}
+      now_temp_available: "{{ is_number(now_temp_source_raw) }}"
       now_temp_value: "{{ now_temp_source_raw | float if now_temp_available else none }}"
 
   - alias: Steg 5 - Endelig temperaturgrunnlag
