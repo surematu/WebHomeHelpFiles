@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.16
+    Blueprint versjon: 2026.07.17
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -702,10 +702,10 @@ actions:
                 {% else %}
                 {% if decision_short_text %}Driftsmodus uendret, {{ decision_short_text }}.
                 {% else %}Driftsmodus uendret ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }}).
-                Utløsende regel: {{ decision_rule }}.{% endif %}
+                Utløsende regel: {{ decision_rule }}.{%- endif %}
                 {% endif %}
                 {% if inkluder_begrunnelse %}Begrunnelse: {{ decision_reason_display }}{% endif %}
-                {% if missing_data_lines | count > 0 %}
+                {%- if missing_data_lines | count > 0 %}
 
                 Manglende data:
                 {{ missing_data_text }}
@@ -728,7 +728,7 @@ actions:
                 Utløsende regel: {{ decision_rule }}.
                 {% if inkluder_begrunnelse %}
                 Begrunnelse: {{ decision_reason_display }}
-                {% endif %}
+                {%- endif %}
 
                 Manglende data:
                 {{ missing_data_text }}
