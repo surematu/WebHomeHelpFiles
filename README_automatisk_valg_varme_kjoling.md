@@ -108,11 +108,10 @@ Etter beregning sammenlignes beregnet modus med gjeldende modus:
 ## 8) Varsling
 
 Varsel ved modusendring skal inkludere:
-- Fra/til-modus
-- Utløsende regel
+- Tittel i formatet `LiBe - 🌡️ Driftsmodus <modus>`
+- Kort starttekst (for Regel 2: `Start kjøling grunnet vedvarende varmt vær (Regel 2)`)
 - Kort begrunnelse
-- Viktigste beregningsverdier
-- Manglende data
+- Manglende data (kun når data faktisk mangler)
 
 ## 9) Virkning av valgt modus
 

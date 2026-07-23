@@ -16,7 +16,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.03
+    Blueprint versjon: 2026.07.04
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -506,7 +506,8 @@ actions:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 2 - Start kjøling ved etablert varmt vær"
-              decision_reason: "Snitt 72t og makstemperatur inkl. soltillegg er over startgrenser."
+              decision_reason: >-
+                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | float }}) og makstemperatur inkl. soltillegg ({{ forecast_max_with_solar | round(1) }}) er over grense ({{ t_start_cooling_limit | float }}).
               decision_found: true
 
   - alias: Steg 16 - Regel 3 (start kjøling ved ekstrem varme)
@@ -642,21 +643,20 @@ actions:
         sequence:
           - action: script.varsel_pushover_send_melding_webhome
             data:
-              title: "🌡️ Driftsmodus endret"
+              title: "LiBe - 🌡️ Driftsmodus {{ calculated_mode }}"
               message: |-
+                {% if decision_rule == 'Regel 2 - Start kjøling ved etablert varmt vær' %}
+                Start kjøling grunnet vedvarende varmt vær (Regel 2)
+                {% else %}
                 Driftsmodus er endret fra {{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} til {{ calculated_mode }}.
                 Utløsende regel: {{ decision_rule }}.
+                {% endif %}
                 Begrunnelse: {{ decision_reason }}.
-
-                Gjennomsnittstemperatur siste 72 timer: {{ value_avg_72h_text }} °C
-                Nåværende utetemperatur: {{ value_now_temp_text }} °C
-                Prognosert maksimumstemperatur neste døgn: {{ value_fc_max_text }} °C
-                Prognosert skydekning kl. 10:00-18:00: {{ value_cloud_text }}
-                Soltillegg: {{ value_solar_text }} °C
-                Makstemperatur neste døgn inkl. soltillegg: {{ value_fc_max_solar_text }} °C
+                {% if (missing_data_lines | count) > 0 %}
 
                 Manglende data:
                 {{ missing_data_text }}
+                {% endif %}
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(0) }}"
               ttl: "{{ pushover_ttl | int(604800) }}"
