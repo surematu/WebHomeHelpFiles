@@ -464,7 +464,7 @@ actions:
           {% set ns.lines = ns.lines + ['Værprognosen for neste døgn var ikke tilgjengelig.'] %}
         {% endif %}
         {% if not cloud_avg_available %}
-          {% set ns.lines = ns.lines + ['Skydekningsprognosens data kl. 10:00-18:00 var ikke tilgjengelig (soltillegg satt til 0 °C).'] %}
+          {% set ns.lines = ns.lines + ['Skydekningsprognosen kl. 10:00-18:00 var ikke tilgjengelig (soltillegg satt til 0 °C).'] %}
         {% endif %}
         {% if not avg72_available and now_temp_available %}
           {% set ns.lines = ns.lines + ['Temperaturhistorikk var ikke tilgjengelig, nåværende utetemperatur ble brukt.'] %}
