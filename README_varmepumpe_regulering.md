@@ -74,8 +74,8 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 | Parameter | Standard | Beskrivelse |
 |---|---:|---|
 | `ix_kjoling_aktiv` | false | Aktiver kjøling for automatisk bytte mellom heat og cool |
-| `inum_kjoling_av_delta_sommer` | 0.5 °C | SOMMER: hysterese for å slå av tvungen varme-override |
-| `inum_kjoling_av_delta_vinter` | 0.5 °C | VINTER: hysterese for å slå av tvungen kjøle-override |
+| `inum_kjoling_av_delta_sommer` | 0.5 °C | SOMMER: hysterese for å slå av tvungen varme-override – regnes fra terskelen som slo override PÅ |
+| `inum_kjoling_av_delta_vinter` | 0.5 °C | VINTER: hysterese for å slå av tvungen kjøle-override – regnes fra terskelen som slo override PÅ |
 | `inum_kjoling_sommer_kaldt_grense` | 2 °C | SOMMER: tving heat når romtemp er mer enn denne verdien under settpunkt |
 | `inum_kjoling_vinter_varmt_grense` | 2 °C | VINTER: tillat cool som nødoverkobling når romtemp er mer enn denne verdien over settpunkt |
 
@@ -145,7 +145,7 @@ Override aktiveres kun ved store avvik, og separate hystereseverdier brukes for 
 |---|---|
 | Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
 | Romtemp < settpunkt − `inum_kjoling_sommer_kaldt_grense` | `heat` (override PÅ: tvungen varme) |
-| Aktiv tvungen varme og romtemp < settpunkt + `inum_kjoling_av_delta_sommer` | `heat` (override holdes aktiv) |
+| Aktiv tvungen varme og romtemp < (settpunkt − `inum_kjoling_sommer_kaldt_grense`) + `inum_kjoling_av_delta_sommer` | `heat` (override holdes aktiv) |
 | Ellers | `cool` (override AV, tilbake til default) |
 
 #### VINTER (default = varme)
@@ -154,10 +154,24 @@ Override aktiveres kun ved store avvik, og separate hystereseverdier brukes for 
 |---|---|
 | Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
 | Romtemp > settpunkt + `inum_kjoling_vinter_varmt_grense` | `cool` (override PÅ: tvungen kjøling) |
-| Aktiv tvungen kjøling og romtemp > settpunkt − `inum_kjoling_av_delta_vinter` | `cool` (override holdes aktiv) |
+| Aktiv tvungen kjøling og romtemp > (settpunkt + `inum_kjoling_vinter_varmt_grense`) − `inum_kjoling_av_delta_vinter` | `cool` (override holdes aktiv) |
 | Ellers | `heat` (override AV, tilbake til default) |
 
 Tanken bak oppsettet er at driftsmodus bestemmer normal retning, mens dedikerte terskler (`inum_kjoling_sommer_kaldt_grense` og `inum_kjoling_vinter_varmt_grense`) avgjør når override skal slå inn. Separate hystereseverdier (`inum_kjoling_av_delta_sommer` og `inum_kjoling_av_delta_vinter`) brukes kun for å avslutte override stabilt, slik at modus ikke flapper rundt tersklene.
+
+> **Viktig:** Hysteresen regnes alltid fra terskelen som slo overriden PÅ – ikke fra settpunktet.
+>
+> **VINTER-eksempel** – settpunkt 22°C, `inum_kjoling_vinter_varmt_grense` = 3°C, hysterese = 0.5°C:
+> - Kjøling slår seg PÅ når romtemp stiger over **22 + 3 = 25°C**
+> - Kjøling slår seg AV igjen når romtemp faller under **25 − 0.5 = 24.5°C**
+> - Med hysterese = 2°C ville kjøling slå seg av ved **25 − 2 = 23°C**
+>
+> **SOMMER-eksempel** – settpunkt 22°C, `inum_kjoling_sommer_kaldt_grense` = 3°C, hysterese = 0.5°C:
+> - Tvungen varme slår seg PÅ når romtemp faller under **22 − 3 = 19°C**
+> - Tvungen varme slår seg AV igjen når romtemp stiger over **19 + 0.5 = 19.5°C**
+> - Med hysterese = 2°C ville varmen slå seg av ved **19 + 2 = 21°C**
+>
+> Hystereseverdien settes under innstillingene **«VINTER - Hysterese kjøling av»** og **«SOMMER - Hysterese varme av»** i automatiseringen.
 
 Den beregnede modusen (`onsket_mode`) brukes også til å oppdatere **overordnet climate** (rom_climate), slik at overordnet alltid reflekterer den faktiske kjøle/varme-logikken. Overordnet oppdateres kun dersom den allerede er i `heat` eller `cool` – aldri fra `off`.
 
