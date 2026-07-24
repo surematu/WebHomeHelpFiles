@@ -33,7 +33,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.11
+    Blueprint versjon: 2026.07.12
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -312,6 +312,12 @@ action:
         {%- else -%}
           {{ pushover_priority | int(0) }}
         {%- endif -%}
+
+  # ─── Steg 1H – HA restart-tid ────────────────────────────────────────────────
+  - alias: "Steg 1H - HA restart-tid"
+    variables:
+      ha_start_ts: "{{ as_timestamp(states('sensor.home_assistant_running'), default=0) | float(0) }}"
+      ha_start_age_s: "{{ [as_timestamp(now()) - ha_start_ts, 0] | max | int(0) }}"
 
   - alias: "Steg 1U-A - Finn Uptime Kuma devices"
     variables:
@@ -1495,6 +1501,30 @@ action:
 
       # ── Send varsel ───────────────────────────────────────────────────────────
 
+      # Steg 11A – Sjekk om nylig-mistet skyldes HA-restart
+      # all_offline_at_restart = true dersom alle nylig-offline enheter
+      # gikk offline innenfor 10 min av sist HA-oppstart.
+      - alias: "Steg 11A - Sjekk om nylig-mistet skyldes HA-restart"
+        variables:
+          all_offline_at_restart: >-
+            {%- set tol = 600 -%}
+            {%- set _raw = nylig_mistet_debug | default([]) -%}
+            {%- set dbg = _raw if (_raw is iterable and _raw is not string)
+                else (_raw | from_json if (_raw | string | trim | length > 0) else []) -%}
+            {%- set cnt = dbg | count -%}
+            {%- if not trigger_is_time_pattern or cnt == 0 or ha_start_age_s <= 0 -%}
+              false
+            {%- else -%}
+              {%- set ns = namespace(all_match=true) -%}
+              {%- for item in dbg -%}
+                {%- set age = item.winner_age_s | int(0) -%}
+                {%- if ((age - ha_start_age_s) | abs) > tol -%}
+                  {%- set ns.all_match = false -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {{ ns.all_match }}
+            {%- endif -%}
+
       # Steg 11 – Bygg samlet varsel (planlagt sjekk)
       - alias: "Steg 11 - Bygg samlet varsel (planlagt sjekk)"
         variables:
@@ -1502,6 +1532,7 @@ action:
             {%- set nylig_cnt = (nylig_mistet_clean | default('') | trim)
                 .split('\n') | select('match', '^- ') | list | count -%}
             {%- if trigger_is_time_pattern and nylig_cnt > 0 -%}
+              {%- set _is_restart = all_offline_at_restart | bool(false) -%}
               {%- if uptime_should_notify_unified -%}
                 {%- set _pu = uptime_report_payload if uptime_report_payload is mapping else uptime_report_payload | from_json -%}
                 {%- set _uptime_new = _pu.new_down_count | int(0) -%}
@@ -1509,7 +1540,7 @@ action:
                 {%- if _total_new == 1 and nylig_cnt == 1 -%}
                   {%- set _first = (nylig_mistet_clean | trim).split('\n')[0]
                       | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
-                  🔴 {{ _first }} mistet signal
+                  🔴 {{ _first }}{{ ' uten signal etter restart' if _is_restart else ' mistet signal' }}
                 {%- elif _total_new == 1 and _uptime_new == 1 -%}
                   🔴 {{ _pu.down_new[0].device_name }} gikk offline
                 {%- else -%}
@@ -1518,9 +1549,9 @@ action:
               {%- elif nylig_cnt == 1 -%}
                 {%- set _first = (nylig_mistet_clean | trim).split('\n')[0]
                     | regex_replace('^-\\s*', '') | regex_replace('\\s*\\|.*$', '') | trim -%}
-                🔴 {{ _first }} mistet signal
+                🔴 {{ _first }}{{ ' uten signal etter restart' if _is_restart else ' mistet signal' }}
               {%- else -%}
-                🔴 {{ nylig_cnt }} enheter mistet signal
+                🔴 {{ nylig_cnt }} enheter{{ ' uten signal etter restart' if _is_restart else ' mistet signal' }}
               {%- endif -%}
             {%- else -%}
             {%- set ns = namespace(trigger_reason_device_names=[]) -%}
