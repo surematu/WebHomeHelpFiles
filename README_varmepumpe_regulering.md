@@ -10,7 +10,7 @@ Funksjonen støtter i tillegg:
 - Sesongbasert styring via driftsmodus (VINTER/SOMMER), inkludert nødoverkobling av kjøling/varme ved ekstreme romtemperaturer.
 - Valgfri vifteregulering (boost ved høyt pådrag).
 - Minimum-pådrag basert på temperaturunderskudd og rom-preset (eco/comfort/boost).
-- Prioritert varme-logikk: varmepumpe dekker 0–60 % av pådrag, panelovn (varme-climate) brukes som proporsjonal supplement ved høyt underskudd.
+- Prioritert varme-logikk: varmepumpe dekker 0–60 % av pådrag, og panelovn (varme-climate) slippes først til når varmepumpa faktisk har rampet opp til minst 80 % av egen varmekurve.
 - Invertert kjøle-settpunkt: høyt kjøle-pådrag gir lavt settpunkt (mer kjøling), ikke høyt.
 - Valgfri Pushover-debug-varsling (av som standard).
 
@@ -135,6 +135,8 @@ Eksempel med grense = 60 %:
 - Pådrag 60 % → panelovn-mål 0 %
 - Pådrag 80 % → panelovn-mål 50 %
 - Pådrag 100 % → panelovn-mål 100 %
+
+I tillegg holdes panelovn-målet på 0 helt til varmepumpas faktiske settpunkt tilsvarer minst 80 % av varmepumpas egen varmekurve (`basis + grader_under_min` → `basis + grader_over_maks`). Dette gjør at varmepumpa får tid til å rampes opp før tilleggsvarme slår inn.
 
 Panelovn-målet er alltid 0 ved kjøling eller når varme-climate ikke er konfigurert.
 
@@ -267,7 +269,8 @@ Aktiveres kun når `varme_climate` er konfigurert.
 |---|---|
 | Beregnet modus er `cool` ELLER overordnet er `off` | Settes til frost-setpunkt |
 | Panelovn-mål = 0 % (pådrag ≤ grense) | Settes til frost-setpunkt |
-| Panelovn-mål > 0 % | Proporsjonal: `frost + (settpunkt − frost) × prop` |
+| Varmepumpa har ikke nådd 80 % av egen varmekurve ennå | Settes til frost-settpunkt |
+| Panelovn-mål > 0 % og varmepumpa er klar | Proporsjonal: `frost + (settpunkt − frost) × prop` |
 
 `prop = min(1, max(0, (settpunkt − romtemp) / panelovn_delta_maks))`
 
@@ -275,6 +278,8 @@ Aktiveres kun når `varme_climate` er konfigurert.
 - `prop = 1`: romtemp ≥ `panelovn_delta_maks` under settpunkt → settpunkt = rom-settpunkt (fullt pådrag)
 
 Setpunktet klampes alltid til klimaets egne `min_temp` og `max_temp` og oppdateres kun ved faktisk endring.
+
+For varmepumpas "klar"-sjekk brukes gjeldende varmepumpe-settpunkt, omregnet lineært til 0–100 % innen varmepumpas aktive varmekurve. Ligger varmepumpa fortsatt under 80 %, holdes panelovnen tilbake selv om samlet varme-pådrag er over panelovn-grensen.
 
 ### 9.2 Eksempel
 
@@ -328,6 +333,9 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `varmepumpe_output_power` – effektivt pådrag (etter min-klipping)
 - `hp_padrag_grense` – pådrag-grense varmepumpe/panelovn
 - `hp_norm_power_heat` – normalisert HP-pådrag (0–60 %→0–100 %, kun varme)
+- `hp_heat_spk_min` / `hp_heat_spk_max` – nedre/øvre temperatur i varmepumpas aktive varmekurve
+- `hp_actual_power_heat` – faktisk varmepumpe-nivå 0–100 % ut fra gjeldende varmepumpe-settpunkt
+- `panelovn_hp_ready` – true når varmepumpa faktisk har nådd minst 80 % av egen varmekurve
 - `panelovn_maal_power` – panelovn mål-pådrag (0–100 %, 0 ved kjøling/ikke konfigurert)
 - `hp_effective_power` – effektivt HP-pådrag brukt i settpunkt-formelen
 - `iclimate_varme_rt_max_spk_spcomfort` – basissettpunkt (max av settpunkt og comfort)
