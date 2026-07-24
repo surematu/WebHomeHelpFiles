@@ -10,6 +10,9 @@ Funksjonen støtter i tillegg:
 - Sesongbasert styring via driftsmodus (VINTER/SOMMER), inkludert nødoverkobling av kjøling/varme ved ekstreme romtemperaturer.
 - Valgfri vifteregulering (boost ved høyt pådrag).
 - Minimum-pådrag basert på temperaturunderskudd og rom-preset (eco/comfort/boost).
+- Prioritert varme-logikk: varmepumpe dekker 0–60 % av pådrag, panelovn (varme-climate) brukes som proporsjonal supplement ved høyt underskudd.
+- Invertert kjøle-settpunkt: høyt kjøle-pådrag gir lavt settpunkt (mer kjøling), ikke høyt.
+- Valgfri Pushover-debug-varsling (av som standard).
 
 ## 2) Kjøretid
 
@@ -26,7 +29,7 @@ Blueprinten konfigureres med to obligatoriske og én valgfri climate-entitet:
 |---|---|
 | `climate` (rom_climate) | Overordnet climate som gir pådragssignal og settpunkt |
 | `climate` (pumpe_climate) | Varmepumpe-climate som styres av automasjonen |
-| `climate` (varme_climate) | Valgfri. Varme-climate som styres basert på overordnet modus |
+| `climate` (varme_climate) | Valgfri. Panelovn/varme-climate som aktiveres som supplement ved høyt pådrag og varme-modus |
 
 Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring (krever at kjøling er aktivert):
 
@@ -42,7 +45,7 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 |---|---:|---|
 | `padrag_regulated_offset_min` | −1 °C | Offset relativt til settpunkt som tilsvarer 0 % pådrag (brukes kun når `regulated_target_temperature` finnes og `power_percent` mangler) |
 | `padrag_regulated_offset_maks` | +1 °C | Offset relativt til settpunkt som tilsvarer 100 % pådrag |
-| `varme_climate` | – | Valgfri varme-climate. Styres basert på beregnet modus (se avsnitt 8). Frost-settpunkt leses automatisk fra `preset_temperatures.frost_temp` på overordnet climate |
+| `varme_climate` | – | Valgfri panelovn/varme-climate. Settpunkt skaleres proporsjonalt basert på temperaturunderskudd (se avsnitt 9). Frost-settpunkt leses automatisk fra `preset_temperatures.frost_temp` på overordnet climate |
 
 ### 4.2 Varmepumpe
 
@@ -79,6 +82,22 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 | `inum_kjoling_sommer_kaldt_grense` | 2 °C | SOMMER: tving heat når romtemp er mer enn denne verdien under settpunkt |
 | `inum_kjoling_vinter_varmt_grense` | 2 °C | VINTER: tillat cool som nødoverkobling når romtemp er mer enn denne verdien over settpunkt |
 
+### 4.6 Panelovn
+
+| Parameter | Standard | Beskrivelse |
+|---|---:|---|
+| `panelovn_padrag_grense` | 60 % | Pådrag-terskel: under grensen → kun varmepumpe. Over grensen → panelovn aktiveres i tillegg (krever varme-climate). |
+| `panelovn_delta_maks` | 2.0 °C | Temperaturspenn for proporsjonal panelovn-styring. Romtemp ≥ settpunkt → 0 % (frost). Romtemp ≥ dette spennet under settpunkt → 100 %. Lineær interpolasjon i mellom. |
+
+### 4.7 Varsling (debug)
+
+| Parameter | Standard | Beskrivelse |
+|---|---:|---|
+| `ix_pushover_varsling` | false | Aktiver debug-varsling via Pushover ved endringer |
+| `pushover_destination` | pushover | Mottakergruppe i `script.varsel_pushover_send_melding_webhome` |
+| `pushover_priority` | −1 | Pushover-prioritet |
+| `pushover_ttl` | 604800 | Pushover TTL i sekunder |
+
 ## 5) Beregningslogikk
 
 ### 5.1 Pådragskilde (Steg 2)
@@ -99,18 +118,52 @@ To separate minimums beregnes og det høyeste vinner:
 
 Effektivt pådrag = `max(beregnet_pådrag, temp_minimum, preset_minimum)`, klippet til 100.
 
-### 5.3 Settpunkt-kurve (Steg 4)
+### 5.3 Normalisering av pådrag (Steg 5)
+
+Etter at effektivt pådrag er beregnet deles det opp i to kanaler:
+
+**Varmepumpe (varme-modus):**  
+Pådrag 0–`panelovn_padrag_grense`% normaliseres til 0–100 % for varmepumpe-settpunkt-kurven.  
+Eksempel med grense = 60 %:
+- Pådrag 0 % → normalisert 0 % (minst mulig HP-output)
+- Pådrag 30 % → normalisert 50 %
+- Pådrag 60 % → normalisert 100 % (max HP-output)
+
+**Panelovn:**  
+Pådrag fra grensen til 100 % normaliseres til 0–100 % panelovn-mål.  
+Eksempel med grense = 60 %:
+- Pådrag 60 % → panelovn-mål 0 %
+- Pådrag 80 % → panelovn-mål 50 %
+- Pådrag 100 % → panelovn-mål 100 %
+
+Panelovn-målet er alltid 0 ved kjøling eller når varme-climate ikke er konfigurert.
+
+**Kjøling:**  
+Ved kjøling brukes pådrag direkte (0–100 %) men med invertert formel (se 5.4).
+
+### 5.4 Settpunkt-kurve (Steg 6)
 
 Basissettpunkt = `max(rom_settpunkt, comfort_temp)` (dersom comfort-preset finnes).
 
-Varmepumpe-settpunkt (råverdi) = `basis + grader_under_min + (pådrag / 100) × (grader_over_maks − grader_under_min)`
+**Ved varme (heat):**  
+Bruker normalisert HP-pådrag (0–100 %, fra 0–grense% av effektivt pådrag).
 
-- Ved 0 % pådrag: `basis + grader_under_min` (typisk basis − 3 °C)
-- Ved 100 % pådrag: `basis + grader_over_maks` (typisk basis + 3 °C)
+`HP-settpunkt = basis + grader_under_min + (hp_norm_power / 100) × (grader_over_maks − grader_under_min)`
+
+- Ved 0 % normalisert: `basis + grader_under_min` (typisk basis − 3 °C)
+- Ved 100 % normalisert: `basis + grader_over_maks` (typisk basis + 3 °C)
+
+**Ved kjøling (cool):**  
+Invertert kurve – høyt pådrag gir lavt settpunkt (mer kjøling).
+
+`HP-settpunkt = basis + grader_over_maks − (pådrag / 100) × (grader_over_maks − grader_under_min)`
+
+- Ved 0 % pådrag: `basis + grader_over_maks` (typisk basis + 3 °C → minimal kjøling)
+- Ved 100 % pådrag: `basis + grader_under_min` (typisk basis − 3 °C → maks kjøling)
 
 Råverdien klippes deretter til `[pumpe_temp_min, pumpe_temp_maks]`.
 
-### 5.4 Ramp-begrensning og avrunding (Steg 4, forts.)
+### 5.5 Ramp-begrensning og avrunding (Steg 6, forts.)
 
 For å unngå brå hopp begrenses endringen til `±maks_endring_per_kjoring` fra gjeldende varmepumpe-settpunkt.
 
@@ -118,7 +171,9 @@ Avrunding:
 - Heltall-steg (1, 2, 3, …): settpunkt avrundes til nærmeste heltall
 - Halvt steg (0.5, 1.5, 2.5, …): halvgrads-verdier tillates (f.eks. 22.5 °C)
 
-## 6) Kjøling og driftsmodus (Steg 6)
+## 6) Kjøling og driftsmodus (Steg 4)
+
+> **Merk:** Modus-bestemmelse er flyttet til Steg 4 (før settpunkt-beregning) slik at kjøle-inversjon kan beregnes korrekt.
 
 ### 6.1 Uten kjøling aktivert
 
@@ -177,7 +232,7 @@ Den beregnede modusen (`onsket_mode`) brukes også til å oppdatere **overordnet
 
 Dersom `input_select.driftsmodus_vinter_sommer` har en ugyldig verdi, holdes varmepumpa i `heat`-modus (se avsnitt 6.2).
 
-## 7) Viftelogikk (Steg 5)
+## 7) Viftelogikk (Steg 7)
 
 Aktives kun når `vifte_boost` er satt til `true` og varmepumpa støtter fan-moder.
 
@@ -190,22 +245,7 @@ Aktives kun når `vifte_boost` er satt til `true` og varmepumpa støtter fan-mod
 
 Viften oppdateres kun ved faktisk endring.
 
-## 8) Varme-climate styring (Steg 8)
-
-Aktiveres kun når `varme_climate` er konfigurert.
-
-Styrer settpunktet på varme-climate basert på **beregnet modus** (`onsket_overordnet_mode`):
-
-| Tilstand | Resultat |
-|---|---|
-| Overordnet er `off` ELLER beregnet modus er `cool` | Varme-climate settpunkt settes til frost-settpunkt (leses fra `preset_temperatures.frost_temp` på overordnet climate, default 10 °C) |
-| Beregnet modus er `heat` | Varme-climate settpunkt settes lik overordnet settpunkt |
-
-Settpunktet klampes alltid til klimaets egne `min_temp` og `max_temp` attributter (leses ved kjøring) for å unngå ugyldig temperatur-feil.
-
-Settpunktet oppdateres kun ved faktisk endring.
-
-## 9) Oppdateringslogikk (Steg 7)
+## 8) Oppdateringslogikk – varmepumpe (Steg 8)
 
 Varmepumpa oppdateres **kun når det er behov**:
 
@@ -215,7 +255,50 @@ Varmepumpa oppdateres **kun når det er behov**:
 
 Dette minimerer unødvendige skriv til varmepumpa og reduserer støy i logg og historikk.
 
-## 10) Feilhåndtering
+## 9) Panelovn-proporsjonal-styring (Steg 9)
+
+Aktiveres kun når `varme_climate` er konfigurert.
+
+**Formål:** Panelovnen er et supplement til varmepumpa. Fremfor binær av/på-styring beregnes et proporsjonal settpunkt basert på temperaturunderskudd, slik at panelovnen trappes gradvis opp etter hvert som romtemperaturen faller under settpunktet.
+
+### 9.1 Beregnings-logikk
+
+| Tilstand | Resultat |
+|---|---|
+| Beregnet modus er `cool` ELLER overordnet er `off` | Settes til frost-setpunkt |
+| Panelovn-mål = 0 % (pådrag ≤ grense) | Settes til frost-setpunkt |
+| Panelovn-mål > 0 % | Proporsjonal: `frost + (settpunkt − frost) × prop` |
+
+`prop = min(1, max(0, (settpunkt − romtemp) / panelovn_delta_maks))`
+
+- `prop = 0`: romtemp ≥ settpunkt → settpunkt på varme-climate = frost-temp (effektivt av)
+- `prop = 1`: romtemp ≥ `panelovn_delta_maks` under settpunkt → settpunkt = rom-settpunkt (fullt pådrag)
+
+Setpunktet klampes alltid til klimaets egne `min_temp` og `max_temp` og oppdateres kun ved faktisk endring.
+
+### 9.2 Eksempel
+
+Settpunkt = 22 °C, frost = 10 °C, `panelovn_delta_maks` = 2,0 °C, grense = 60 %:
+
+- Pådrag 40 % (< 60 %) → panelovn-mål = 0 % → panelovn frost (10 °C)
+- Pådrag 70 % + romtemp 22,0 °C (delta = 0) → prop = 0 → panelovn frost (10 °C)
+- Pådrag 70 % + romtemp 21,0 °C (delta = 1 °C) → prop = 0,5 → panelovn 16 °C
+- Pådrag 70 % + romtemp 20,0 °C (delta = 2 °C) → prop = 1,0 → panelovn 22 °C
+
+## 10) Pushover-varsling (Steg 10)
+
+Sendes kun når `ix_pushover_varsling = true`, destination er satt, og det faktisk ble gjort en endring i kjøringen.
+
+Meldingen inneholder:
+- Modus (HEAT/COOL) og om den ble endret
+- Romtemperatur og settpunkt
+- Effektivt pådrag
+- HP normalisert pådrag og grense (kun varme)
+- Panelovn proporsjonal faktor, temp-delta og beregnet settpunkt (kun varme, kun hvis varme-climate er konfigurert)
+- HP kjøle-settpunkt (kun kjøling)
+- Vifte-endring (hvis aktuelt)
+
+## 11) Feilhåndtering
 
 | Situasjon | Håndtering |
 |---|---|
@@ -225,12 +308,13 @@ Dette minimerer unødvendige skriv til varmepumpa og reduserer støy i logg og h
 | Varmepumpa støtter ikke fan-moder | Ingen vifte-oppdatering utføres |
 | `input_select.driftsmodus_vinter_sommer` har ugyldig verdi | Varmepumpa holdes i `heat`-modus |
 | Beregnet settpunkt utenfor `[pumpe_temp_min, pumpe_temp_maks]` | Klippes til absolutt grense |
-| `varme_climate` ikke konfigurert | Steg 8 hoppes over |
+| `varme_climate` ikke konfigurert | Steg 9 hoppes over; panelovn-variabler settes til 0/false |
 | `preset_temperatures.frost_temp` mangler på overordnet climate | Bruker 10 °C som fallback |
 | Beregnet settpunkt for varme-climate utenfor `[min_temp, max_temp]` | Klippes til klimaets absolutte grenser |
-| Overordnet climate er `off` | Overordnet oppdateres ikke (kun `heat`/`cool` oppdateres) |
+| Overordnet climate er `off` | Overordnet oppdateres ikke; panelovn settes til frost |
+| `panelovn_padrag_grense` = 0 | hp_norm_power settes til 100 % (unngår divisjon med null) |
 
-## 11) Statusverdier for feilsøking
+## 12) Statusverdier for feilsøking
 
 Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler), inkludert:
 
@@ -243,6 +327,10 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `varmepumpe_output_power_min_cause_min_faktor` – temperaturbasert min-pådrag
 - `varmepumpe_output_power_min_cause_mode` – preset-basert min-pådrag
 - `varmepumpe_output_power` – effektivt pådrag (etter min-klipping)
+- `hp_padrag_grense` – pådrag-grense varmepumpe/panelovn
+- `hp_norm_power_heat` – normalisert HP-pådrag (0–60 %→0–100 %, kun varme)
+- `panelovn_maal_power` – panelovn mål-pådrag (0–100 %, 0 ved kjøling/ikke konfigurert)
+- `hp_effective_power` – effektivt HP-pådrag brukt i settpunkt-formelen
 - `iclimate_varme_rt_max_spk_spcomfort` – basissettpunkt (max av settpunkt og comfort)
 - `varmepumpe_req_spk_raw` – råberegnet varmepumpe-settpunkt
 - `varmepumpe_req_spk_incl_abs_limit` – settpunkt etter absolutt klipping
@@ -262,7 +350,8 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `iclimate_varme_frost_temp` – frost-settpunkt lest fra `preset_temperatures.frost_temp` (fallback 10 °C)
 - `onsket_overordnet_mode` – beregnet ønsket hvac-modus for overordnet climate (`heat`/`cool`)
 - `skal_oppdatere_overordnet` – true hvis overordnet climate skal oppdateres
-- `varme_styrt_er_av_eller_kjoling` – true hvis overordnet er off eller beregnet modus er cool
+- `panelovn_temp_delta` – romtemp-underskudd klampt til [0, panelovn_delta_maks] (°C)
+- `panelovn_prop` – proporsjonal faktor 0.0–1.0 for panelovn-settpunkt
 - `varme_styrt_onsket_spk_raw` – beregnet ønsket settpunkt for varme-climate (før klamping)
 - `varme_styrt_min_temp` – min_temp lest fra varme-climate
 - `varme_styrt_max_temp` – max_temp lest fra varme-climate
@@ -270,7 +359,7 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `varme_styrt_naa_spk` – gjeldende settpunkt på varme-climate
 - `varme_styrt_spk_update_needed` – true hvis varme-climate settpunkt skal endres
 
-## 12) Dokumentasjon
+## 13) Dokumentasjon
 
 - Blueprint-beskrivelsen lenker til denne README-filen:
   https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md

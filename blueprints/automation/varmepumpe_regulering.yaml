@@ -16,6 +16,23 @@ blueprint:
 
     Vifte-logikk styres av boolean-input: false = ingen vifteregulering, true = vifte boost.
 
+    Settpunkt-skriving:
+
+    Ved varme (heat):
+      Pådrag 0–panelovn_padrag_grense% (default 60%) styrer varmepumpe normalisert 0–100%.
+      Pådrag panelovn_padrag_grense–100% aktiverer i tillegg varme-climate (panelovn)
+      med proporsjonal temperatur-styring (ingen binær av/på):
+        - Panelovn-settpunkt skaleres lineært fra frost-setpunkt (romtemp ≥ settpunkt)
+          til rom-settpunkt (romtemp ≥ panelovn_delta_maks °C under settpunkt, default 2°C).
+        - Lineær interpolasjon – panelovnen øker gradvis uten plutselig av/på-sykler.
+      Formål: prioritere varmepumpa; panelovn brukes som proporsjonal supplement.
+
+    Ved kjøling (cool):
+      Pådrag 0–100% gir invertert settpunkt-kurve til varmepumpa:
+        - 0% pådrag → høy setpunkt (lite kjøling)
+        - 100% pådrag → lav setpunkt (maks kjøling)
+      Variablene grader_under_min og grader_over_maks gjenbrukes, men med invertert fortegn.
+
     Kjøling (valgfri):
     Aktiver kjøling for å la varmepumpa automatisk bytte mellom heat og cool.
       - Ved gyldig driftsmodus styrer VINTER/SOMMER default-modus.
@@ -35,10 +52,13 @@ blueprint:
     Betinget på inum_max_step: heltall-steg (1, 2, 3, …) gir alltid heltalls-settpunkt;
     halvt steg (0.5, 1.5, 2.5, …) tillater halvgrads-verdier (f.eks. 22.5).
 
+    Varsling (valgfri, debug):
+    Valgfri Pushover-notifikasjon ved endringer. Av som standard (ix_pushover_varsling=false).
+
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.09
+    Blueprint versjon: 2026.07.11
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -324,6 +344,83 @@ blueprint:
               mode: slider
               unit_of_measurement: "°C"
 
+    panelovn:
+      name: Panelovn
+      icon: mdi:radiator
+      collapsed: true
+      input:
+        panelovn_padrag_grense:
+          name: Pådrag-grense varmepumpe / panelovn (%)
+          description: >
+            Ved varme: pådrag 0–[grense]% styrer varmepumpe normalisert 0–100%.
+            Pådrag [grense]–100% aktiverer i tillegg panelovn (varme-climate).
+            Standard 60 %. Krever at varme-climate er konfigurert.
+          default: 60
+          selector:
+            number:
+              min: 10
+              max: 90
+              step: 5
+              mode: slider
+              unit_of_measurement: "%"
+
+        panelovn_delta_maks:
+          name: Temperaturspenn for panelovn 0–100 % (°C)
+          description: >
+            Romtemp-underskudd som gir panelovnen 100 % pådrag.
+            Ved 0 °C under settpunkt → panelovn 0 % (frost). Ved dette spennet under settpunkt → panelovn 100 %.
+            Lineær interpolasjon i mellom – ingen plutselig av/på.
+            Standard 2.0 °C.
+          default: 2.0
+          selector:
+            number:
+              min: 0.5
+              max: 5
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
+
+    varsling:
+      name: Varsling (debug)
+      icon: mdi:bell-outline
+      collapsed: true
+      input:
+        ix_pushover_varsling:
+          name: Aktiver Pushover-varsling
+          description: >
+            Standard av (false). Aktiverer debug-varsling via Pushover ved hver kjøring som
+            fører til en endring. Nyttig for feilsøking av settpunkt- og panelovn-logikk.
+          default: false
+          selector:
+            boolean: {}
+
+        pushover_destination:
+          name: Pushover destination
+          description: Mottakergruppe i script.varsel_pushover_send_melding_webhome.
+          default: pushover
+          selector:
+            text:
+
+        pushover_priority:
+          name: Pushover priority
+          default: -1
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_ttl:
+          name: Pushover TTL (sekunder)
+          default: 604800
+          selector:
+            number:
+              min: 0
+              max: 604800
+              step: 60
+              mode: box
+
 mode: restart
 
 triggers:
@@ -363,6 +460,12 @@ actions:
       inum_min_padrag_eco: !input min_padrag_eco
       inum_min_padrag_boost: !input min_padrag_boost
       iclimate_varme_styrt: !input varme_climate
+      inum_panelovn_padrag_grense: !input panelovn_padrag_grense
+      inum_panelovn_delta_maks: !input panelovn_delta_maks
+      ix_pushover_varsling: !input ix_pushover_varsling
+      pushover_destination: !input pushover_destination
+      pushover_priority: !input pushover_priority
+      pushover_ttl: !input pushover_ttl
 
   # Steg 1: les råverdier + attributt-eksistens
   - variables:
@@ -448,62 +551,8 @@ actions:
         {% set m2 = varmepumpe_output_power_min_cause_mode | float(0) %}
         {{ [ [p, m1, m2] | max, 100 ] | min }}
 
-  # Steg 4: beregn ønsket settpunkt (power-kurve med varmepumpe_output_power)
-  - variables:
-      iclimate_varme_rt_max_spk_spcomfort: "{{ [iclimate_varme_rt_spk, iclimate_varme_rt_sp_comfort_spkifnocomfort] | max }}"
-      varmepumpe_req_spk_raw: >-
-        {% set p = varmepumpe_output_power | float(0) %}
-        {% set omin = inum_offset_min | float(0) %}
-        {% set omax = inum_offset_maks | float(0) %}
-        {{ (iclimate_varme_rt_max_spk_spcomfort | float(0)) + omin + (p / 100) * (omax - omin) }}
-      varmepumpe_req_spk_incl_abs_limit: >-
-        {% set t = varmepumpe_req_spk_raw | float(iclimate_varme_rt_max_spk_spcomfort) %}
-        {{ [ [t, inum_varmepumpe_abs_min | float(10)] | max, inum_varmepumpe_abs_max | float(29) ] | min }}
-      # Mellomsteg: rundes til nærmeste halve (20.5, 20 osv.).
-      # Endelig avrunding skjer i qnum_varmepumpe_req_spk basert på inum_max_step.
-      varmepumpe_req_spk_rounded_nearest_half: "{{ ((varmepumpe_req_spk_incl_abs_limit | float(0)) * 2) | round(0) / 2 }}"
-
-      # RAMP + AVRUNDING: betinget på inum_max_step
-      # - Heltall-steg (1, 2, 3, …): ønsket og rampet verdi avrundes til nærmeste heltall
-      # - Halvt steg (0.5, 1.5, 2.5, …): beholder nærmeste-0.5-avrunding
-      # Float-math beholdes for selve ramp-beregningen slik at halve-stegs-presisjon bevares
-      qnum_varmepumpe_req_spk: >-
-        {% set ønsket_half = varmepumpe_req_spk_rounded_nearest_half | float %}
-        {% set nå = iclimate_varmepumpe_rt_spk | float %}
-        {% set step = inum_max_step | float %}
-        {% set step_is_whole = step == (step | int | float) %}
-        {% set ønsket = (ønsket_half | round(0) | float) if step_is_whole else ønsket_half %}
-        {% set ramped = ønsket if step <= 0 else ([nå - step, [ønsket, nå + step] | min] | max) %}
-        {{ (ramped | round(0) | float) if step_is_whole else ((ramped * 2) | round(0) / 2) }}
-      # Float-sammenligning: fanger opp halvgrads- og heltals-endringer
-      qx_varmepumpe_spk_update_needed: "{{ (qnum_varmepumpe_req_spk | float) != (iclimate_varmepumpe_rt_spk | float) }}"
-
-  # Steg 5: vifte (valgfri) – ix_vifte_aktiv er satt i Steg 0
-  - if:
-      - condition: template
-        value_template: "{{ ix_vifte_aktiv }}"
-    then:
-      - variables:
-          pumpe_vifte_stottes: "{{ state_attr(iclimate_varmepumpe, 'fan_modes') is not none }}"
-          onsket_vifte: >-
-            {% if not pumpe_vifte_stottes %}
-              {{ iclimate_varmepumpe_fanmode }}
-            {% elif iclimate_varme_presetmode == 'frost' %}
-              high
-            {% elif (varmepumpe_output_power | float(0)) <= 30 %}
-              medium
-            {% elif (varmepumpe_output_power | float(0)) > 50 %}
-              high
-            {% else %}
-              {{ iclimate_varmepumpe_fanmode }}
-            {% endif %}
-          skal_oppdatere_vifte: "{{ pumpe_vifte_stottes and (onsket_vifte | string) != (iclimate_varmepumpe_fanmode | string) }}"
-    else:
-      - variables:
-          onsket_vifte: "{{ iclimate_varmepumpe_fanmode }}"
-          skal_oppdatere_vifte: false
-
-  # Steg 6: kjøling (valgfri) + driftsmodus-default med override-hysterese
+  # Steg 4: kjøling (valgfri) + driftsmodus-default med override-hysterese
+  # Modus bestemmes FØR settpunkt-beregning slik at kjøling-inversjon kan brukes
   - if:
       - condition: template
         value_template: "{{ ix_kjoling_aktiv }}"
@@ -571,13 +620,109 @@ actions:
           onsket_mode: heat
           skal_oppdatere_mode: "{{ iclimate_varmepumpe_mode != 'heat' }}"
 
-  # Steg 6.5: beregn ønsket modus for overordnet climate
+  # Steg 4.5: beregn ønsket modus for overordnet climate
   - variables:
       onsket_overordnet_mode: "{{ onsket_mode }}"
   - variables:
       skal_oppdatere_overordnet: "{{ iclimate_overordnet_hvac_mode in ['heat', 'cool'] and (onsket_overordnet_mode | string) != (iclimate_overordnet_hvac_mode | string) }}"
 
-  # Steg 7: sett verdier kun ved behov
+  # Steg 5: normaliser pådrag for varmepumpe og panelovn
+  - variables:
+      hp_padrag_grense: "{{ inum_panelovn_padrag_grense | float(60) }}"
+  - variables:
+      # Varme: pådrag 0–grense% normaliseres til 0–100% for varmepumpe.
+      # Eksempel grense=60: pådrag 30% → hp_norm=50%, pådrag 60% → hp_norm=100%
+      hp_norm_power_heat: >-
+        {% set p = varmepumpe_output_power | float(0) %}
+        {% set g = hp_padrag_grense | float(60) %}
+        {{ ([(p / g) * 100, 100] | min) if g > 0 else 100 }}
+  - variables:
+      # Panelovn: pådrag grense–100% normaliseres til 0–100%.
+      # Er alltid 0 ved kjøling eller når varme-climate ikke er konfigurert.
+      panelovn_maal_power: >-
+        {% set p = varmepumpe_output_power | float(0) %}
+        {% set g = hp_padrag_grense | float(60) %}
+        {% set rest = 100.0 - g %}
+        {% if onsket_mode != 'heat' or (iclimate_varme_styrt | string) in ['', 'None', 'none'] %}
+          0
+        {% elif rest <= 0 %}
+          100
+        {% else %}
+          {{ [[(p - g) / rest * 100, 0] | max, 100] | min }}
+        {% endif %}
+
+  # Steg 6: beregn ønsket settpunkt (modus-bevisst)
+  - variables:
+      iclimate_varme_rt_max_spk_spcomfort: "{{ [iclimate_varme_rt_spk, iclimate_varme_rt_sp_comfort_spkifnocomfort] | max }}"
+  - variables:
+      # Effektivt hp-pådrag:
+      # - Varme: normalisert (0–grense% → 0–100%), panelovn tar over etter grense
+      # - Kjøling: direkte pådrag 0–100% (inversjon håndteres i formelen under)
+      hp_effective_power: "{{ hp_norm_power_heat if onsket_mode == 'heat' else varmepumpe_output_power }}"
+  - variables:
+      varmepumpe_req_spk_raw: >-
+        {% set p = hp_effective_power | float(0) %}
+        {% set omin = inum_offset_min | float(0) %}
+        {% set omax = inum_offset_maks | float(0) %}
+        {% set basis = iclimate_varme_rt_max_spk_spcomfort | float(0) %}
+        {% if onsket_mode == 'cool' %}
+          {# Kjøling: invertert kurve – 0% pådrag → høy setpunkt (lite kjøling),
+             100% pådrag → lav setpunkt (maks kjøling) #}
+          {{ basis + omax - (p / 100) * (omax - omin) }}
+        {% else %}
+          {# Varme: standard kurve – 0% → lav setpunkt, 100% → høy setpunkt #}
+          {{ basis + omin + (p / 100) * (omax - omin) }}
+        {% endif %}
+  - variables:
+      varmepumpe_req_spk_incl_abs_limit: >-
+        {% set t = varmepumpe_req_spk_raw | float(iclimate_varme_rt_max_spk_spcomfort) %}
+        {{ [ [t, inum_varmepumpe_abs_min | float(10)] | max, inum_varmepumpe_abs_max | float(29) ] | min }}
+  - variables:
+      # Mellomsteg: rundes til nærmeste halve (20.5, 20 osv.).
+      # Endelig avrunding skjer i qnum_varmepumpe_req_spk basert på inum_max_step.
+      varmepumpe_req_spk_rounded_nearest_half: "{{ ((varmepumpe_req_spk_incl_abs_limit | float(0)) * 2) | round(0) / 2 }}"
+  - variables:
+      # RAMP + AVRUNDING: betinget på inum_max_step
+      # - Heltall-steg (1, 2, 3, …): ønsket og rampet verdi avrundes til nærmeste heltall
+      # - Halvt steg (0.5, 1.5, 2.5, …): beholder nærmeste-0.5-avrunding
+      # Float-math beholdes for selve ramp-beregningen slik at halve-stegs-presisjon bevares
+      qnum_varmepumpe_req_spk: >-
+        {% set ønsket_half = varmepumpe_req_spk_rounded_nearest_half | float %}
+        {% set nå = iclimate_varmepumpe_rt_spk | float %}
+        {% set step = inum_max_step | float %}
+        {% set step_is_whole = step == (step | int | float) %}
+        {% set ønsket = (ønsket_half | round(0) | float) if step_is_whole else ønsket_half %}
+        {% set ramped = ønsket if step <= 0 else ([nå - step, [ønsket, nå + step] | min] | max) %}
+        {{ (ramped | round(0) | float) if step_is_whole else ((ramped * 2) | round(0) / 2) }}
+      # Float-sammenligning: fanger opp halvgrads- og heltals-endringer
+      qx_varmepumpe_spk_update_needed: "{{ (qnum_varmepumpe_req_spk | float) != (iclimate_varmepumpe_rt_spk | float) }}"
+
+  # Steg 7: vifte (valgfri) – ix_vifte_aktiv er satt i Steg 0
+  - if:
+      - condition: template
+        value_template: "{{ ix_vifte_aktiv }}"
+    then:
+      - variables:
+          pumpe_vifte_stottes: "{{ state_attr(iclimate_varmepumpe, 'fan_modes') is not none }}"
+          onsket_vifte: >-
+            {% if not pumpe_vifte_stottes %}
+              {{ iclimate_varmepumpe_fanmode }}
+            {% elif iclimate_varme_presetmode == 'frost' %}
+              high
+            {% elif (varmepumpe_output_power | float(0)) <= 30 %}
+              medium
+            {% elif (varmepumpe_output_power | float(0)) > 50 %}
+              high
+            {% else %}
+              {{ iclimate_varmepumpe_fanmode }}
+            {% endif %}
+          skal_oppdatere_vifte: "{{ pumpe_vifte_stottes and (onsket_vifte | string) != (iclimate_varmepumpe_fanmode | string) }}"
+    else:
+      - variables:
+          onsket_vifte: "{{ iclimate_varmepumpe_fanmode }}"
+          skal_oppdatere_vifte: false
+
+  # Steg 8: sett verdier kun ved behov
   - if:
       - condition: or
         conditions:
@@ -631,24 +776,38 @@ actions:
             data:
               fan_mode: "{{ onsket_vifte }}"
 
-  # Steg 8: varme-climate styring (valgfri) – basert på beregnet modus
+  # Steg 9: panelovn-proporsjonal-styring (valgfri – kun når varme-climate er konfigurert)
+  # Panelovn-settpunkt skaleres 0–100 % basert på romtemp-underskudd (0–panelovn_delta_maks °C under settpunkt).
+  # Ingen binær av/på: settpunktet trappes jevnt opp etter hvert som romtemp faller under settpunkt.
   - if:
       - condition: template
         value_template: "{{ iclimate_varme_styrt is not none and iclimate_varme_styrt != '' }}"
     then:
       - variables:
-          varme_styrt_er_av_eller_kjoling: "{{ iclimate_overordnet_hvac_mode == 'off' or onsket_overordnet_mode == 'cool' }}"
-      - variables:
-          varme_styrt_onsket_spk_raw: >-
-            {% if varme_styrt_er_av_eller_kjoling %}
-              {{ iclimate_varme_frost_temp | float(10) }}
-            {% else %}
-              {{ iclimate_varme_rt_spk | float(20) }}
-            {% endif %}
           varme_styrt_naa_spk: "{{ state_attr(iclimate_varme_styrt, 'temperature') | float(0) }}"
       - variables:
           varme_styrt_min_temp: "{{ state_attr(iclimate_varme_styrt, 'min_temp') | float(10) }}"
           varme_styrt_max_temp: "{{ state_attr(iclimate_varme_styrt, 'max_temp') | float(30) }}"
+      - variables:
+          # Antall grader romtemp er under settpunkt, klampt til [0, delta_maks].
+          panelovn_temp_delta: >-
+            {% set delta = (iclimate_varme_rt_spk | float(0)) - (iclimate_varme_rt_pv | float(0)) %}
+            {{ [[delta, 0] | max, inum_panelovn_delta_maks | float(2)] | min }}
+      - variables:
+          # Proporsjonal faktor 0.0–1.0: 0 = romtemp ≥ settpunkt, 1 = romtemp ≥ delta_maks under settpunkt.
+          panelovn_prop: >-
+            {% set d = inum_panelovn_delta_maks | float(2) %}
+            {{ (panelovn_temp_delta | float(0)) / d if d > 0 else 0 }}
+      - variables:
+          varme_styrt_onsket_spk_raw: >-
+            {% if iclimate_overordnet_hvac_mode == 'off' or onsket_overordnet_mode == 'cool'
+               or (panelovn_maal_power | float(0)) == 0 %}
+              {{ iclimate_varme_frost_temp | float(10) }}
+            {% else %}
+              {{ (iclimate_varme_frost_temp | float(10))
+                 + ((iclimate_varme_rt_spk | float(20)) - (iclimate_varme_frost_temp | float(10)))
+                 * (panelovn_prop | float(0)) }}
+            {% endif %}
       - variables:
           varme_styrt_onsket_spk: "{{ [[varme_styrt_onsket_spk_raw | float, varme_styrt_min_temp | float] | max, varme_styrt_max_temp | float] | min }}"
       - variables:
@@ -662,3 +821,40 @@ actions:
               entity_id: "{{ iclimate_varme_styrt }}"
             data:
               temperature: "{{ varme_styrt_onsket_spk }}"
+
+  # Steg 10: Pushover-varsling (debug, av som standard – ix_pushover_varsling=false)
+  - if:
+      - condition: template
+        value_template: >-
+          {{ ix_pushover_varsling
+             and (pushover_destination | string | trim) != ''
+             and (qx_varmepumpe_spk_update_needed
+                  or skal_oppdatere_mode
+                  or skal_oppdatere_vifte
+                  or (varme_styrt_spk_update_needed | default(false))) }}
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: >-
+            🌡️ VP {{ iclimate_varmepumpe | replace('climate.', '') }} – {{ onsket_mode | upper }}
+          message: |-
+            Modus: {{ onsket_mode | upper }}{% if skal_oppdatere_mode %} (endret fra {{ iclimate_varmepumpe_mode | upper }}){% endif %}
+            Pådrag: {{ varmepumpe_output_power | round(1) }}%
+            Romtemp: {{ iclimate_varme_rt_pv }}°C / Settpunkt: {{ iclimate_varme_rt_spk }}°C
+            {% if onsket_mode == 'heat' -%}
+            HP normalisert pådrag: {{ hp_norm_power_heat | round(1) }}% (grense {{ inum_panelovn_padrag_grense }}%)
+            HP settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
+            {%- if (iclimate_varme_styrt | string) not in ['', 'None', 'none'] %}
+            Panelovn mål: {{ panelovn_maal_power | round(1) }}%
+            Panelovn prop: {{ ((panelovn_prop | default(0)) * 100) | round(0) }}% (delta {{ panelovn_temp_delta | default(0) | round(2) }}°C / {{ inum_panelovn_delta_maks }}°C)
+            Panelovn settpunkt: {{ varme_styrt_onsket_spk | default(iclimate_varme_frost_temp) | round(1) }}°C
+            {%- endif %}
+            {%- elif onsket_mode == 'cool' -%}
+            HP kjøle-settpunkt (invertert kurve): {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
+            {%- endif %}
+            {%- if skal_oppdatere_vifte %}
+            Vifte: {{ onsket_vifte }}
+            {%- endif %}
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(-1) }}"
+          ttl: "{{ pushover_ttl | int(604800) }}"
