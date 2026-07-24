@@ -59,23 +59,32 @@ Detaljert funksjonsbeskrivelse:
 
 Samlet overvåkning av batteri-enheter og Uptime Kuma i én blueprint:
 
-- **Time_pattern (hver time):** Sender én samlet varsling med nylig mistet batterisignal + Uptime Kuma-enheter som nylig gikk offline.
+- **Time_pattern (hver 4. time):** Sender én samlet varsling med nylig mistet batterisignal + Uptime Kuma-enheter som nylig gikk offline.
 - **Planlagt/manuell sjekk:** Sender én samlet varsling med batterinivå, langsomt signal og full Uptime Kuma-status.
 - **Kritisk Uptime-sensor:** Kan utløse øyeblikkelig varsling ved statusendring.
 - **Viktig regel for alle meldinger med flere seksjoner/lister:** Hvis en enhet er nevnt i en tidligere liste i samme varsel, skal den ikke listes på nytt i senere lister.
+
+Detaljert funksjonsbeskrivelse:
+- [README_varsel_enhet.md](./README_varsel_enhet.md)
 
 ---
 
 
 ### effektgrense_automatisk.yaml — KWh-grense - Temperatur + månedsminimum
 
-Setter en `input_number` (kWh-grense) basert på værvarsel (snittemperatur neste N timer) kombinert med et konfigurerbart månedsminimum. Beregner grensen lineært mellom to temperatur/effekt-punkter.
+Setter en `input_number` (kWh-grense) basert på værvarsel (snittemperatur neste N timer) kombinert med et konfigurerbart månedsminimum. Velger temperaturminimum fra terskelnivåer (veryCold/littleCold/warm) og bruker høyeste av temperaturminimum og månedsminimum.
+
+Detaljert funksjonsbeskrivelse:
+- [README_effektgrense_automatisk.md](./README_effektgrense_automatisk.md)
 
 ---
 
 ### kalender_kalkulert_varmebehov.yaml — Kalender - Kalkulert varmebehov
 
 Beregner når forvarming og normal varme skal være aktiv basert på kalenderhendelser, innetemperatur og værvarsel (snittemperatur neste 24 timer). Aktiverer varme i god tid før hendelsen starter.
+
+Detaljert funksjonsbeskrivelse:
+- [README_kalender_kalkulert_varmebehov.md](./README_kalender_kalkulert_varmebehov.md)
 
 ---
 
@@ -85,6 +94,9 @@ Sender Pushover-varsel hvis en temperatursensor:
 - Går over grense 1 i 15 minutter
 - Går over grense 2 i 60 minutter
 - Går til `unknown` i 15 minutter
+
+Detaljert funksjonsbeskrivelse:
+- [README_temperature_sensor_alarm.md](./README_temperature_sensor_alarm.md)
 
 ---
 
@@ -109,5 +121,19 @@ Detaljert funksjonsbeskrivelse:
 ### varsel_printer.yaml — Varsel - Printer - Blekk/Toner lavt
 
 Auto-detekterer printer-/skriversensorer og sender varsel ved lav blekk/toner (under konfigurerbar terskel). Deduper per skriver og filtrerer irrelevante enheter automatisk.
+
+Detaljert funksjonsbeskrivelse:
+- [README_varsel_printer.md](./README_varsel_printer.md)
+
+---
+
+## Script blueprints
+
+### varsel_pushover.yaml — Varsel - Pushover Send Melding
+
+Felles script-blueprint for å sende Pushover-varsler med standardisert tittel, melding, TTL-tekst og destination-routing.
+
+Detaljert funksjonsbeskrivelse:
+- [README_varsel_pushover.md](./README_varsel_pushover.md)
 
 ---
