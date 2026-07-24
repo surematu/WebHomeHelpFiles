@@ -32,7 +32,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.06
+    Blueprint versjon: 2026.07.07
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -46,7 +46,7 @@ blueprint:
       collapsed: true
       input:
         rom_climate:
-          name: Climate – varmeregulering i rom
+          name: Climate - Overordnet for rom
           selector:
             entity:
               domain: climate
@@ -81,13 +81,37 @@ blueprint:
               mode: slider
               unit_of_measurement: "°C"
 
+        varme_climate:
+          name: Climate - Varme
+          description: >
+            Valgfri. Varme-climate som styres basert på modus på overordnet.
+            Hvis overordnet er av eller i kjøling settes dette klimaet til frostsikring settpunkt.
+            Ellers ved varme settes settpunktet lik overordnet settpunkt.
+          default: ""
+          selector:
+            entity:
+              domain: climate
+
+        frostsikring_settpunkt:
+          name: Frostsikring settpunkt (°C)
+          description: >
+            Settpunkt som brukes på varme-climate når overordnet er av eller i kjøling.
+          default: 7
+          selector:
+            number:
+              min: 5
+              max: 15
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
+
     varmepumpe:
       name: Varmepumpe
       icon: mdi:heat-pump
       collapsed: true
       input:
         pumpe_climate:
-          name: Climate – varmepumpe (styring)
+          name: Climate - Varmepumpe
           selector:
             entity:
               domain: climate
@@ -336,6 +360,8 @@ actions:
       inum_min_padrag_comfort: !input min_padrag_comfort
       inum_min_padrag_eco: !input min_padrag_eco
       inum_min_padrag_boost: !input min_padrag_boost
+      iclimate_varme_styrt: !input varme_climate
+      inum_frostsikring_spk: !input frostsikring_settpunkt
 
   # Steg 1: les råverdier + attributt-eksistens
   - variables:
@@ -358,6 +384,7 @@ actions:
       iclimate_varmepumpe_rt_spk: "{{ state_attr(iclimate_varmepumpe, 'temperature') | float(0) }}"
       iclimate_varmepumpe_mode: "{{ states(iclimate_varmepumpe) | string | lower }}"
       iclimate_varmepumpe_fanmode: "{{ (state_attr(iclimate_varmepumpe, 'fan_mode') | string | lower) }}"
+      iclimate_overordnet_hvac_mode: "{{ states(iclimate_varme) | string | lower }}"
 
   # Steg 2: Beregn hvor mye pådrag vi har på varmekilden
   - choose:
@@ -575,3 +602,30 @@ actions:
               entity_id: !input pumpe_climate
             data:
               fan_mode: "{{ onsket_vifte }}"
+
+  # Steg 8: varme-climate styring (valgfri) – basert på modus på overordnet
+  - if:
+      - condition: template
+        value_template: "{{ iclimate_varme_styrt is not none and iclimate_varme_styrt != '' }}"
+    then:
+      - variables:
+          varme_styrt_er_av_eller_kjoling: "{{ iclimate_overordnet_hvac_mode in ['off', 'cool'] }}"
+      - variables:
+          varme_styrt_onsket_spk: >-
+            {% if varme_styrt_er_av_eller_kjoling %}
+              {{ inum_frostsikring_spk | float(7) }}
+            {% else %}
+              {{ iclimate_varme_rt_spk | float(20) }}
+            {% endif %}
+          varme_styrt_naa_spk: "{{ state_attr(iclimate_varme_styrt, 'temperature') | float(0) }}"
+      - variables:
+          varme_styrt_spk_update_needed: "{{ (varme_styrt_onsket_spk | float) != (varme_styrt_naa_spk | float) }}"
+      - if:
+          - condition: template
+            value_template: "{{ varme_styrt_spk_update_needed }}"
+        then:
+          - action: climate.set_temperature
+            target:
+              entity_id: "{{ iclimate_varme_styrt }}"
+            data:
+              temperature: "{{ varme_styrt_onsket_spk }}"
