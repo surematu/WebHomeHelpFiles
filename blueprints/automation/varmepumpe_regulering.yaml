@@ -21,10 +21,11 @@ blueprint:
     Ved varme (heat):
       Pådrag 0–panelovn_padrag_grense% (default 60%) styrer varmepumpe normalisert 0–100%.
       Pådrag panelovn_padrag_grense–100% aktiverer i tillegg varme-climate (panelovn)
-      med separate hysterese-betingelser:
-        - Panelovn slår PÅ kun når romtemp er minst panelovn_temp_grense_paa (default 1°C) under settpunkt.
-        - Panelovn slår AV igjen når romtemp er innen panelovn_temp_hysterese_av (default 0.5°C) av settpunkt.
-      Formål: prioritere varmepumpa; panelovn brukes bare som supplement.
+      med proporsjonal temperatur-styring (ingen binær av/på):
+        - Panelovn-settpunkt skaleres lineært fra frost-setpunkt (romtemp ≥ settpunkt)
+          til rom-settpunkt (romtemp ≥ panelovn_delta_maks °C under settpunkt, default 2°C).
+        - Lineær interpolasjon – panelovnen øker gradvis uten plutselig av/på-sykler.
+      Formål: prioritere varmepumpa; panelovn brukes som proporsjonal supplement.
 
     Ved kjøling (cool):
       Pådrag 0–100% gir invertert settpunkt-kurve til varmepumpa:
@@ -57,7 +58,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.10
+    Blueprint versjon: 2026.07.11
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -363,32 +364,18 @@ blueprint:
               mode: slider
               unit_of_measurement: "%"
 
-        panelovn_temp_grense_paa:
-          name: Grader under settpunkt for å slå PÅ panelovn (°C)
+        panelovn_delta_maks:
+          name: Temperaturspenn for panelovn 0–100 % (°C)
           description: >
-            Panelovnen slår seg PÅ kun når romtemp er minst denne verdien under rom-settpunktet.
-            Sikrer at varmepumpe prioriteres; panelovn er tillegg ved vedvarende underskudd.
-            Standard 1.0 °C.
-          default: 1.0
+            Romtemp-underskudd som gir panelovnen 100 % pådrag.
+            Ved 0 °C under settpunkt → panelovn 0 % (frost). Ved dette spennet under settpunkt → panelovn 100 %.
+            Lineær interpolasjon i mellom – ingen plutselig av/på.
+            Standard 2.0 °C.
+          default: 2.0
           selector:
             number:
-              min: 0
+              min: 0.5
               max: 5
-              step: 0.5
-              mode: slider
-              unit_of_measurement: "°C"
-
-        panelovn_temp_hysterese_av:
-          name: Hysterese – panelovn AV, grader under settpunkt (°C)
-          description: >
-            Panelovnen slår seg AV igjen når romtemp stiger til innen denne verdien av settpunktet.
-            AV-terskel = settpunkt − hysterese. Må være lavere enn panelovn_temp_grense_paa for korrekt hysterese.
-            Standard 0.5 °C.
-          default: 0.5
-          selector:
-            number:
-              min: 0
-              max: 3
               step: 0.5
               mode: slider
               unit_of_measurement: "°C"
@@ -474,8 +461,7 @@ actions:
       inum_min_padrag_boost: !input min_padrag_boost
       iclimate_varme_styrt: !input varme_climate
       inum_panelovn_padrag_grense: !input panelovn_padrag_grense
-      inum_panelovn_temp_paa: !input panelovn_temp_grense_paa
-      inum_panelovn_temp_av: !input panelovn_temp_hysterese_av
+      inum_panelovn_delta_maks: !input panelovn_delta_maks
       ix_pushover_varsling: !input ix_pushover_varsling
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
@@ -790,8 +776,9 @@ actions:
             data:
               fan_mode: "{{ onsket_vifte }}"
 
-  # Steg 9: panelovn-logikk med hysterese (valgfri – kun når varme-climate er konfigurert)
-  # Panelovn aktiveres kun ved varme, når pådrag er over grense OG romtemp er lavt nok.
+  # Steg 9: panelovn-proporsjonal-styring (valgfri – kun når varme-climate er konfigurert)
+  # Panelovn-settpunkt skaleres 0–100 % basert på romtemp-underskudd (0–panelovn_delta_maks °C under settpunkt).
+  # Ingen binær av/på: settpunktet trappes jevnt opp etter hvert som romtemp faller under settpunkt.
   - if:
       - condition: template
         value_template: "{{ iclimate_varme_styrt is not none and iclimate_varme_styrt != '' }}"
@@ -802,32 +789,24 @@ actions:
           varme_styrt_min_temp: "{{ state_attr(iclimate_varme_styrt, 'min_temp') | float(10) }}"
           varme_styrt_max_temp: "{{ state_attr(iclimate_varme_styrt, 'max_temp') | float(30) }}"
       - variables:
-          # Proxy for om panelovnen var aktiv fra forrige kjøring:
-          # setpunkt tydelig over frost-temp betyr "var på"
-          panelovn_er_aktiv_naa: "{{ varme_styrt_naa_spk > (iclimate_varme_frost_temp | float(10) + 0.5) }}"
+          # Antall grader romtemp er under settpunkt, klampt til [0, delta_maks].
+          panelovn_temp_delta: >-
+            {% set delta = (iclimate_varme_rt_spk | float(0)) - (iclimate_varme_rt_pv | float(0)) %}
+            {{ [[delta, 0] | max, inum_panelovn_delta_maks | float(2)] | min }}
       - variables:
-          # PÅ-terskel: romtemp må være minst panelovn_temp_grense_paa under settpunkt
-          panelovn_temp_paa_terskel: "{{ (iclimate_varme_rt_spk | float(0)) - (inum_panelovn_temp_paa | float(1)) }}"
-          # AV-terskel: romtemp er innen panelovn_temp_hysterese_av av settpunkt
-          panelovn_temp_av_terskel: "{{ (iclimate_varme_rt_spk | float(0)) - (inum_panelovn_temp_av | float(0.5)) }}"
-      - variables:
-          # Panelovn slår PÅ: mål-pådrag > 0 OG romtemp < PÅ-terskel
-          panelovn_skal_paa: >-
-            {{ (panelovn_maal_power | float(0)) > 0
-               and (iclimate_varme_rt_pv | float(0)) < (panelovn_temp_paa_terskel | float(0)) }}
-          # Panelovn holdes PÅ (hysterese): allerede aktiv OG mål-pådrag > 0 OG romtemp < AV-terskel
-          panelovn_skal_holdes: >-
-            {{ panelovn_er_aktiv_naa
-               and (panelovn_maal_power | float(0)) > 0
-               and (iclimate_varme_rt_pv | float(0)) < (panelovn_temp_av_terskel | float(0)) }}
-      - variables:
-          panelovn_aktiv: "{{ panelovn_skal_paa or panelovn_skal_holdes }}"
+          # Proporsjonal faktor 0.0–1.0: 0 = romtemp ≥ settpunkt, 1 = romtemp ≥ delta_maks under settpunkt.
+          panelovn_prop: >-
+            {% set d = inum_panelovn_delta_maks | float(2) %}
+            {{ (panelovn_temp_delta | float(0)) / d if d > 0 else 0 }}
       - variables:
           varme_styrt_onsket_spk_raw: >-
-            {% if iclimate_overordnet_hvac_mode == 'off' or onsket_overordnet_mode == 'cool' or not panelovn_aktiv %}
+            {% if iclimate_overordnet_hvac_mode == 'off' or onsket_overordnet_mode == 'cool'
+               or (panelovn_maal_power | float(0)) == 0 %}
               {{ iclimate_varme_frost_temp | float(10) }}
             {% else %}
-              {{ iclimate_varme_rt_spk | float(20) }}
+              {{ (iclimate_varme_frost_temp | float(10))
+                 + ((iclimate_varme_rt_spk | float(20)) - (iclimate_varme_frost_temp | float(10)))
+                 * (panelovn_prop | float(0)) }}
             {% endif %}
       - variables:
           varme_styrt_onsket_spk: "{{ [[varme_styrt_onsket_spk_raw | float, varme_styrt_min_temp | float] | max, varme_styrt_max_temp | float] | min }}"
@@ -866,12 +845,9 @@ actions:
             HP normalisert pådrag: {{ hp_norm_power_heat | round(1) }}% (grense {{ inum_panelovn_padrag_grense }}%)
             HP settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             {%- if (iclimate_varme_styrt | string) not in ['', 'None', 'none'] %}
-            {%- set panelovn_status = 'PÅ (' + iclimate_varme_rt_spk|string + '°C)' if panelovn_aktiv | default(false) else 'AV (frost ' + iclimate_varme_frost_temp|string + '°C)' %}
             Panelovn mål: {{ panelovn_maal_power | round(1) }}%
-            Panelovn: {{ panelovn_status }}
-            {%- if (panelovn_maal_power | float(0)) > 0 and not (panelovn_aktiv | default(false)) %}
-            Panelovn AV fordi: romtemp ({{ iclimate_varme_rt_pv }}°C) ≥ AV-terskel ({{ panelovn_temp_av_terskel | round(1) }}°C)
-            {%- endif %}
+            Panelovn prop: {{ ((panelovn_prop | default(0)) * 100) | round(0) }}% (delta {{ panelovn_temp_delta | default(0) | round(2) }}°C / {{ inum_panelovn_delta_maks }}°C)
+            Panelovn settpunkt: {{ varme_styrt_onsket_spk | default(iclimate_varme_frost_temp) | round(1) }}°C
             {%- endif %}
             {%- elif onsket_mode == 'cool' -%}
             HP kjøle-settpunkt (invertert kurve): {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}

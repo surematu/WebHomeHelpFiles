@@ -10,7 +10,7 @@ Funksjonen støtter i tillegg:
 - Sesongbasert styring via driftsmodus (VINTER/SOMMER), inkludert nødoverkobling av kjøling/varme ved ekstreme romtemperaturer.
 - Valgfri vifteregulering (boost ved høyt pådrag).
 - Minimum-pådrag basert på temperaturunderskudd og rom-preset (eco/comfort/boost).
-- Prioritert varme-logikk: varmepumpe dekker 0–60 % av pådrag, panelovn (varme-climate) brukes kun som supplement ved høyt underskudd.
+- Prioritert varme-logikk: varmepumpe dekker 0–60 % av pådrag, panelovn (varme-climate) brukes som proporsjonal supplement ved høyt underskudd.
 - Invertert kjøle-settpunkt: høyt kjøle-pådrag gir lavt settpunkt (mer kjøling), ikke høyt.
 - Valgfri Pushover-debug-varsling (av som standard).
 
@@ -45,7 +45,7 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 |---|---:|---|
 | `padrag_regulated_offset_min` | −1 °C | Offset relativt til settpunkt som tilsvarer 0 % pådrag (brukes kun når `regulated_target_temperature` finnes og `power_percent` mangler) |
 | `padrag_regulated_offset_maks` | +1 °C | Offset relativt til settpunkt som tilsvarer 100 % pådrag |
-| `varme_climate` | – | Valgfri panelovn/varme-climate. Aktiveres basert på pådrag og hysterese-betingelser (se avsnitt 9). Frost-settpunkt leses automatisk fra `preset_temperatures.frost_temp` på overordnet climate |
+| `varme_climate` | – | Valgfri panelovn/varme-climate. Settpunkt skaleres proporsjonalt basert på temperaturunderskudd (se avsnitt 9). Frost-settpunkt leses automatisk fra `preset_temperatures.frost_temp` på overordnet climate |
 
 ### 4.2 Varmepumpe
 
@@ -87,8 +87,7 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 | Parameter | Standard | Beskrivelse |
 |---|---:|---|
 | `panelovn_padrag_grense` | 60 % | Pådrag-terskel: under grensen → kun varmepumpe. Over grensen → panelovn aktiveres i tillegg (krever varme-climate). |
-| `panelovn_temp_grense_paa` | 1.0 °C | Panelovn slår PÅ kun når romtemp er minst denne verdien under settpunktet |
-| `panelovn_temp_hysterese_av` | 0.5 °C | Panelovn slår AV igjen når romtemp stiger til innen denne verdien av settpunktet (AV-terskel = settpunkt − hysterese) |
+| `panelovn_delta_maks` | 2.0 °C | Temperaturspenn for proporsjonal panelovn-styring. Romtemp ≥ settpunkt → 0 % (frost). Romtemp ≥ dette spennet under settpunkt → 100 %. Lineær interpolasjon i mellom. |
 
 ### 4.7 Varsling (debug)
 
@@ -256,35 +255,35 @@ Varmepumpa oppdateres **kun når det er behov**:
 
 Dette minimerer unødvendige skriv til varmepumpa og reduserer støy i logg og historikk.
 
-## 9) Panelovn-styring med hysterese (Steg 9)
+## 9) Panelovn-proporsjonal-styring (Steg 9)
 
 Aktiveres kun når `varme_climate` er konfigurert.
 
-**Formål:** Panelovnen er et supplement til varmepumpa. Den brukes kun når varmepumpa ikke klarer å levere nok varme alene (pådrag over grensen OG romtemp er lavt nok).
+**Formål:** Panelovnen er et supplement til varmepumpa. Fremfor binær av/på-styring beregnes et proporsjonal settpunkt basert på temperaturunderskudd, slik at panelovnen trappes gradvis opp etter hvert som romtemperaturen faller under settpunktet.
 
-### 9.1 Aktiverings-logikk
-
-Hysterese-tilstand avleses fra gjeldende setpunkt på varme-climate:
-- Nåværende setpunkt > (frost-temp + 0,5 °C) → panelovnen var aktiv sist
+### 9.1 Beregnings-logikk
 
 | Tilstand | Resultat |
 |---|---|
 | Beregnet modus er `cool` ELLER overordnet er `off` | Settes til frost-setpunkt |
 | Panelovn-mål = 0 % (pådrag ≤ grense) | Settes til frost-setpunkt |
-| Panelovn-mål > 0 % OG romtemp < settpunkt − `panelovn_temp_grense_paa` | **Slår PÅ** → setpunkt = rom-setpunkt |
-| Allerede aktiv OG panelovn-mål > 0 % OG romtemp < settpunkt − `panelovn_temp_hysterese_av` | **Holdes PÅ** (hysterese) → setpunkt = rom-setpunkt |
-| Ellers | **Slår AV** → setpunkt = frost-setpunkt |
+| Panelovn-mål > 0 % | Proporsjonal: `frost + (settpunkt − frost) × prop` |
+
+`prop = min(1, max(0, (settpunkt − romtemp) / panelovn_delta_maks))`
+
+- `prop = 0`: romtemp ≥ settpunkt → settpunkt på varme-climate = frost-temp (effektivt av)
+- `prop = 1`: romtemp ≥ `panelovn_delta_maks` under settpunkt → settpunkt = rom-settpunkt (fullt pådrag)
 
 Setpunktet klampes alltid til klimaets egne `min_temp` og `max_temp` og oppdateres kun ved faktisk endring.
 
 ### 9.2 Eksempel
 
-Settpunkt = 22 °C, `panelovn_temp_grense_paa` = 1,0 °C, `panelovn_temp_hysterese_av` = 0,5 °C, grense = 60 %:
+Settpunkt = 22 °C, frost = 10 °C, `panelovn_delta_maks` = 2,0 °C, grense = 60 %:
 
-- Pådrag 40 % (< 60 %) → panelovn-mål = 0 % → panelovn AV
-- Pådrag 70 % (> 60 %) + romtemp 20,5 °C (= 22 − 1,5 °C) → panelovn PÅ
-- Pådrag 70 % + romtemp 21,7 °C (= 22 − 0,3 °C, over AV-terskel 21,5 °C) → panelovn AV
-- Panelovn aktiv + romtemp 21,4 °C (< AV-terskel 21,5 °C) → panelovn holdes PÅ
+- Pådrag 40 % (< 60 %) → panelovn-mål = 0 % → panelovn frost (10 °C)
+- Pådrag 70 % + romtemp 22,0 °C (delta = 0) → prop = 0 → panelovn frost (10 °C)
+- Pådrag 70 % + romtemp 21,0 °C (delta = 1 °C) → prop = 0,5 → panelovn 16 °C
+- Pådrag 70 % + romtemp 20,0 °C (delta = 2 °C) → prop = 1,0 → panelovn 22 °C
 
 ## 10) Pushover-varsling (Steg 10)
 
@@ -295,7 +294,7 @@ Meldingen inneholder:
 - Romtemperatur og settpunkt
 - Effektivt pådrag
 - HP normalisert pådrag og grense (kun varme)
-- Panelovn-status og hvorfor den er PÅ/AV (kun varme, kun hvis varme-climate er konfigurert)
+- Panelovn proporsjonal faktor, temp-delta og beregnet settpunkt (kun varme, kun hvis varme-climate er konfigurert)
 - HP kjøle-settpunkt (kun kjøling)
 - Vifte-endring (hvis aktuelt)
 
@@ -351,11 +350,8 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `iclimate_varme_frost_temp` – frost-settpunkt lest fra `preset_temperatures.frost_temp` (fallback 10 °C)
 - `onsket_overordnet_mode` – beregnet ønsket hvac-modus for overordnet climate (`heat`/`cool`)
 - `skal_oppdatere_overordnet` – true hvis overordnet climate skal oppdateres
-- `panelovn_er_aktiv_naa` – proxy for om panelovnen var aktiv ved forrige kjøring
-- `panelovn_temp_paa_terskel` – romtemp må være under denne for å slå PÅ panelovn
-- `panelovn_temp_av_terskel` – romtemp må overstige denne for å slå AV panelovn
-- `panelovn_skal_paa` / `panelovn_skal_holdes` – logikk for å bestemme panelovn-tilstand
-- `panelovn_aktiv` – beregnet tilstand for panelovn (true = PÅ)
+- `panelovn_temp_delta` – romtemp-underskudd klampt til [0, panelovn_delta_maks] (°C)
+- `panelovn_prop` – proporsjonal faktor 0.0–1.0 for panelovn-settpunkt
 - `varme_styrt_onsket_spk_raw` – beregnet ønsket settpunkt for varme-climate (før klamping)
 - `varme_styrt_min_temp` – min_temp lest fra varme-climate
 - `varme_styrt_max_temp` – max_temp lest fra varme-climate
