@@ -90,31 +90,9 @@ Automasjonen kjøres hvert 10. minutt og ved Home Assistant-restart:
 - **`heat_boolean`** settes til `on` i varmeperioden, `off` ellers
 - Valgfri **`input_text`** oppdateres med aktuell status (neste hendelse, beregnede tider)
 
-## 8. Varsling
+## 8. Avansert
 
-Varsling er aktivert som standard (pushover destination er satt til `pushover`). Varsel sendes ca. 24 timer før neste hendelse.
-
-**Tittel:**
-> 🔥 Varmeplan 🔥
-
-**Eksempel på melding (varme planlagt):**
-> Det kommer en hendelse om 24 timer, det er planlagt oppvarming.
-> Forvarming starter kl. 04:00, normal varme fra kl. 08:45.
-
-**Eksempel på melding (ingen varme):**
-> Ingen varme for hendelse om 24 timer (sted inneholder ikke «kontor») – Team-møte
-
-For å deaktivere varsling, tøm feltet «Pushover destination» i innstillingene.
-
-## 9. Annet
-
-### 9.1 Nøkkelord-filtrering
-
-Nøkkelordet sjekkes mot «location»-feltet i kalenderhendelsen (uavhengig av store/små bokstaver). Brukes nøkkelord vil automasjonen i tillegg alltid beregne «første hendelse uansett» parallelt – for bruk i 24t-varselet.
-
-## 10. Avansert
-
-### 10.1 Forutsettninger
+### 8.1 Forutsettninger
 
 - **`sensor.utetemperatur`** – nåværende utetemperatur (hardkodet, endre i YAML ved behov)
 - Vær-entitet som støtter `weather.get_forecasts`
@@ -123,13 +101,13 @@ Nøkkelordet sjekkes mot «location»-feltet i kalenderhendelsen (uavhengig av s
 - Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome` (for varsling)
 - Valgfri: `input_text` for statusoppdatering
 
-### 10.2 Relevante automasjoner og script
+### 8.2 Relevante automasjoner og script
 
 | Blueprint | Formål |
 |---|---|
 | [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
 
-### 10.3 Beregnede verdier og variabler
+### 8.3 Beregnede verdier og variabler
 
 | Variabel | Beskrivelse |
 |---|---|
@@ -151,7 +129,7 @@ Nøkkelordet sjekkes mot «location»-feltet i kalenderhendelsen (uavhengig av s
 | ≤ 5 °C | 0,6 °C/time |
 | > 5 °C | 0,2 °C/time |
 
-### 10.4 Feilhåndtering
+### 8.4 Feilhåndtering
 
 | Situasjon | Håndtering |
 |---|---|
@@ -160,13 +138,34 @@ Nøkkelordet sjekkes mot «location»-feltet i kalenderhendelsen (uavhengig av s
 | Forecast mangler | Faller tilbake til `sensor.utetemperatur` |
 | Hendelsen er passert | Begge booleans settes av |
 
-### 10.5 Varsling og debug info
+### 8.5 Varsling og debug info
+
+Varsling er aktivert som standard (pushover destination er satt til `pushover`). Varsel sendes ca. 24 timer før neste hendelse.
+
+**Tittel:**
+> 🔥 Varmeplan 🔥
+
+**Eksempel på melding (varme planlagt):**
+> Det kommer en hendelse om 24 timer, det er planlagt oppvarming.
+> Forvarming starter kl. 04:00, normal varme fra kl. 08:45.
+
+**Eksempel på melding (ingen varme):**
+> Ingen varme for hendelse om 24 timer (sted inneholder ikke «kontor») – Team-møte
+
+For å deaktivere varsling, tøm feltet «Pushover destination» i innstillingene.
+
 
 - Valgfri `input_text` viser aktuell beregningsstatus
 - 24t-varselet sendes når neste hendelse er omtrent 24 timer frem i tid
 - Pushover-varselet inkluderer planlagte tidspunkter for forvarming og varme
 
-## 11. Dokumentasjon
+## 9. Annet
+
+### 9.1 Nøkkelord-filtrering
+
+Nøkkelordet sjekkes mot «location»-feltet i kalenderhendelsen (uavhengig av store/små bokstaver). Brukes nøkkelord vil automasjonen i tillegg alltid beregne «første hendelse uansett» parallelt – for bruk i 24t-varselet.
+
+## 10. Dokumentasjon
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kalender_kalkulert_varmebehov.yaml
 - Pushover script: [README_varsel_pushover.md](./README_varsel_pushover.md)

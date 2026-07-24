@@ -122,39 +122,9 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 - **Varme-climate** (panelovn): settpunkt oppdateres proporsjonalt (settes til frost-setpunkt ved ingen behov)
 - **Rom-climate** (overordnet): hvac_mode synkroniseres med beregnet modus (aldri endret fra «off»)
 
-## 8. Varsling
+## 8. Avansert
 
-Debug-varsler er **av** som standard (`ix_pushover_varsling = false`). Aktiveres manuelt i innstillingene.
-
-**Tittel:** (sensornavnet fra rom-climate)
-
-**Eksempel på debug-melding (varme):**
-> Pådrag: 72 % (varme) | Rom: 20,5 °C → 22 °C
-> Varmepumpe: 22 °C → 24 °C (kurve 19–25 °C)
-> Panelovn: 18 °C (pådrag 50 %)
-
-**Eksempel på debug-melding (kjøling):**
-> Pådrag: 65 % (kjøling) | Rom: 26 °C → 24 °C
-> Varmepumpe (kjøl): 26 °C → 23 °C (invertert kurve)
-> Varme: Av
-
-## 9. Annet
-
-### 9.1 Panelovn som supplement
-
-Panelovnen holdes på frost-settpunkt (inaktiv) inntil:
-1. Samlet pådrag er over panelovn-grensen (standard 60 %)
-2. **Og** varmepumpen faktisk har rampet opp til minst 80 % av sin varmekurve
-
-Dette sikrer at varmepumpen får tid til å «komme opp i fart» før panelovnen slås på.
-
-### 9.2 Modus-endring
-
-Overordnet climate (rom_climate) oppdateres til samme modus som varmepumpen (heat/cool), men aldri dersom den er i «off»-modus.
-
-## 10. Avansert
-
-### 10.1 Forutsettninger
+### 8.1 Forutsettninger
 
 - Rom-climate med pådragssignal (`power_percent` eller `regulated_target_temperature`)
 - Varmepumpe-climate med støtte for settpunkt-justering
@@ -162,14 +132,14 @@ Overordnet climate (rom_climate) oppdateres til samme modus som varmepumpen (hea
 - For panelovn: `preset_temperatures.frost_temp` på overordnet climate (fallback: 10 °C)
 - For debug-varsler: Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
 
-### 10.2 Relevante automasjoner og script
+### 8.2 Relevante automasjoner og script
 
 | Blueprint | Formål |
 |---|---|
 | [driftsmodus_varme_kjoling_automatisk.yaml](./blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml) | Setter `input_select.driftsmodus_vinter_sommer` som denne automasjonen leser. Se [README_automatisk_valg_varme_kjoling.md](./README_automatisk_valg_varme_kjoling.md) |
 | [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for debug-varsler via Pushover |
 
-### 10.3 Beregnede verdier og variabler
+### 8.3 Beregnede verdier og variabler
 
 Kjøretid og triggere:
 - Hvert **10. minutt** (`time_pattern`)
@@ -254,7 +224,7 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | `drift_is_sommer` / `drift_is_vinter` | Driftsmodus-status |
 | `summer_force_heat_on` / `winter_allow_cool_on` | Override-status |
 
-### 10.4 Feilhåndtering
+### 8.4 Feilhåndtering
 
 | Situasjon | Håndtering |
 |---|---|
@@ -270,7 +240,22 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | Overordnet climate er `off` | Overordnet oppdateres ikke; panelovn settes til frost |
 | `panelovn_padrag_grense` = 0 | hp_norm_power settes til 100 % (unngår divisjon med null) |
 
-### 10.5 Varsling og debug info
+### 8.5 Varsling og debug info
+
+Debug-varsler er **av** som standard (`ix_pushover_varsling = false`). Aktiveres manuelt i innstillingene.
+
+**Tittel:** (sensornavnet fra rom-climate)
+
+**Eksempel på debug-melding (varme):**
+> Pådrag: 72 % (varme) | Rom: 20,5 °C → 22 °C
+> Varmepumpe: 22 °C → 24 °C (kurve 19–25 °C)
+> Panelovn: 18 °C (pådrag 50 %)
+
+**Eksempel på debug-melding (kjøling):**
+> Pådrag: 65 % (kjøling) | Rom: 26 °C → 24 °C
+> Varmepumpe (kjøl): 26 °C → 23 °C (invertert kurve)
+> Varme: Av
+
 
 Debug-varsler aktiveres med `ix_pushover_varsling = true`. Sendes kun ved faktisk endring.
 
@@ -282,9 +267,23 @@ Debug-varsler aktiveres med `ix_pushover_varsling = true`. Sendes kun ved faktis
 - Varme/panelovn-seksjon (settpunkt og pådrag)
 - Vifte-endring (hvis aktuelt)
 
-Alle sentrale mellomverdier er synlige i Home Assistant **trace-viewer** for enkel feilsøking (se liste i 10.3).
+Alle sentrale mellomverdier er synlige i Home Assistant **trace-viewer** for enkel feilsøking (se liste i 8.3).
 
-## 11. Dokumentasjon
+## 9. Annet
+
+### 9.1 Panelovn som supplement
+
+Panelovnen holdes på frost-settpunkt (inaktiv) inntil:
+1. Samlet pådrag er over panelovn-grensen (standard 60 %)
+2. **Og** varmepumpen faktisk har rampet opp til minst 80 % av sin varmekurve
+
+Dette sikrer at varmepumpen får tid til å «komme opp i fart» før panelovnen slås på.
+
+### 9.2 Modus-endring
+
+Overordnet climate (rom_climate) oppdateres til samme modus som varmepumpen (heat/cool), men aldri dersom den er i «off»-modus.
+
+## 10. Dokumentasjon
 
 - Blueprint-beskrivelsen lenker til denne README-filen:
   https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md

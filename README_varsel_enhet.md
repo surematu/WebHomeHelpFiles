@@ -114,7 +114,39 @@ Ingen entiteter skrives til. Resultatet er ett eller flere Pushover-varsler:
 - Planlagt/manuell sjekk: én samlet melding
 - Kritisk Uptime-trigger: umiddelbar melding
 
-## 8. Varsling
+## 8. Avansert
+
+### 8.1 Forutsettninger
+
+- Batteridrevne enheter i Home Assistant med batteri-sensorer
+- Valgfritt: Uptime Kuma-integrasjon
+- Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
+
+### 8.2 Relevante automasjoner og script
+
+| Blueprint | Formål |
+|---|---|
+| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
+
+### 8.3 Beregnede verdier og variabler
+
+| Variabel | Beskrivelse |
+|---|---|
+| `slow_list_raw` | Rå liste over enheter med langsomt signal |
+| `slow_list_clean` | Renset og deduplisert liste |
+| `fast_list_raw` | Rå liste over enheter med nylig mistet signal |
+| `low_list_percent_clean` | Renset liste med lavt batteriprosent |
+| Uptime-statuslinjer | Formaterte linjer per Uptime Kuma-sensor |
+
+### 8.4 Feilhåndtering
+
+| Situasjon | Håndtering |
+|---|---|
+| Ingen avvik funnet | Ingen varsel sendes |
+| Entitet utilgjengelig | Hoppes over, inngår ikke i rapport |
+| Kritisk Uptime-sensor endrer status | Umiddelbart varsel med kritisk prioritet |
+
+### 8.5 Varsling og debug info
 
 Varsling er aktiv som standard (pushover destination er satt til `pushover`).
 
@@ -134,6 +166,10 @@ Varsling er aktiv som standard (pushover destination er satt til `pushover`).
 > **🟢 Online igjen:**
 > - Nettverkskamera
 
+
+- Sett «Debug-detaljer» til `true` for ekstra sporingsinformasjon i varselet
+- Separate Pushover-prioriteter for: vanlig varsel, kritisk offline, kritisk online/annen endring
+
 ## 9. Annet
 
 ### 9.1 Prioritering av «sist sett»-data
@@ -143,44 +179,7 @@ For å fastslå når en enhet sist rapporterte brukes (i prioritert rekkefølge)
 2. Egne `last_seen`-entiteter med parsbar timestamp
 3. `last_changed` for sensor/binary_sensor som fallback
 
-## 10. Avansert
-
-### 10.1 Forutsettninger
-
-- Batteridrevne enheter i Home Assistant med batteri-sensorer
-- Valgfritt: Uptime Kuma-integrasjon
-- Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
-
-### 10.2 Relevante automasjoner og script
-
-| Blueprint | Formål |
-|---|---|
-| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
-
-### 10.3 Beregnede verdier og variabler
-
-| Variabel | Beskrivelse |
-|---|---|
-| `slow_list_raw` | Rå liste over enheter med langsomt signal |
-| `slow_list_clean` | Renset og deduplisert liste |
-| `fast_list_raw` | Rå liste over enheter med nylig mistet signal |
-| `low_list_percent_clean` | Renset liste med lavt batteriprosent |
-| Uptime-statuslinjer | Formaterte linjer per Uptime Kuma-sensor |
-
-### 10.4 Feilhåndtering
-
-| Situasjon | Håndtering |
-|---|---|
-| Ingen avvik funnet | Ingen varsel sendes |
-| Entitet utilgjengelig | Hoppes over, inngår ikke i rapport |
-| Kritisk Uptime-sensor endrer status | Umiddelbart varsel med kritisk prioritet |
-
-### 10.5 Varsling og debug info
-
-- Sett «Debug-detaljer» til `true` for ekstra sporingsinformasjon i varselet
-- Separate Pushover-prioriteter for: vanlig varsel, kritisk offline, kritisk online/annen endring
-
-## 11. Dokumentasjon
+## 10. Dokumentasjon
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
 - Pushover script: [README_varsel_pushover.md](./README_varsel_pushover.md)

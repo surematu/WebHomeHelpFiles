@@ -92,7 +92,42 @@ Automasjonen kjøres hver hele time og gjør følgende:
 - **`input_number`** (grense-entiteten) oppdateres med ny kWh-grense når vilkårene er oppfylt
 - Valgfri **`input_text`** oppdateres med en kort statusbeskrivelse
 
-## 8. Varsling
+## 8. Avansert
+
+### 8.1 Forutsettninger
+
+- **`sensor.utetemperatur`** – nåværende utetemperatur (hardkodet, endre i YAML ved behov)
+- Vær-entitet som støtter `weather.get_forecasts` (hourly)
+- Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome` (for varsling)
+- En `input_number` som brukes som kWh-grense
+- Valgfri: `input_text` for statusoppdatering
+
+### 8.2 Relevante automasjoner og script
+
+| Blueprint | Formål |
+|---|---|
+| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
+
+### 8.3 Beregnede verdier og variabler
+
+| Variabel | Beskrivelse |
+|---|---|
+| `io_outdoor_temp_comming` | Snitttemperatur beregnet fra forecast (neste N timer) |
+| `temp_source` | Kaldeste av forecast-snitt og nåværende utetemperatur |
+| `temp_min_limit` | Temperaturbasert minimum kWh (fra tre nivåer) |
+| `month_min_limit` | Månedsminimumet for inneværende måned |
+| `desired_limit` | Endelig ønsket kWh-grense (`max(temp_min_limit, month_min_limit)`) |
+| `io_current_limit` | Nåværende verdi i grense-entiteten |
+
+### 8.4 Feilhåndtering
+
+| Situasjon | Håndtering |
+|---|---|
+| Forecast mangler | Bruker nåværende utetemperatur (`sensor.utetemperatur`) som fallback |
+| `sensor.utetemperatur` utilgjengelig | Beregning kan feile – ingen skriving utføres |
+| Pushover destination er tomt | Varsling deaktiveres stille |
+
+### 8.5 Varsling og debug info
 
 Varsling er aktivert som standard (pushover destination er satt til `pushover`). Varsel sendes kun når verdien faktisk endres.
 
@@ -105,53 +140,17 @@ Varsling er aktivert som standard (pushover destination er satt til `pushover`).
 
 For å deaktivere varsling, tøm feltet «Pushover destination» i innstillingene.
 
+
+- Valgfri `input_text` kan brukes for å se siste status uten å gå inn i logg
+- Pushover-varslet inneholder beregningsverdiene for enkel kontroll
+
 ## 9. Annet
 
 ### 9.1 Reset ved månedsskifte
 
 Kun første dag i måneden, kl. 00:xx, tillater automasjonen å sette en lavere verdi enn nåværende. Dette fungerer som en månedlig tilbakestilling, slik at grensen kan starte lavt igjen etter en kald periode.
 
-## 10. Avansert
-
-### 10.1 Forutsettninger
-
-- **`sensor.utetemperatur`** – nåværende utetemperatur (hardkodet, endre i YAML ved behov)
-- Vær-entitet som støtter `weather.get_forecasts` (hourly)
-- Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome` (for varsling)
-- En `input_number` som brukes som kWh-grense
-- Valgfri: `input_text` for statusoppdatering
-
-### 10.2 Relevante automasjoner og script
-
-| Blueprint | Formål |
-|---|---|
-| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
-
-### 10.3 Beregnede verdier og variabler
-
-| Variabel | Beskrivelse |
-|---|---|
-| `io_outdoor_temp_comming` | Snitttemperatur beregnet fra forecast (neste N timer) |
-| `temp_source` | Kaldeste av forecast-snitt og nåværende utetemperatur |
-| `temp_min_limit` | Temperaturbasert minimum kWh (fra tre nivåer) |
-| `month_min_limit` | Månedsminimumet for inneværende måned |
-| `desired_limit` | Endelig ønsket kWh-grense (`max(temp_min_limit, month_min_limit)`) |
-| `io_current_limit` | Nåværende verdi i grense-entiteten |
-
-### 10.4 Feilhåndtering
-
-| Situasjon | Håndtering |
-|---|---|
-| Forecast mangler | Bruker nåværende utetemperatur (`sensor.utetemperatur`) som fallback |
-| `sensor.utetemperatur` utilgjengelig | Beregning kan feile – ingen skriving utføres |
-| Pushover destination er tomt | Varsling deaktiveres stille |
-
-### 10.5 Varsling og debug info
-
-- Valgfri `input_text` kan brukes for å se siste status uten å gå inn i logg
-- Pushover-varslet inneholder beregningsverdiene for enkel kontroll
-
-## 11. Dokumentasjon
+## 10. Dokumentasjon
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/effektgrense_automatisk.yaml
 - Pushover script: [README_varsel_pushover.md](./README_varsel_pushover.md)

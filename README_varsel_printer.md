@@ -67,7 +67,38 @@ Venter konfigurert antall minutter, deretter kjøres samme logikk som planlagt s
 
 Ingen entiteter skrives til. Resultatet er et Pushover-varsel hvis noen printer er under terskelen.
 
-## 8. Varsling
+## 8. Avansert
+
+### 8.1 Forutsettninger
+
+- Printer-integrasjon i Home Assistant som eksponerer blekk/toner-sensorer (f.eks. IPP, Brother, Canon-integrasjoner)
+- Sensorene må ha nøkkelordet (standard `printer`) i entity_id
+- Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
+
+### 8.2 Relevante automasjoner og script
+
+| Blueprint | Formål |
+|---|---|
+| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
+
+### 8.3 Beregnede verdier og variabler
+
+| Variabel | Beskrivelse |
+|---|---|
+| `matching_entities` | Liste over funne printer-sensorer som matcher nøkkelord og er gyldige |
+| `grouped` | Sensorer gruppert per printer |
+| `final_message` | Samlet meldingstekst for alle printere med avvik |
+
+### 8.4 Feilhåndtering
+
+| Situasjon | Håndtering |
+|---|---|
+| Ingen sensorer funnet | Ingen varsel sendes |
+| Sensorverdier utenfor 0–100 % | Filtreres bort automatisk |
+| Alle sensorer over terskel | Ingen varsel sendes |
+| Wake-up entity utilgjengelig | Trigger aktiveres ikke |
+
+### 8.5 Varsling og debug info
 
 Varsling er aktiv som standard (pushover destination er satt til `pushover`).
 
@@ -81,49 +112,17 @@ Varsling er aktiv som standard (pushover destination er satt til `pushover`).
 
 Varsel sendes kun hvis minst én sensor er under terskelen.
 
+
+- Sett «Legg til debug-detaljer» til `true` for å få trigger-info, tellerverdier og match-statistikk i varselet
+- Nyttig ved feilsøking om forventede printere ikke dukker opp i varselet
+
 ## 9. Annet
 
 ### 9.1 Deteksjon av printer-sensorer
 
 Automasjonen bruker et nøkkelord (`printer` som standard) for å finne relevante sensorer. Printerens sensorer må ha dette nøkkelordet i entity_id for å bli funnet. Sensorer med ugyldige verdier (feil enhet, utenfor 0–100 %) ignoreres automatisk.
 
-## 10. Avansert
-
-### 10.1 Forutsettninger
-
-- Printer-integrasjon i Home Assistant som eksponerer blekk/toner-sensorer (f.eks. IPP, Brother, Canon-integrasjoner)
-- Sensorene må ha nøkkelordet (standard `printer`) i entity_id
-- Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
-
-### 10.2 Relevante automasjoner og script
-
-| Blueprint | Formål |
-|---|---|
-| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
-
-### 10.3 Beregnede verdier og variabler
-
-| Variabel | Beskrivelse |
-|---|---|
-| `matching_entities` | Liste over funne printer-sensorer som matcher nøkkelord og er gyldige |
-| `grouped` | Sensorer gruppert per printer |
-| `final_message` | Samlet meldingstekst for alle printere med avvik |
-
-### 10.4 Feilhåndtering
-
-| Situasjon | Håndtering |
-|---|---|
-| Ingen sensorer funnet | Ingen varsel sendes |
-| Sensorverdier utenfor 0–100 % | Filtreres bort automatisk |
-| Alle sensorer over terskel | Ingen varsel sendes |
-| Wake-up entity utilgjengelig | Trigger aktiveres ikke |
-
-### 10.5 Varsling og debug info
-
-- Sett «Legg til debug-detaljer» til `true` for å få trigger-info, tellerverdier og match-statistikk i varselet
-- Nyttig ved feilsøking om forventede printere ikke dukker opp i varselet
-
-## 11. Dokumentasjon
+## 10. Dokumentasjon
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
 - Pushover script: [README_varsel_pushover.md](./README_varsel_pushover.md)
