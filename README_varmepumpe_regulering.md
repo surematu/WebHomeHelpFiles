@@ -96,7 +96,7 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 | `ix_pushover_varsling` | false | Aktiver debug-varsling via Pushover ved endringer |
 | `pushover_destination` | pushover | Mottakergruppe i `script.varsel_pushover_send_melding_webhome` |
 | `pushover_priority` | −1 | Pushover-prioritet |
-| `pushover_ttl` | 604800 | Pushover TTL i sekunder |
+| `pushover_ttl` | 3600 | Pushover TTL i sekunder |
 
 ## 5) Beregningslogikk
 
@@ -290,12 +290,10 @@ Settpunkt = 22 °C, frost = 10 °C, `panelovn_delta_maks` = 2,0 °C, grense = 60
 Sendes kun når `ix_pushover_varsling = true`, destination er satt, og det faktisk ble gjort en endring i kjøringen.
 
 Meldingen inneholder:
-- Modus (HEAT/COOL) og om den ble endret
+- Pådrag (%) og modus (kjøling/varme) – med info om modusendring hvis aktuelt
 - Romtemperatur og settpunkt
-- Effektivt pådrag
-- HP normalisert pådrag og grense (kun varme)
-- Panelovn proporsjonal faktor, temp-delta og beregnet settpunkt (kun varme, kun hvis varme-climate er konfigurert)
-- HP kjøle-settpunkt (kun kjøling)
+- **Varme**-seksjon: HP settpunkt (nå → ønsket), HP pådrag med settpunkt-range (0-100=min-maks), og eventuell panelovn-info. Vises som "Av" ved kjøling.
+- **Kjøling**-seksjon: HP settpunkt (nå → ønsket), pådrag med settpunkt-range (0-100=maks-min). Vises som "Av" ved varme.
 - Vifte-endring (hvis aktuelt)
 
 ## 11) Feilhåndtering
