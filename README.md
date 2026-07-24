@@ -90,7 +90,18 @@ Sender Pushover-varsel hvis en temperatursensor:
 
 ### varmepumpe_regulering.yaml — Varmepumpe (Rom) Robot
 
-Regulerer varmepumpe-settpunkt lineært mellom to punkter basert på pådrag (%). Støtter offset ved lav/høy pådrag og kan begrenses til aktive tidsperioder.
+Regulerer varmepumpe-settpunkt lineært mellom to punkter basert på pådrag (%). Basissettpunkt er
+det høyeste av rom-settpunkt og comfort-settpunkt. Støtter:
+- Tre pådragskilder: `power_percent`, `regulated_target_temperature`, eller 50 % fallback.
+- Minimum pådrag basert på temperaturunderskudd og rom-preset (eco / comfort / boost).
+- Ramp-begrensning (maks endring per kjøring) og fleksibel avrunding (heltall eller halvt steg).
+- Valgfri vifteregulering (boost ved høyt pådrag).
+- Valgfri kjøling med sesongbasert styring via `input_select.driftsmodus_vinter_sommer` (VINTER/SOMMER):
+  - SOMMER foretrekker kjøling; tillater varme ved ekstremt lav romtemperatur.
+  - VINTER foretrekker varme; tillater kjøling ved ekstremt høy romtemperatur.
+
+Detaljert funksjonsbeskrivelse:
+- [README_varmepumpe_regulering.md](./README_varmepumpe_regulering.md)
 
 ---
 

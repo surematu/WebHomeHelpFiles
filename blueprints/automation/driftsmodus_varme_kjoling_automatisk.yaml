@@ -13,10 +13,15 @@ blueprint:
     - Regel 6: Reserve ved manglende temperaturgrunnlag
     - Regel 7: Fallback => VINTER
 
+    Forventede entiteter (hardkodet – må eksistere i Home Assistant):
+      - input_select.driftsmodus_vinter_sommer  – med valgene VINTER og SOMMER
+      - sensor.utetemperatur                    – nåværende utetemperatur
+      - sensor.utetemperatur_snitt_72_timer     – gjennomsnittstemperatur siste 72 timer
+
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.17
+    Blueprint versjon: 2026.07.18
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -28,31 +33,12 @@ blueprint:
       name: Hovedinnganger
       icon: mdi:thermostat-auto
       input:
-        mode_target_entity:
-          name: Driftsmodus helper (input_select)
-          description: Input_select som skal settes til VINTER eller SOMMER.
-          selector:
-            entity:
-              domain: input_select
-
         weather_entity:
           name: Vær entitet
           description: Weather-entitet som støtter weather.get_forecasts (hourly).
           selector:
             entity:
               domain: weather
-
-        mode_heat_value:
-          name: Verdi for VINTER i mode helper
-          default: VINTER
-          selector:
-            text:
-
-        mode_cool_value:
-          name: Verdi for SOMMER i mode helper
-          default: SOMMER
-          selector:
-            text:
 
     perioder:
       name: Kalenderperioder
@@ -262,12 +248,12 @@ triggers:
 actions:
   - alias: Steg 0 - Innstillinger og input
     variables:
-      io_mode_entity: !input mode_target_entity
+      io_mode_entity: input_select.driftsmodus_vinter_sommer
       io_weather_entity: !input weather_entity
       io_temp_now_entity: sensor.utetemperatur
       io_temp_avg_72h_entity: sensor.utetemperatur_snitt_72_timer
-      io_mode_heat: !input mode_heat_value
-      io_mode_cool: !input mode_cool_value
+      io_mode_heat: VINTER
+      io_mode_cool: SOMMER
 
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
@@ -299,6 +285,39 @@ actions:
   - alias: Steg 0b - Avbryt hvis automatisk kjøring er deaktivert
     condition: template
     value_template: "{{ is_manual_run or io_auto_kjor_kveld }}"
+
+  - alias: Steg 0c - Valider driftsmodus (input_select.driftsmodus_vinter_sommer)
+    variables:
+      drift_entity_state: "{{ states('input_select.driftsmodus_vinter_sommer') }}"
+      drift_entity_options: "{{ state_attr('input_select.driftsmodus_vinter_sommer', 'options') | default([]) | list }}"
+      drift_entity_valid: >-
+        {{
+          drift_entity_state not in ['unknown', 'unavailable', 'none', '']
+          and 'VINTER' in drift_entity_options
+          and 'SOMMER' in drift_entity_options
+        }}
+
+  - alias: Steg 0d - Send feilmelding hvis driftsmodus er ugyldig
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ not drift_entity_valid }}"
+        sequence:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "⚠️ Feil – Driftsmodus"
+              message: >-
+                input_select.driftsmodus_vinter_sommer mangler eller har ikke valgene VINTER og SOMMER.
+                Nåværende tilstand: {{ drift_entity_state }}.
+                Tilgjengelige valg: {{ drift_entity_options | join(', ') if (drift_entity_options | count) > 0 else 'ingen' }}.
+                Automasjonen avbrytes – ingen modus er beregnet.
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl: "{{ pushover_ttl | int(604800) }}"
+
+  - alias: Steg 0e - Avbryt hvis driftsmodus er ugyldig
+    condition: template
+    value_template: "{{ drift_entity_valid }}"
 
   - alias: Steg 1 - Dato og kalenderperioder
     variables:
