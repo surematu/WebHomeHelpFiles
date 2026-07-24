@@ -32,7 +32,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.05
+    Blueprint versjon: 2026.07.06
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -243,34 +243,6 @@ blueprint:
           selector:
             boolean: {}
 
-        inum_kjoling_av_delta_sommer:
-          name: Kjøling/override AV – hysterese SOMMER (°C)
-          description: >
-            SOMMER: tvungen varme slås av når romtemp >= settpunkt + hysterese.
-            Default 0.5°C.
-          default: 0.5
-          selector:
-            number:
-              min: 0
-              max: 3
-              step: 0.5
-              mode: slider
-              unit_of_measurement: "°C"
-
-        inum_kjoling_av_delta_vinter:
-          name: Kjøling/override AV – hysterese VINTER (°C)
-          description: >
-            VINTER: tvungen kjøling slås av når romtemp <= settpunkt - hysterese.
-            Default 0.5°C.
-          default: 0.5
-          selector:
-            number:
-              min: 0
-              max: 3
-              step: 0.5
-              mode: slider
-              unit_of_measurement: "°C"
-
         inum_kjoling_sommer_kaldt_grense:
           name: SOMMER – tving varme når romtemp er så mange grader under settpunkt (°C)
           description: >
@@ -286,6 +258,20 @@ blueprint:
               mode: slider
               unit_of_measurement: "°C"
 
+        inum_kjoling_av_delta_sommer:
+          name: SOMMER - Hysterese varme av
+          description: >
+            SOMMER: tvungen varme slås av når romtemp >= settpunkt + hysterese.
+            Default 0.5°C.
+          default: 0.5
+          selector:
+            number:
+              min: 0
+              max: 3
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
+
         inum_kjoling_vinter_varmt_grense:
           name: VINTER – tillat kjøling når romtemp er så mange grader over settpunkt (°C)
           description: >
@@ -297,6 +283,20 @@ blueprint:
             number:
               min: 0.5
               max: 10
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
+
+        inum_kjoling_av_delta_vinter:
+          name: VINTER - Hysterese kjøling av
+          description: >
+            VINTER: tvungen kjøling slås av når romtemp <= settpunkt - hysterese.
+            Default 0.5°C.
+          default: 0.5
+          selector:
+            number:
+              min: 0
+              max: 3
               step: 0.5
               mode: slider
               unit_of_measurement: "°C"
