@@ -46,33 +46,37 @@ Each automation has its own README file with a deep description. The summary und
 Required structure for each automation README:
 
 ```
-1.  Formål – Short overview of what the automation does (this summary also goes on the main README)
-2.  Eksempler på bruk og problemstillinger dette løser – Practical examples and use cases
-3.  FAQ – Common questions from non-technical users (can use 3.1, 3.2 etc. when needed)
-4.  Hva slags info trengs – What inputs the automation needs (high-level, non-technical)
-5.  Innstillinger – Table of all settings with defaults and explanations
-6.  Funksjonsbeskrivelse – Detailed but readable description of what it does with incoming data
-7.  Resultat – What entities are written to and what is the end result
-8.  Varsling – User-facing notifications active by default (title format, message examples)
-9.  Annet – Other relevant info for the user (9.1, 9.2 etc. when needed)
-10. Avansert – Advanced section for programming/AI use (fixed subsections 10.1–10.5; add 10.6+ as needed)
-    10.1 Forutsettninger – Prerequisites: required entities, integrations, helper YAML examples
+── BRUKERVENLIG (§1–9) ──────────────────────────────────────────────────────
+1.  Formål              – Short overview (this summary also goes on the main README)
+2.  Eksempler på bruk   – Practical examples and use cases
+3.  FAQ                 – Common questions from non-technical users
+4.  Hva slags info trengs – What inputs the automation needs (high-level)
+5.  Innstillinger       – Table of all settings with defaults and explanations
+6.  Funksjonsbeskrivelse – Detailed but readable description of what it does
+7.  Resultat            – What entities are written to and what the end result is
+8.  Varsling            – User-facing notifications active by default (title + message examples)
+9.  Annet               – Other relevant info for the user
+
+── AVANSERT / TEKNISK (§10–11) ──────────────────────────────────────────────
+10. Avansert            – For technical users, developers, and AI
+    10.1 Forutsettninger         – Required entities, integrations, helper YAML examples
     10.2 Relevante automasjoner og script – Links to related automations/scripts and why
-    10.3 Beregnede verdier og variabler – Explanation of calculated values, variables, concepts
-    10.4 Feilhåndtering – How errors are handled and what typical errors are handled
-    10.5 Varsling og debug info – Debug notifications (off by default) and troubleshooting settings
-11. Dokumentasjon – Links to relevant documentation
+    10.3 Beregnede verdier og variabler  – Calculated values, variables, key concepts
+    10.4 Feilhåndtering                  – How errors are handled; typical error scenarios
+    10.5 Varsling og debug info          – Debug notifications (off by default) + troubleshooting settings
+    (10.6, 10.7 … add as needed)
+11. Dokumentasjon       – Links to relevant documentation
 ```
 
 Guidelines:
-- Sections 1–9 should be written for users with limited technical knowledge
-- Section 8 (Varsling) describes only notifications that are active by default
-- Section 10 (Avansert) is for technical users, developers, and AI
-- Section 10.5 covers debug notifications (typically disabled by default) and troubleshooting settings
-- Subsections 10.1–10.5 are fixed; additional subsections (10.6+) may be added as needed
-- Other sections can also use subsections when needed (e.g. 3.1, 9.1, 9.2)
-- The "Formål" summary should match what is shown on this main README page
-- Number sections with whole numbers (1, 2, 3...), subsections with decimals (10.1, 9.1...)
+- **Subsections apply to every section**: any section can be split into x.1, x.2 … when the content benefits from it (e.g. 2.1, 3.1, 5.1, 6.1, 9.1 …). This is not limited to FAQ.
+- **Extra sections between 10 and 11**: additional advanced topics that don't fit 10.1–10.5 can be added as 10.6, 10.7 … (do not insert whole new top-level numbers between 10 and 11).
+- Sections 1–9 are written for users with limited technical knowledge; section 10 is for technical users/AI.
+- Section 8 (Varsling) describes only notifications that are **active by default**.
+- Section 10.5 covers debug notifications (typically **disabled** by default) and troubleshooting settings.
+- Subsections 10.1–10.5 are fixed and must always be present; 10.6+ are optional extensions.
+- Very advanced or highly technical content that does not fit §1–9 should be moved into §10.
+- The "Formål" summary (§1) should match the summary shown on this main README page.
 
 ---
 
