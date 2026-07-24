@@ -732,7 +732,7 @@ actions:
                 {% if decision_short_text %}Driftsmodus uendret, {{ decision_short_text }}.
                 {% else %}Driftsmodus uendret ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }}).
                 Utløsende regel: {{ decision_rule }}.{%- endif %}
-                {% endif %}
+                {%- endif %}
                 {% if inkluder_begrunnelse %}Begrunnelse: {{ decision_reason_display }}{% endif %}
                 {%- if missing_data_lines | count > 0 %}
 

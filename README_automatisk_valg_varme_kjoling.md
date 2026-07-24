@@ -119,11 +119,14 @@ eller:
 > Snitt 72t: 16,2 °C | Maks inkl. sol: 26 °C | Skydekke: 15 %
 > Match på regel 2.
 
-**Eksempel på melding, uendret VINTER:**
+**Eksempel på varsel, uendret VINTER:**
+
+**Tittel:** 🌡️ Driftsmodus VINTER
+
+**Innhold:**
 > Driftsmodus uendret, ingen kjølebehov påvist, forblir vintermodus.
 >
-> Snitt 72t: 9 °C | Maks inkl. sol: 19 °C
-> Match på regel 7.
+> Begrunnelse: Utetemp snitt 72h (18.4) under grense (15) eller makstemperatur inkl. soltillegg (20.3+1) er under grense (22). Skydekke 71%. Detektert temperatur i morgen (20.3) er under grense for ekstrem varme (28). Match på regel 7. Manuelt kjørt sjekk.
 
 Begrunnelsen (regel, verdier) vises kun når «Vis ekstra begrunnelse» er aktivert (standard: på).
 
