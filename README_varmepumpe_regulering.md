@@ -15,6 +15,7 @@ Funksjonen støtter i tillegg:
 
 - Kjøring: hvert **10. minutt** (via `time_pattern`)
 - Kjøring: ved **endring av settpunkt** på rom-climate (`state` trigger på `temperature`-attributt)
+- Kjøring: ved **endring av driftsmodus** (`state` trigger på `input_select.driftsmodus_vinter_sommer`)
 - 5 sekunder forsinkelse etter utløser for å la sensorer stabilisere seg
 
 ## 3) Forventede entiteter
@@ -41,8 +42,7 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 |---|---:|---|
 | `padrag_regulated_offset_min` | −1 °C | Offset relativt til settpunkt som tilsvarer 0 % pådrag (brukes kun når `regulated_target_temperature` finnes og `power_percent` mangler) |
 | `padrag_regulated_offset_maks` | +1 °C | Offset relativt til settpunkt som tilsvarer 100 % pådrag |
-| `varme_climate` | – | Valgfri varme-climate. Styres basert på overordnet modus (se avsnitt 8) |
-| `frostsikring_settpunkt` | 7 °C | Settpunkt på varme-climate når overordnet er av eller i kjøling |
+| `varme_climate` | – | Valgfri varme-climate. Styres basert på beregnet modus (se avsnitt 8). Frost-settpunkt leses automatisk fra `preset_temperatures.frost_temp` på overordnet climate |
 
 ### 4.2 Varmepumpe
 
@@ -122,7 +122,7 @@ Avrunding:
 
 ### 6.1 Uten kjøling aktivert
 
-Varmepumpa kjøres alltid i `heat`-modus. Ingen modusbytte utføres.
+Varmepumpa kjøres alltid i `heat`-modus. Ingen modusbytte utføres. Overordnet climate oppdateres til `heat` dersom den ikke allerede er i `heat` (men aldri fra `off`).
 
 ### 6.2 Kjøling aktivert – driftsmodus ugyldig verdi (fallback)
 
@@ -159,6 +159,8 @@ Override aktiveres kun ved store avvik, og separate hystereseverdier brukes for 
 
 Tanken bak oppsettet er at driftsmodus bestemmer normal retning, mens dedikerte terskler (`inum_kjoling_sommer_kaldt_grense` og `inum_kjoling_vinter_varmt_grense`) avgjør når override skal slå inn. Separate hystereseverdier (`inum_kjoling_av_delta_sommer` og `inum_kjoling_av_delta_vinter`) brukes kun for å avslutte override stabilt, slik at modus ikke flapper rundt tersklene.
 
+Den beregnede modusen (`onsket_mode`) brukes også til å oppdatere **overordnet climate** (rom_climate), slik at overordnet alltid reflekterer den faktiske kjøle/varme-logikken. Overordnet oppdateres kun dersom den allerede er i `heat` eller `cool` – aldri fra `off`.
+
 Dersom `input_select.driftsmodus_vinter_sommer` har en ugyldig verdi, holdes varmepumpa i `heat`-modus (se avsnitt 6.2).
 
 ## 7) Viftelogikk (Steg 5)
@@ -178,12 +180,14 @@ Viften oppdateres kun ved faktisk endring.
 
 Aktiveres kun når `varme_climate` er konfigurert.
 
-Styrer settpunktet på varme-climate basert på hvac-modus på overordnet:
+Styrer settpunktet på varme-climate basert på **beregnet modus** (`onsket_overordnet_mode`):
 
 | Tilstand | Resultat |
 |---|---|
-| Overordnet er `off` eller `cool` | Varme-climate settpunkt settes til `frostsikring_settpunkt` (default 7 °C) |
-| Overordnet er `heat` | Varme-climate settpunkt settes lik overordnet settpunkt |
+| Overordnet er `off` ELLER beregnet modus er `cool` | Varme-climate settpunkt settes til frost-settpunkt (leses fra `preset_temperatures.frost_temp` på overordnet climate, default 10 °C) |
+| Beregnet modus er `heat` | Varme-climate settpunkt settes lik overordnet settpunkt |
+
+Settpunktet klampes alltid til klimaets egne `min_temp` og `max_temp` attributter (leses ved kjøring) for å unngå ugyldig temperatur-feil.
 
 Settpunktet oppdateres kun ved faktisk endring.
 
@@ -208,6 +212,9 @@ Dette minimerer unødvendige skriv til varmepumpa og reduserer støy i logg og h
 | `input_select.driftsmodus_vinter_sommer` har ugyldig verdi | Varmepumpa holdes i `heat`-modus |
 | Beregnet settpunkt utenfor `[pumpe_temp_min, pumpe_temp_maks]` | Klippes til absolutt grense |
 | `varme_climate` ikke konfigurert | Steg 8 hoppes over |
+| `preset_temperatures.frost_temp` mangler på overordnet climate | Bruker 10 °C som fallback |
+| Beregnet settpunkt for varme-climate utenfor `[min_temp, max_temp]` | Klippes til klimaets absolutte grenser |
+| Overordnet climate er `off` | Overordnet oppdateres ikke (kun `heat`/`cool` oppdateres) |
 
 ## 11) Statusverdier for feilsøking
 
@@ -237,9 +244,15 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `onsket_mode` – beregnet hvac-modus (`heat`/`cool`)
 - `skal_oppdatere_mode` – true hvis modus faktisk skal endres
 - `onsket_vifte` / `skal_oppdatere_vifte` – ønsket vifte-modus og om den skal settes
-- `iclimate_overordnet_hvac_mode` – hvac-modus på overordnet climate
-- `varme_styrt_er_av_eller_kjoling` – true hvis overordnet er av eller i kjøling
-- `varme_styrt_onsket_spk` – beregnet ønsket settpunkt for varme-climate
+- `iclimate_overordnet_hvac_mode` – hvac-modus på overordnet climate (lest ved start)
+- `iclimate_varme_frost_temp` – frost-settpunkt lest fra `preset_temperatures.frost_temp` (fallback 10 °C)
+- `onsket_overordnet_mode` – beregnet ønsket hvac-modus for overordnet climate (`heat`/`cool`)
+- `skal_oppdatere_overordnet` – true hvis overordnet climate skal oppdateres
+- `varme_styrt_er_av_eller_kjoling` – true hvis overordnet er off eller beregnet modus er cool
+- `varme_styrt_onsket_spk_raw` – beregnet ønsket settpunkt for varme-climate (før klamping)
+- `varme_styrt_min_temp` – min_temp lest fra varme-climate
+- `varme_styrt_max_temp` – max_temp lest fra varme-climate
+- `varme_styrt_onsket_spk` – ønsket settpunkt etter klamping til [min_temp, max_temp]
 - `varme_styrt_naa_spk` – gjeldende settpunkt på varme-climate
 - `varme_styrt_spk_update_needed` – true hvis varme-climate settpunkt skal endres
 
