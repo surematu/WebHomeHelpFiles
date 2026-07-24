@@ -490,7 +490,7 @@ actions:
           summer_force_heat_keep: >-
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
-            {% set hyst = inum_kjoling_av_delta_sommer | float(0.5) %}
+            {% set hyst = drift_hysterese_sommer | float(0.5) %}
             {{ (iclimate_varmepumpe_mode == 'heat') and (temp < (setp + hyst)) }}
           winter_allow_cool_on: >-
             {% set temp = iclimate_varme_rt_pv | float(0) %}
@@ -500,7 +500,7 @@ actions:
           winter_allow_cool_keep: >-
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
-            {% set hyst = inum_kjoling_av_delta_vinter | float(0.5) %}
+            {% set hyst = drift_hysterese_vinter | float(0.5) %}
             {{ (iclimate_varmepumpe_mode == 'cool') and (temp > (setp - hyst)) }}
       - variables:
           WantCool_SetpointComfOrHihger: >-
