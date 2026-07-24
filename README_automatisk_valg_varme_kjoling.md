@@ -103,56 +103,7 @@ Beregnet modus sammenlignes med gjeldende modus:
 
 - **`input_select.driftsmodus_vinter_sommer`** (eller valgt entitet) settes til VINTER eller SOMMER
 
-## 8. Avansert
-
-### 8.1 Forutsettninger
-
-- **`sensor.utetemperatur`** – nåværende utetemperatur (hardkodet)
-- **`sensor.utetemperatur_snitt_72_timer`** – 72-timers snitt (hardkodet)
-- **`input_select.driftsmodus_vinter_sommer`** – entitet med valgene VINTER og SOMMER
-- Vær-entitet som støtter `weather.get_forecasts` (hourly)
-- Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
-
-**Eksempel på `sensor.utetemperatur_snitt_72_timer` (legg i `configuration.yaml`):**
-```yaml
-sensor:
-  - platform: statistics
-    name: utetemperatur_snitt_72_timer
-    entity_id: sensor.utetemperatur
-    state_characteristic: average_step
-    max_age:
-      hours: 72
-```
-
-### 8.2 Relevante automasjoner og script
-
-| Blueprint | Formål |
-|---|---|
-| [varmepumpe_regulering.yaml](./blueprints/automation/varmepumpe_regulering.yaml) | Bruker `input_select.driftsmodus_vinter_sommer` for å avgjøre varme/kjøling. Se [README_varmepumpe_regulering.md](./README_varmepumpe_regulering.md) |
-| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
-
-### 8.3 Beregnede verdier og variabler
-
-| Variabel | Beskrivelse |
-|---|---|
-| Gjennomsnittstemperatur 72t | Lest fra `sensor.utetemperatur_snitt_72_timer` |
-| Nåtemperatur | Lest fra `sensor.utetemperatur` (fallback hvis historikk mangler) |
-| Soltillegg | Beregnet fra skydekning kl. 10–18 neste dag |
-| Maks inkl. soltillegg | Prognosert maks neste dag + soltillegg |
-| Utløsende regel | Regel 1–7 som ga det endelige modus-valget |
-
-### 8.4 Feilhåndtering
-
-| Situasjon | Håndtering |
-|---|---|
-| Driftsmodus-entitet mangler VINTER/SOMMER | Feilvarsel sendes, kjøring avbrytes |
-| `sensor.utetemperatur_snitt_72_timer` utilgjengelig | Bruker `sensor.utetemperatur` som fallback |
-| Begge temperaturkilder mangler | Kalenderperiode brukes som reserve |
-| Temperaturprognose mangler | Prognose-regler hoppes over |
-| Skydekning mangler | Soltillegg = 0 °C |
-| `sensor.utetemperatur` utilgjengelig | Alltid varsel uavhengig av om historikk kompenserte |
-
-### 8.5 Varsling og debug info
+## 8. Varsling
 
 Varsling er aktivert som standard (pushover destination er satt til `pushover`).
 
@@ -176,11 +127,6 @@ eller:
 
 Begrunnelsen (regel, verdier) vises kun når «Vis ekstra begrunnelse» er aktivert (standard: på).
 
-
-- Alle sentrale mellomverdier er synlige i Home Assistant trace-viewer (stegvise variabler)
-- Inkluderer: beregnet modus, utløsende regel, snitt 72t, nå-temp, prognose maks, skydekning, soltillegg, datatilgjengelighet
-- «Vis ekstra begrunnelse»-innstillingen inkluderer detaljert begrunnelse i varselet
-
 ## 9. Annet
 
 ### 9.1 Virkning av valgt modus
@@ -195,7 +141,62 @@ Modus-valget brukes av andre automasjoner (f.eks. varmepumpe-regulering) for å 
 - Tillat kjøledrift
 - Sperr varmedrift og elektriske varmeovner
 
-## 10. Dokumentasjon
+## 10. Avansert
+
+### 10.1 Forutsettninger
+
+- **`sensor.utetemperatur`** – nåværende utetemperatur (hardkodet)
+- **`sensor.utetemperatur_snitt_72_timer`** – 72-timers snitt (hardkodet)
+- **`input_select.driftsmodus_vinter_sommer`** – entitet med valgene VINTER og SOMMER
+- Vær-entitet som støtter `weather.get_forecasts` (hourly)
+- Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
+
+**Eksempel på `sensor.utetemperatur_snitt_72_timer` (legg i `configuration.yaml`):**
+```yaml
+sensor:
+  - platform: statistics
+    name: utetemperatur_snitt_72_timer
+    entity_id: sensor.utetemperatur
+    state_characteristic: average_step
+    max_age:
+      hours: 72
+```
+
+### 10.2 Relevante automasjoner og script
+
+| Blueprint | Formål |
+|---|---|
+| [varmepumpe_regulering.yaml](./blueprints/automation/varmepumpe_regulering.yaml) | Bruker `input_select.driftsmodus_vinter_sommer` for å avgjøre varme/kjøling. Se [README_varmepumpe_regulering.md](./README_varmepumpe_regulering.md) |
+| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
+
+### 10.3 Beregnede verdier og variabler
+
+| Variabel | Beskrivelse |
+|---|---|
+| Gjennomsnittstemperatur 72t | Lest fra `sensor.utetemperatur_snitt_72_timer` |
+| Nåtemperatur | Lest fra `sensor.utetemperatur` (fallback hvis historikk mangler) |
+| Soltillegg | Beregnet fra skydekning kl. 10–18 neste dag |
+| Maks inkl. soltillegg | Prognosert maks neste dag + soltillegg |
+| Utløsende regel | Regel 1–7 som ga det endelige modus-valget |
+
+### 10.4 Feilhåndtering
+
+| Situasjon | Håndtering |
+|---|---|
+| Driftsmodus-entitet mangler VINTER/SOMMER | Feilvarsel sendes, kjøring avbrytes |
+| `sensor.utetemperatur_snitt_72_timer` utilgjengelig | Bruker `sensor.utetemperatur` som fallback |
+| Begge temperaturkilder mangler | Kalenderperiode brukes som reserve |
+| Temperaturprognose mangler | Prognose-regler hoppes over |
+| Skydekning mangler | Soltillegg = 0 °C |
+| `sensor.utetemperatur` utilgjengelig | Alltid varsel uavhengig av om historikk kompenserte |
+
+### 10.5 Varsling og debug info
+
+- Alle sentrale mellomverdier er synlige i Home Assistant trace-viewer (stegvise variabler)
+- Inkluderer: beregnet modus, utløsende regel, snitt 72t, nå-temp, prognose maks, skydekning, soltillegg, datatilgjengelighet
+- «Vis ekstra begrunnelse»-innstillingen inkluderer detaljert begrunnelse i varselet
+
+## 11. Dokumentasjon
 
 - Blueprint-beskrivelsen lenker til denne README-filen:
   https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md

@@ -64,30 +64,7 @@ Når en trigger utløses, bestemmes sensornavnet (egendefinert → friendly_name
 
 Ingen entiteter skrives til. Resultatet er utelukkende et Pushover-varsel til valgt mottakergruppe.
 
-## 8. Avansert
-
-### 8.1 Forutsettninger
-
-- Pushover-integrasjonen må være konfigurert i Home Assistant.
-- Script-blueprintet `varsel_pushover.yaml` (script `script.varsel_pushover_send_melding_webhome`) må være installert.
-
-### 8.2 Relevante automasjoner og script
-
-| Blueprint | Formål |
-|---|---|
-| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for å sende Pushover-varsler. Brukes av denne automasjonen for utsending. |
-
-### 8.3 Beregnede verdier og variabler
-
-| Variabel | Beskrivelse |
-|---|---|
-| `sensor_name` | Sensornavnet som vises i varselet. Bruker egendefinert navn → friendly_name → entity_id |
-
-### 8.4 Feilhåndtering
-
-Ingen spesiell feilhåndtering utover de tre triggerscenarioene. Dersom Pushover ikke er konfigurert, vil utsending feile stille uten påvirkning på andre systemer.
-
-### 8.5 Varsling og debug info
+## 8. Varsling
 
 Varsling er aktiv som standard (pushover destination er satt til `pushover`).
 
@@ -102,14 +79,38 @@ Varsling er aktiv som standard (pushover destination er satt til `pushover`).
 **Melding ved ukjent sensor (15 min):**
 > Temp ukjent for 15m.
 
-
-Ingen debug-varsling. Alle varsler er informasjonsvarsler til bruker.
-
 ## 9. Annet
 
 Automasjonen er enkel og har ingen tilleggslogikk utover de tre triggerscenarioene.
 
-## 10. Dokumentasjon
+## 10. Avansert
+
+### 10.1 Forutsettninger
+
+- Pushover-integrasjonen må være konfigurert i Home Assistant.
+- Script-blueprintet `varsel_pushover.yaml` (script `script.varsel_pushover_send_melding_webhome`) må være installert.
+
+### 10.2 Relevante automasjoner og script
+
+| Blueprint | Formål |
+|---|---|
+| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for å sende Pushover-varsler. Brukes av denne automasjonen for utsending. |
+
+### 10.3 Beregnede verdier og variabler
+
+| Variabel | Beskrivelse |
+|---|---|
+| `sensor_name` | Sensornavnet som vises i varselet. Bruker egendefinert navn → friendly_name → entity_id |
+
+### 10.4 Feilhåndtering
+
+Ingen spesiell feilhåndtering utover de tre triggerscenarioene. Dersom Pushover ikke er konfigurert, vil utsending feile stille uten påvirkning på andre systemer.
+
+### 10.5 Varsling og debug info
+
+Ingen debug-varsling. Alle varsler er informasjonsvarsler til bruker.
+
+## 11. Dokumentasjon
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/temperature_sensor_alarm.yaml
 - Pushover script: [README_varsel_pushover.md](./README_varsel_pushover.md)

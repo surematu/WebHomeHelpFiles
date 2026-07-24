@@ -68,34 +68,9 @@ Scriptet bygger en komplett Pushover-melding og sender den:
 
 Sender ett Pushover-varsel til valgt mottakergruppe. Skriver ikke til noen entiteter.
 
-## 8. Avansert
-
-### 8.1 Forutsettninger
-
-- Pushover-integrasjonen (`notify.pushover`) må være konfigurert i Home Assistant.
-- Valgfri: `notify.pushover_diverse` for separat mottakergruppe.
-
-### 8.2 Relevante automasjoner og script
-
-Alle automasjoner i WebHome-oppsettet bruker dette scriptet for utsending av Pushover-varsler.
-
-### 8.3 Beregnede verdier og variabler
-
-| Variabel | Beskrivelse |
-|---|---|
-| Tittel | Bygges som `<name> - <tittel>` |
-| TTL-suffiks | Levetid omregnet til lesbar tekst (sek/min/timer/dager) |
-
-### 8.4 Feilhåndtering
-
-Ingen spesiell feilhåndtering i scriptet. Feil i Pushover-integrasjonen vil gi feilmelding i Home Assistant-logg.
-
-### 8.5 Varsling og debug info
+## 8. Varsling
 
 Dette scriptet er selve varslingsmekanismen. Meldingsinnholdet styres av den kallende automasjonen.
-
-
-Ingen debug-varsling. Scriptet er selve varslingskanalen.
 
 ## 9. Annet
 
@@ -103,6 +78,32 @@ Ingen debug-varsling. Scriptet er selve varslingskanalen.
 
 Scriptet kjøres i `mode: parallel` med `max: 10`. Det betyr at opptil 10 varsler kan sendes samtidig uten å vente på hverandre.
 
-## 10. Dokumentasjon
+## 10. Avansert
+
+### 10.1 Forutsettninger
+
+- Pushover-integrasjonen (`notify.pushover`) må være konfigurert i Home Assistant.
+- Valgfri: `notify.pushover_diverse` for separat mottakergruppe.
+
+### 10.2 Relevante automasjoner og script
+
+Alle automasjoner i WebHome-oppsettet bruker dette scriptet for utsending av Pushover-varsler.
+
+### 10.3 Beregnede verdier og variabler
+
+| Variabel | Beskrivelse |
+|---|---|
+| Tittel | Bygges som `<name> - <tittel>` |
+| TTL-suffiks | Levetid omregnet til lesbar tekst (sek/min/timer/dager) |
+
+### 10.4 Feilhåndtering
+
+Ingen spesiell feilhåndtering i scriptet. Feil i Pushover-integrasjonen vil gi feilmelding i Home Assistant-logg.
+
+### 10.5 Varsling og debug info
+
+Ingen debug-varsling. Scriptet er selve varslingskanalen.
+
+## 11. Dokumentasjon
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/scripts/varsel_pushover.yaml
