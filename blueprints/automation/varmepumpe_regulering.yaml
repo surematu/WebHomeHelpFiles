@@ -482,7 +482,7 @@ actions:
             {% set setp = iclimate_varme_rt_spk | float(0) %}
             {% set comfort = iclimate_varme_rt_sp_comfort_spkifnocomfort | float(setp) %}
             {{ setp >= comfort }}
-          WantCoolCauseHightTempFallback: >-
+          WantCoolCauseHighTempFallback: >-
             {% set delta_on = inum_kjoling_pa_delta | float(1.5) %}
             {% set delta_off = inum_kjoling_av_delta | float(0.5) %}
             {% set temp = iclimate_varme_rt_pv | float(0) %}
@@ -520,7 +520,7 @@ actions:
       - variables:
           onsket_mode: >-
             {% if not drift_available %}
-              {{ 'cool' if (WantCool_SetpointComfOrHihger and WantCoolCauseHightTempFallback) else 'heat' }}
+              {{ 'cool' if (WantCool_SetpointComfOrHihger and WantCoolCauseHighTempFallback) else 'heat' }}
             {% elif drift_is_sommer %}
               {% if not WantCool_SetpointComfOrHihger %}
                 heat

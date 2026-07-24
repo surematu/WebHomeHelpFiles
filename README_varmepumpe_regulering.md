@@ -214,7 +214,7 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `qnum_varmepumpe_req_spk` – endelig settpunkt etter ramp og avrunding
 - `qx_varmepumpe_spk_update_needed` – true hvis settpunkt faktisk skal endres
 - `WantCool_SetpointComfOrHihger` – kjøling tillatt (settpunkt ≥ comfort)
-- `WantCoolCauseHightTempFallback` – fallback-kjøling ønsket (romtemp over delta uten gyldig driftsmodus)
+- `WantCoolCauseHighTempFallback` – fallback-kjøling ønsket (romtemp over delta uten gyldig driftsmodus)
 - `drift_modus_raw` / `drift_is_sommer` / `drift_is_vinter` / `drift_available` – driftsmodus-status
 - `drift_hysterese` – hysterese brukt for å avslutte override i driftsmodus
 - `summer_force_heat_on` / `summer_force_heat_keep` – sommer-override på/hold
