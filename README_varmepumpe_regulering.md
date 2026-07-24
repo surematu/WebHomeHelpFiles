@@ -26,9 +26,9 @@ Blueprinten konfigureres med to climate-entiteter:
 | `climate` (rom_climate) | Rom-climate som gir pådragssignal og settpunkt |
 | `climate` (pumpe_climate) | Varmepumpe-climate som styres av automasjonen |
 
-Valgfritt – krever at kjøling er aktivert:
+Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring (krever at kjøling er aktivert):
 
-| Entitet (tekst-input) | Beskrivelse |
+| Entitet | Beskrivelse |
 |---|---|
 | `input_select.driftsmodus_vinter_sommer` | Driftsmodus-helper med valgene VINTER og SOMMER |
 
@@ -73,7 +73,6 @@ Valgfritt – krever at kjøling er aktivert:
 | `ix_kjoling_aktiv` | false | Aktiver kjøling for automatisk bytte mellom heat og cool |
 | `inum_kjoling_pa_delta` | 2 °C | Delta over settpunkt for å aktivere kjøling |
 | `inum_kjoling_av_delta` | 0.5 °C | Delta over settpunkt for å deaktivere kjøling (hysterese) |
-| `driftsmodus_entity` | (tom) | Valgfri: `input_select.driftsmodus_vinter_sommer` for sesongbasert styring |
 
 ## 5) Beregningslogikk
 
@@ -120,9 +119,9 @@ Avrunding:
 
 Varmepumpa kjøres alltid i `heat`-modus. Ingen modusbytte utføres.
 
-### 6.2 Kjøling aktivert – uten driftsmodus
+### 6.2 Kjøling aktivert – driftsmodus ugyldig verdi (fallback)
 
-Beslutning baseres utelukkende på romtemperatur vs settpunkt:
+Hvis `input_select.driftsmodus_vinter_sommer` ikke har verdi VINTER eller SOMMER (f.eks. unavailable), baseres beslutning utelukkende på romtemperatur vs settpunkt:
 
 - Bytt til `cool` når `romtemperatur ≥ settpunkt + kjoling_pa_delta`
 - Bytt tilbake til `heat` når `romtemperatur ≤ settpunkt + kjoling_av_delta` (hysterese)
@@ -130,7 +129,7 @@ Beslutning baseres utelukkende på romtemperatur vs settpunkt:
 
 ### 6.3 Kjøling aktivert – med driftsmodus (VINTER / SOMMER)
 
-Koble til `input_select.driftsmodus_vinter_sommer` (sett av `driftsmodus_varme_kjoling_automatisk`-blueprinten) for sesongbasert styring:
+Bruker alltid `input_select.driftsmodus_vinter_sommer` (sett av `driftsmodus_varme_kjoling_automatisk`-blueprinten) for sesongbasert styring:
 
 #### SOMMER (kjøling foretrekkes)
 
@@ -149,7 +148,7 @@ Koble til `input_select.driftsmodus_vinter_sommer` (sett av `driftsmodus_varme_k
 
 Tanken bak nødoverkoblingen: `maks_endring_per_kjoring` representerer ett steg i varmepumpe-settpunktet. Hvis romtemperaturen er mer enn ett steg over settpunktet i VINTER, er det tegn på at kjøling faktisk trengs selv om det er vinter – og omvendt i SOMMER.
 
-Dersom driftsmodus-entiteten ikke er satt eller har en ugyldig verdi, brukes logikken fra avsnitt 6.2 (temperaturbasert, uten sesong).
+Dersom `input_select.driftsmodus_vinter_sommer` har en ugyldig verdi, brukes logikken fra avsnitt 6.2 (temperaturbasert fallback).
 
 ## 7) Viftelogikk (Steg 5)
 
@@ -182,7 +181,7 @@ Dette minimerer unødvendige skriv til varmepumpa og reduserer støy i logg og h
 | `regulated_target_temperature` mangler | Bruker 50 % som standardpådrag |
 | `comfort_temp` mangler | Bruker rom-settpunkt direkte som basis |
 | Varmepumpa støtter ikke fan-moder | Ingen vifte-oppdatering utføres |
-| Driftsmodus-entiteten er tom eller ugyldig | Faller tilbake til temperaturbasert kjøle-/varme-beslutning |
+| `input_select.driftsmodus_vinter_sommer` har ugyldig verdi | Faller tilbake til temperaturbasert kjøle-/varme-beslutning |
 | Beregnet settpunkt utenfor `[pumpe_temp_min, pumpe_temp_maks]` | Klippes til absolutt grense |
 
 ## 10) Statusverdier for feilsøking

@@ -24,12 +24,12 @@ blueprint:
       - Kjøling sperres alltid når iclimate_varme_rt_spk < iclimate_varme_rt_sp_comfort_spkifnocomfort (f.eks. eco/natt-senking),
         og varmepumpa tvinges da til heat uansett romtemperatur.
 
-    Driftsmodus (valgfri, krever at kjøling er aktivert):
-    Koble til input_select.driftsmodus_vinter_sommer med valgene VINTER og SOMMER for
+    Driftsmodus (krever at kjøling er aktivert):
+    Bruker alltid input_select.driftsmodus_vinter_sommer med valgene VINTER og SOMMER for
     sesongbasert styring:
       - SOMMER: foretrekker kjøling; tillater varme hvis romtemp er mer enn maks_endring_per_kjoring under settpunktet.
       - VINTER: foretrekker varme; tillater kjøling kun hvis romtemp er mer enn maks_endring_per_kjoring over settpunktet.
-      - Uten driftsmodus: bruker kun romtemperatur vs settpunkt for beslutning (eksisterende oppførsel).
+      - Ugyldig verdi: bruker kun romtemperatur vs settpunkt for beslutning (fallback).
 
     Avrunding av settpunkt:
     Betinget på inum_max_step: heltall-steg (1, 2, 3, …) gir alltid heltalls-settpunkt;
@@ -38,7 +38,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.01
+    Blueprint versjon: 2026.07.02
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -277,20 +277,6 @@ blueprint:
               mode: slider
               unit_of_measurement: "°C"
 
-        driftsmodus_entity:
-          name: Driftsmodus entitet (valgfri)
-          description: >
-            Valgfri: Koble til input_select.driftsmodus_vinter_sommer med valgene VINTER og SOMMER.
-            Krever at kjøling er aktivert (se over).
-            SOMMER: foretrekker kjøling; tillater varme hvis romtemp er mer enn
-            maks_endring_per_kjoring under settpunktet.
-            VINTER: foretrekker varme; tillater kjøling kun hvis romtemp er mer enn
-            maks_endring_per_kjoring over settpunktet.
-            Hvis tom: bruker kun romtemperatur vs settpunkt (eksisterende oppførsel).
-          default: ""
-          selector:
-            text: {}
-
 mode: restart
 
 triggers:
@@ -321,7 +307,6 @@ actions:
       ix_kjoling_aktiv: !input ix_kjoling_aktiv
       inum_kjoling_pa_delta: !input inum_kjoling_pa_delta
       inum_kjoling_av_delta: !input inum_kjoling_av_delta
-      idriftsmodus_entity: !input driftsmodus_entity
       inum_min_padrag_comfort: !input min_padrag_comfort
       inum_min_padrag_eco: !input min_padrag_eco
       inum_min_padrag_boost: !input min_padrag_boost
@@ -475,9 +460,7 @@ actions:
             {{ (temp > setp + delta_off) if iclimate_varmepumpe_mode == 'cool' else (temp >= setp + delta_on) }}
 
       - variables:
-          drift_modus_raw: >-
-            {% set entity = idriftsmodus_entity | string | trim %}
-            {{ states(entity) if entity != '' else '' }}
+          drift_modus_raw: "{{ states('input_select.driftsmodus_vinter_sommer') }}"
           drift_is_sommer: "{{ drift_modus_raw == 'SOMMER' }}"
           drift_is_vinter: "{{ drift_modus_raw == 'VINTER' }}"
           drift_available: "{{ drift_modus_raw in ['SOMMER', 'VINTER'] }}"
