@@ -649,7 +649,7 @@ actions:
       hp_norm_power_heat: >-
         {% set p = varmepumpe_output_power | float(0) %}
         {% set g = hp_padrag_grense | float(60) %}
-        {{ ([p / g * 100, 100] | min) if g > 0 else 100 }}
+        {{ ([(p / g) * 100, 100] | min) if g > 0 else 100 }}
   - variables:
       # Panelovn: pådrag grense–100% normaliseres til 0–100%.
       # Er alltid 0 ved kjøling eller når varme-climate ikke er konfigurert.
@@ -866,10 +866,11 @@ actions:
             HP normalisert pådrag: {{ hp_norm_power_heat | round(1) }}% (grense {{ inum_panelovn_padrag_grense }}%)
             HP settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             {%- if (iclimate_varme_styrt | string) not in ['', 'None', 'none'] %}
+            {%- set panelovn_status = 'PÅ (' + iclimate_varme_rt_spk|string + '°C)' if panelovn_aktiv | default(false) else 'AV (frost ' + iclimate_varme_frost_temp|string + '°C)' %}
             Panelovn mål: {{ panelovn_maal_power | round(1) }}%
-            Panelovn: {{ 'PÅ (' + iclimate_varme_rt_spk|string + '°C)' if panelovn_aktiv | default(false) else 'AV (frost ' + iclimate_varme_frost_temp|string + '°C)' }}
+            Panelovn: {{ panelovn_status }}
             {%- if (panelovn_maal_power | float(0)) > 0 and not (panelovn_aktiv | default(false)) %}
-            Panelovn AV fordi: romtemp ({{ iclimate_varme_rt_pv }}°C) ≥ AV-terskel ({{ panelovn_temp_av_terskel | default(iclimate_varme_rt_spk - 0.5) | round(1) }}°C)
+            Panelovn AV fordi: romtemp ({{ iclimate_varme_rt_pv }}°C) ≥ AV-terskel ({{ panelovn_temp_av_terskel | round(1) }}°C)
             {%- endif %}
             {%- endif %}
             {%- elif onsket_mode == 'cool' -%}
