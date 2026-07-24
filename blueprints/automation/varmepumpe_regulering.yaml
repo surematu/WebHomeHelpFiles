@@ -38,7 +38,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.08
+    Blueprint versjon: 2026.07.09
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -280,7 +280,9 @@ blueprint:
         inum_kjoling_av_delta_sommer:
           name: SOMMER - Hysterese varme av
           description: >
-            SOMMER: tvungen varme slås av når romtemp >= settpunkt + hysterese.
+            SOMMER: tvungen varme slås av når romtemp >= (settpunkt − inum_kjoling_sommer_kaldt_grense) + hysterese.
+            Hysteresen regnes fra terskelen som slo varmen PÅ, ikke fra settpunktet.
+            Eksempel: settpunkt=22, kaldt_grense=3, hysterese=0.5 → varme startet ved 22−3=19°C, slås av igjen ved 19+0.5=19.5°C.
             Default 0.5°C.
           default: 0.5
           selector:
@@ -309,7 +311,9 @@ blueprint:
         inum_kjoling_av_delta_vinter:
           name: VINTER - Hysterese kjøling av
           description: >
-            VINTER: tvungen kjøling slås av når romtemp <= settpunkt - hysterese.
+            VINTER: tvungen kjøling slås av når romtemp <= (settpunkt + inum_kjoling_vinter_varmt_grense) − hysterese.
+            Hysteresen regnes fra terskelen som slo kjølingen PÅ, ikke fra settpunktet.
+            Eksempel: settpunkt=22, varmt_grense=3, hysterese=0.5 → kjøling startet ved 22+3=25°C, slås av igjen ved 25−0.5=24.5°C.
             Default 0.5°C.
           default: 0.5
           selector:
@@ -521,8 +525,9 @@ actions:
           summer_force_heat_keep: >-
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
+            {% set grense = inum_kjoling_sommer_kaldt_grense | float(2) %}
             {% set hyst = drift_hysterese_sommer | float(0.5) %}
-            {{ (iclimate_varmepumpe_mode == 'heat') and (temp < (setp + hyst)) }}
+            {{ (iclimate_varmepumpe_mode == 'heat') and (temp < (setp - grense) + hyst) }}
           winter_allow_cool_on: >-
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
@@ -531,8 +536,9 @@ actions:
           winter_allow_cool_keep: >-
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
+            {% set grense = inum_kjoling_vinter_varmt_grense | float(2) %}
             {% set hyst = drift_hysterese_vinter | float(0.5) %}
-            {{ (iclimate_varmepumpe_mode == 'cool') and (temp > (setp - hyst)) }}
+            {{ (iclimate_varmepumpe_mode == 'cool') and (temp > (setp + grense) - hyst) }}
       - variables:
           WantCool_SetpointComfOrHihger: >-
             {% set setp = iclimate_varme_rt_spk | float(0) %}
