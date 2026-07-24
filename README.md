@@ -59,7 +59,7 @@ Detaljert funksjonsbeskrivelse:
 
 Samlet overvåkning av batteri-enheter og Uptime Kuma i én blueprint:
 
-- **Time_pattern (hver 4. time):** Sender én samlet varsling med nylig mistet batterisignal + Uptime Kuma-enheter som nylig gikk offline.
+- **Time pattern (hver 4. time):** Sender én samlet varsling med nylig mistet batterisignal + Uptime Kuma-enheter som nylig gikk offline.
 - **Planlagt/manuell sjekk:** Sender én samlet varsling med batterinivå, langsomt signal og full Uptime Kuma-status.
 - **Kritisk Uptime-sensor:** Kan utløse øyeblikkelig varsling ved statusendring.
 - **Viktig regel for alle meldinger med flere seksjoner/lister:** Hvis en enhet er nevnt i en tidligere liste i samme varsel, skal den ikke listes på nytt i senere lister.
