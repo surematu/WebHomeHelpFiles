@@ -511,7 +511,7 @@ actions:
                 heat
               {% endif %}
             {% else %}
-              {% set allow_cool = WantCool_SetpointComfOrHihger and WantCoolCauseHightTemp and (iclimate_varme_rt_pv | float) >= (iclimate_varme_rt_spk | float) + (inum_kjoling_vinter_varmt_grense | float) %}
+              {% set allow_cool = WantCool_SetpointComfOrHihger and WantCoolCauseHightTemp and (iclimate_varme_rt_pv | float) > (iclimate_varme_rt_spk | float) + (inum_kjoling_vinter_varmt_grense | float) %}
               {{ 'cool' if allow_cool else 'heat' }}
             {% endif %}
           skal_oppdatere_mode: "{{ (onsket_mode | string | trim) != (iclimate_varmepumpe_mode | string | trim) }}"

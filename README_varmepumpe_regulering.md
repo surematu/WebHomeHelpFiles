@@ -145,7 +145,7 @@ Bruker alltid `input_select.driftsmodus_vinter_sommer` (sett av `driftsmodus_var
 
 | Tilstand | Resultat |
 |---|---|
-| Kjølebetingelser oppfylt **og** romtemp ≥ settpunkt + `inum_kjoling_vinter_varmt_grense` | `cool` (nødoverkobling) |
+| Kjølebetingelser oppfylt **og** romtemp > settpunkt + `inum_kjoling_vinter_varmt_grense` | `cool` (nødoverkobling) |
 | Ellers | `heat` |
 
 Tanken bak nødoverkoblingen: Dedikerte terskler (`inum_kjoling_sommer_kaldt_grense` og `inum_kjoling_vinter_varmt_grense`) styrer når romtemperatur-avvik er så stort at det overstyrer driftsmodusen. I SOMMER tvinges varme hvis rommet er for kaldt; i VINTER tillates kjøling som nødoverkobling hvis rommet er for varmt. Begge er separate fra ramp-begrensningen (`maks_endring_per_kjoring`) og konfigureres uavhengig.
