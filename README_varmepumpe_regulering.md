@@ -26,7 +26,7 @@ Blueprinten konfigureres med to obligatoriske og én valgfri climate-entitet:
 |---|---|
 | `climate` (rom_climate) | Overordnet climate som gir pådragssignal og settpunkt |
 | `climate` (pumpe_climate) | Varmepumpe-climate som styres av automasjonen |
-| `climate` (varme_climate) | Valgfri. Varme-climate som styres basert på overordnet modus |
+| `climate` (varme_climate) | Valgfri. Varme-climate som styres basert på overordnet modus og lineær varmerampe i heat |
 
 Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring (krever at kjøling er aktivert):
 
@@ -199,9 +199,9 @@ Styrer settpunktet på varme-climate basert på **beregnet modus** (`onsket_over
 | Tilstand | Resultat |
 |---|---|
 | Overordnet er `off` ELLER beregnet modus er `cool` | Varme-climate settpunkt settes til frost-settpunkt (leses fra `preset_temperatures.frost_temp` på overordnet climate, default 10 °C) |
-| Beregnet modus er `heat` | Varme-climate settpunkt settes lik overordnet settpunkt |
+| Beregnet modus er `heat` | Varme-climate bruker lineær rampe: 0°C under settpunkt = 0% (frost-settpunkt), 2°C under settpunkt = 100% (rom-settpunkt), lineært imellom |
 
-Settpunktet klampes alltid til klimaets egne `min_temp` og `max_temp` attributter (leses ved kjøring) for å unngå ugyldig temperatur-feil.
+Rampesettpunktet avrundes til nærmeste 0.5°C og klampes alltid til klimaets egne `min_temp` og `max_temp` attributter (leses ved kjøring) for å unngå ugyldig temperatur-feil.
 
 Settpunktet oppdateres kun ved faktisk endring.
 
@@ -263,7 +263,10 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `onsket_overordnet_mode` – beregnet ønsket hvac-modus for overordnet climate (`heat`/`cool`)
 - `skal_oppdatere_overordnet` – true hvis overordnet climate skal oppdateres
 - `varme_styrt_er_av_eller_kjoling` – true hvis overordnet er off eller beregnet modus er cool
+- `varme_styrt_delta_under_setpunkt` – hvor mange grader romtemp ligger under rom-settpunkt (min 0)
+- `varme_styrt_padrag_pct_0til100` – lineært varmepådrag fra 0 til 100% basert på 0-2°C under settpunkt
 - `varme_styrt_onsket_spk_raw` – beregnet ønsket settpunkt for varme-climate (før klamping)
+- `varme_styrt_onsket_spk_rounded` – ønsket settpunkt avrundet til nærmeste 0.5°C
 - `varme_styrt_min_temp` – min_temp lest fra varme-climate
 - `varme_styrt_max_temp` – max_temp lest fra varme-climate
 - `varme_styrt_onsket_spk` – ønsket settpunkt etter klamping til [min_temp, max_temp]

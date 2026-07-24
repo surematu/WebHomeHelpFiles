@@ -38,7 +38,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.09
+    Blueprint versjon: 2026.07.10
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -639,18 +639,31 @@ actions:
       - variables:
           varme_styrt_er_av_eller_kjoling: "{{ iclimate_overordnet_hvac_mode == 'off' or onsket_overordnet_mode == 'cool' }}"
       - variables:
+          varme_styrt_delta_under_setpunkt: "{{ [ (iclimate_varme_rt_spk | float(20)) - (iclimate_varme_rt_pv | float(20)), 0 ] | max }}"
+          varme_styrt_padrag_pct_0til100: "{{ [ ((varme_styrt_delta_under_setpunkt | float(0)) / 2) * 100, 100 ] | min }}"
+      - variables:
           varme_styrt_onsket_spk_raw: >-
             {% if varme_styrt_er_av_eller_kjoling %}
               {{ iclimate_varme_frost_temp | float(10) }}
             {% else %}
-              {{ iclimate_varme_rt_spk | float(20) }}
+              {% set frost = iclimate_varme_frost_temp | float(10) %}
+              {% set rom_spk = iclimate_varme_rt_spk | float(20) %}
+              {% set span = rom_spk - frost %}
+              {% set p = (varme_styrt_padrag_pct_0til100 | float(0)) / 100 %}
+              {% if span <= 0 %}
+                {{ rom_spk }}
+              {% else %}
+                {{ frost + (span * p) }}
+              {% endif %}
             {% endif %}
           varme_styrt_naa_spk: "{{ state_attr(iclimate_varme_styrt, 'temperature') | float(0) }}"
       - variables:
           varme_styrt_min_temp: "{{ state_attr(iclimate_varme_styrt, 'min_temp') | float(10) }}"
           varme_styrt_max_temp: "{{ state_attr(iclimate_varme_styrt, 'max_temp') | float(30) }}"
       - variables:
-          varme_styrt_onsket_spk: "{{ [[varme_styrt_onsket_spk_raw | float, varme_styrt_min_temp | float] | max, varme_styrt_max_temp | float] | min }}"
+          varme_styrt_onsket_spk_rounded: "{{ ((varme_styrt_onsket_spk_raw | float(0)) * 2) | round(0) / 2 }}"
+      - variables:
+          varme_styrt_onsket_spk: "{{ [[varme_styrt_onsket_spk_rounded | float, varme_styrt_min_temp | float] | max, varme_styrt_max_temp | float] | min }}"
       - variables:
           varme_styrt_spk_update_needed: "{{ (varme_styrt_onsket_spk | float) != (varme_styrt_naa_spk | float) }}"
       - if:
