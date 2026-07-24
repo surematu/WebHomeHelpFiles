@@ -292,9 +292,9 @@ Sendes kun når `ix_pushover_varsling = true`, destination er satt, og det fakti
 Meldingen inneholder:
 - Pådrag (%) og modus (kjøling/varme) – med info om modusendring hvis aktuelt
 - Romtemperatur og settpunkt
-- **Varmepumpe**-seksjon: HP settpunkt (nå → ønsket), pådrag med settpunkt-range. Vises ved både varme og kjøling.
-- **Varme**-seksjon: panelovn settpunkt og pådrag. Vises kun ved varme med panelovn konfigurert. Vises som "Av" ved kjøling.
-- **Kjøling**: Vises som "Av" ved varme.
+- **Varmepumpe (Varme)**-seksjon (ved varme): HP settpunkt (nå → ønsket), pådrag med settpunkt-range.
+- **Varmepumpe (Kjøling)**-seksjon (ved kjøling): HP settpunkt (nå → ønsket), pådrag med settpunkt-range (invertert).
+- **Varme**-seksjon: panelovn settpunkt og pådrag med settpunkt-range. Vises kun ved varme med panelovn konfigurert. Vises som "Av" ved kjøling.
 - Vifte-endring (hvis aktuelt)
 
 ## 11) Feilhåndtering
