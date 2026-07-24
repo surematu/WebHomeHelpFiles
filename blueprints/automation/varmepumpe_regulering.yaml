@@ -58,7 +58,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.12
+    Blueprint versjon: 2026.07.13
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -842,20 +842,21 @@ actions:
             Romtemp: {{ iclimate_varme_rt_pv }}°C / Settpunkt: {{ iclimate_varme_rt_spk }}°C
 
             {% if onsket_mode == 'heat' -%}
-            Varme:
+            Varmepumpe:
             Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ hp_norm_power_heat | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }})
             {%- if (iclimate_varme_styrt | string) not in ['', 'None', 'none'] %}
-            Panelovn mål: {{ panelovn_maal_power | round(0) | int }}%
-            Panelovn prop: {{ ((panelovn_prop | default(0)) * 100) | round(0) }}% (delta {{ panelovn_temp_delta | default(0) | round(2) }}°C / {{ inum_panelovn_delta_maks }}°C)
-            Panelovn settpunkt: {{ varme_styrt_onsket_spk | default(iclimate_varme_frost_temp) | round(1) }}°C
+
+            Varme:
+            Settpunkt: {{ varme_styrt_onsket_spk | default(iclimate_varme_frost_temp) | round(1) }}°C
+            Pådrag: {{ panelovn_maal_power | round(0) | int }}%
             {%- endif %}
 
             Kjøling: Av
             {%- else -%}
             Varme: Av
 
-            Kjøling:
+            Varmepumpe:
             Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ varmepumpe_output_power | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }})
             {%- endif %}
