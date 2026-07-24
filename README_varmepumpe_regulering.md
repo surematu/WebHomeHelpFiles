@@ -71,8 +71,8 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 | Parameter | Standard | Beskrivelse |
 |---|---:|---|
 | `ix_kjoling_aktiv` | false | Aktiver kjøling for automatisk bytte mellom heat og cool |
-| `inum_kjoling_pa_delta` | 2 °C | Delta over settpunkt for å aktivere kjøling |
-| `inum_kjoling_av_delta` | 0.5 °C | Delta over settpunkt for å deaktivere kjøling (hysterese) |
+| `inum_kjoling_pa_delta` | 2 °C | Delta over settpunkt for å aktivere kjøling i fallback uten gyldig driftsmodus |
+| `inum_kjoling_av_delta` | 0.5 °C | Hysterese for å slå av aktiv override i driftsmodus (og AV-terskel i fallback) |
 | `inum_kjoling_sommer_kaldt_grense` | 2 °C | SOMMER: tving heat når romtemp er mer enn denne verdien under settpunkt |
 | `inum_kjoling_vinter_varmt_grense` | 2 °C | VINTER: tillat cool som nødoverkobling når romtemp er mer enn denne verdien over settpunkt |
 
@@ -131,24 +131,32 @@ Hvis `input_select.driftsmodus_vinter_sommer` ikke har verdi VINTER eller SOMMER
 
 ### 6.3 Kjøling aktivert – med driftsmodus (VINTER / SOMMER)
 
-Bruker alltid `input_select.driftsmodus_vinter_sommer` (sett av `driftsmodus_varme_kjoling_automatisk`-blueprinten) for sesongbasert styring:
+Bruker alltid `input_select.driftsmodus_vinter_sommer` (sett av `driftsmodus_varme_kjoling_automatisk`-blueprinten) for sesongbasert styring med tydelig default + override:
 
-#### SOMMER (kjøling foretrekkes)
+- **SOMMER default:** `cool`
+- **VINTER default:** `heat`
 
-| Tilstand | Resultat |
-|---|---|
-| Romtemp < settpunkt − `inum_kjoling_sommer_kaldt_grense` | `heat` (for kaldt, tving varme) |
-| Kjølebetingelser oppfylt (setpunkt ≥ comfort og romtemp over delta) | `cool` |
-| Ellers | `heat` |
+Override aktiveres kun ved store avvik, og hysterese (`inum_kjoling_av_delta`) brukes for å slå override av igjen:
 
-#### VINTER (varme foretrekkes)
+#### SOMMER (default = kjøling)
 
 | Tilstand | Resultat |
 |---|---|
-| Kjølebetingelser oppfylt **og** romtemp > settpunkt + `inum_kjoling_vinter_varmt_grense` | `cool` (nødoverkobling) |
-| Ellers | `heat` |
+| Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
+| Romtemp < settpunkt − `inum_kjoling_sommer_kaldt_grense` | `heat` (override PÅ: tvungen varme) |
+| Aktiv tvungen varme og romtemp < settpunkt + `inum_kjoling_av_delta` | `heat` (override holdes aktiv) |
+| Ellers | `cool` (override AV, tilbake til default) |
 
-Tanken bak nødoverkoblingen: Dedikerte terskler (`inum_kjoling_sommer_kaldt_grense` og `inum_kjoling_vinter_varmt_grense`) styrer når romtemperatur-avvik er så stort at det overstyrer driftsmodusen. I SOMMER tvinges varme hvis rommet er for kaldt; i VINTER tillates kjøling som nødoverkobling hvis rommet er for varmt. Begge er separate fra ramp-begrensningen (`maks_endring_per_kjoring`) og konfigureres uavhengig.
+#### VINTER (default = varme)
+
+| Tilstand | Resultat |
+|---|---|
+| Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
+| Romtemp > settpunkt + `inum_kjoling_vinter_varmt_grense` | `cool` (override PÅ: tvungen kjøling) |
+| Aktiv tvungen kjøling og romtemp > settpunkt − `inum_kjoling_av_delta` | `cool` (override holdes aktiv) |
+| Ellers | `heat` (override AV, tilbake til default) |
+
+Tanken bak oppsettet er at driftsmodus bestemmer normal retning, mens dedikerte terskler (`inum_kjoling_sommer_kaldt_grense` og `inum_kjoling_vinter_varmt_grense`) avgjør når override skal slå inn. Hysterese brukes kun for å avslutte override stabilt, slik at modus ikke flapper rundt tersklene.
 
 Dersom `input_select.driftsmodus_vinter_sommer` har en ugyldig verdi, brukes logikken fra avsnitt 6.2 (temperaturbasert fallback).
 
@@ -206,8 +214,11 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `qnum_varmepumpe_req_spk` – endelig settpunkt etter ramp og avrunding
 - `qx_varmepumpe_spk_update_needed` – true hvis settpunkt faktisk skal endres
 - `WantCool_SetpointComfOrHihger` – kjøling tillatt (settpunkt ≥ comfort)
-- `WantCoolCauseHightTemp` – kjøling ønsket (romtemp over delta)
+- `WantCoolCauseHightTempFallback` – fallback-kjøling ønsket (romtemp over delta uten gyldig driftsmodus)
 - `drift_modus_raw` / `drift_is_sommer` / `drift_is_vinter` / `drift_available` – driftsmodus-status
+- `drift_hysterese` – hysterese brukt for å avslutte override i driftsmodus
+- `summer_force_heat_on` / `summer_force_heat_keep` – sommer-override på/hold
+- `winter_allow_cool_on` / `winter_allow_cool_keep` – vinter-override på/hold
 - `inum_kjoling_sommer_kaldt_grense` / `inum_kjoling_vinter_varmt_grense` – dedikerte terskler for edge case
 - `onsket_mode` – beregnet hvac-modus (`heat`/`cool`)
 - `skal_oppdatere_mode` – true hvis modus faktisk skal endres

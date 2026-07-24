@@ -97,8 +97,9 @@ det høyeste av rom-settpunkt og comfort-settpunkt. Støtter:
 - Ramp-begrensning (maks endring per kjøring) og fleksibel avrunding (heltall eller halvt steg).
 - Valgfri vifteregulering (boost ved høyt pådrag).
 - Valgfri kjøling med sesongbasert styring via `input_select.driftsmodus_vinter_sommer` (VINTER/SOMMER):
-  - SOMMER foretrekker kjøling; tillater varme ved ekstremt lav romtemperatur.
-  - VINTER foretrekker varme; tillater kjøling ved ekstremt høy romtemperatur.
+  - SOMMER default = kjøling, med tvungen varme-override ved for lav romtemperatur.
+  - VINTER default = varme, med tvungen kjøling-override ved for høy romtemperatur.
+  - Hysterese brukes for å slå override av igjen og unngå modus-flapping.
 
 Detaljert funksjonsbeskrivelse:
 - [README_varmepumpe_regulering.md](./README_varmepumpe_regulering.md)
