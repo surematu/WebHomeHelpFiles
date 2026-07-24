@@ -45,6 +45,7 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 - **Rom-climate** (overordnet): climate-entitet som gir pådragssignal og settpunkt (obligatorisk)
 - **Pumpe-climate** (varmepumpe): climate-entiteten som styres (obligatorisk)
 - **Varme-climate** (panelovn): valgfri climate-entitet som supplement (valgfri)
+- **Varme-switch** (digital utgang): valgfri switch-entitet som alternativ eller supplement til climate-panelovn (valgfri)
 - **`input_select.driftsmodus_vinter_sommer`**: kreves kun om kjøling er aktivert
 
 ## 5. Innstillinger
@@ -55,7 +56,8 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 |---|---:|---|
 | Pådrag – offset min | −1 °C | Offset som tilsvarer 0 % pådrag (brukes kun uten power_percent-signal) |
 | Pådrag – offset maks | +1 °C | Offset som tilsvarer 100 % pådrag |
-| Varme-climate (panelovn) | (tomt) | Valgfri panelovn-entitet som supplement ved høyt pådrag |
+| Varme-climate (panelovn) | (tomt) | Valgfri panelovn climate-entitet som supplement ved høyt pådrag |
+| Varme-switch (digital utgang) | (tomt) | Valgfri switch-entitet som alternativ eller supplement til climate-panelovn |
 
 ### Varmepumpe
 
@@ -86,7 +88,9 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Panelovn pådrag-grense (%) | 60 | Under grensen: kun varmepumpe. Over: panelovn aktiveres i tillegg |
-| Panelovn delta maks (°C) | 2,0 | Temperaturspenn for proporsjonal panelovn-styring |
+| Panelovn delta maks (°C) | 2,0 | Temperaturspenn for proporsjonal panelovn-styring (kun climate) |
+| Switch – Varme (digital utgang) | (tomt) | Valgfri switch-entitet for PWM-styring i stedet for eller i tillegg til climate |
+| Minimum on-tid for switch (s) | 10 | Kortere beregnet on-tid → switch holdes av (tilsvarer minimal_activation_delay i VT) |
 
 ### Varsling (debug)
 
@@ -101,6 +105,8 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 
 Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsmodus:
 
+> **Merk:** Laster (panelovn/switch) kan bare skrues av og på maksimalt hvert **10. minutt**. Trenger du raskere regulering, bør en ekstern climate med egne syklustider benyttes i stedet – se [9.3](#93-panelovn-som-digital-utgang-switchpwm) og [Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat) som eksempel.
+
 1. Leser pådragssignal fra rom-climate (power_percent → regulated_target_temperature → 50 % fallback)
 2. Beregner minimumspådrag basert på temperaturunderskudd og preset (eco/comfort/boost)
 3. Velger høyeste av beregnet pådrag og minimum
@@ -109,7 +115,7 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 6. Begrenser endringen til maks ±`maks_endring_per_kjoring` fra nåværende settpunkt (ramp)
 7. Runder av til heltall eller halvt grad
 8. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres
-9. Styrer panelovnen proporsjonalt basert på temperaturunderskudd (hvis konfigurert)
+9. Styrer panelovnen (climate og/eller switch) proporsjonalt basert på temperaturunderskudd og pådrag (hvis konfigurert)
 10. Justerer viftehastighet (hvis aktivert)
 
 **Kjølelogikk (krever driftsmodus-automasjonen):**
@@ -120,6 +126,7 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 
 - **Pumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov
 - **Varme-climate** (panelovn): settpunkt oppdateres proporsjonalt (settes til frost-setpunkt ved ingen behov)
+- **Varme-switch** (digital utgang): slås på og av med PWM basert på beregnet panelovn-pådrag
 - **Rom-climate** (overordnet): hvac_mode synkroniseres med beregnet modus (aldri endret fra «off»)
 
 ## 8. Varsling
@@ -152,6 +159,27 @@ Dette sikrer at varmepumpen får tid til å «komme opp i fart» før panelovnen
 
 Overordnet climate (rom_climate) oppdateres til samme modus som varmepumpen (heat/cool), men aldri dersom den er i «off»-modus.
 
+### 9.3 Panelovn som digital utgang (switch/PWM)
+
+Dersom en switch-entitet er konfigurert som varme-utgang, styres den med PWM (pulsbreddemodulasjon). Automasjonen kjøres med `mode: restart`, som betyr at en ny triggerhendelse avbryter pågående kjøring.
+
+- **Effektiv PWM-periode:** 10 minutter (automasjonens kjøreintervall, `pwm_period_sec = 600 s`)
+- **Beregning:** `on_time_actual = panelovn_maal_power % × 600 sekunder`
+- **Eksempel (60 % pådrag):** switch på i 360 s, deretter av i 240 s per 10-minutters vindu
+- **100 % pådrag:** on_time_actual = 600 s → neste 10-min trigger avbryter delay (mode:restart), `switch.turn_off` utføres aldri → switchen holdes permanent på gjennom neste kjøring
+- **0 % pådrag eller kortere on-tid enn minimum (`panelovn_switch_min_on_sec`):** switchen slås umiddelbart av
+
+**Syklustid fra Versatile Thermostat (referanse):**
+`configuration.cycle_min` leses fra overordnet climate og vises som trace-variabler:
+- `panelovn_switch_on_time_vt_sec` = on-tid i VT-syklusen (f.eks. 30 min × 60 % = 1080 s)
+- `panelovn_switch_off_time_vt_sec` = av-tid i VT-syklusen (720 s)
+
+Disse referanseverdiene er kun til informasjon og debug. Selve styringen bruker 10-minuttersvinduet fordi automasjonen kjøres hvert 10. minutt. Duty cycle-forholdet er identisk: 60 % pådrag gir 60 % av-/på-tid uavhengig av om man bruker VT-syklusen (30 min) eller 10-min vinduet.
+
+Switch og climate-panelovn kan brukes **samtidig** – begge styres uavhengig med samme beregnet panelovn-pådrag.
+
+> **Merk – reguleringstakt:** Switchen (og climate-panelovnen) justeres maksimalt hvert **10. minutt** fordi automasjonen kjøres med dette intervallet. Dersom raskere av/på-regulering er nødvendig, bør en ekstern climate med egne, kortere syklustider benyttes i stedet for switch-PWM-styringen her – f.eks. [Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat).
+
 ## 10. Avansert
 
 ### 10.1 Forutsettninger
@@ -159,7 +187,8 @@ Overordnet climate (rom_climate) oppdateres til samme modus som varmepumpen (hea
 - Rom-climate med pådragssignal (`power_percent` eller `regulated_target_temperature`)
 - Varmepumpe-climate med støtte for settpunkt-justering
 - For kjøling: `input_select.driftsmodus_vinter_sommer` (satt av `driftsmodus_varme_kjoling_automatisk`)
-- For panelovn: `preset_temperatures.frost_temp` på overordnet climate (fallback: 10 °C)
+- For panelovn (climate): `preset_temperatures.frost_temp` på overordnet climate (fallback: 10 °C)
+- For panelovn (switch): switch-entitet tilgjengelig i HA; syklustid (`configuration.cycle_min`) leses automatisk fra overordnet climate (fallback: 30 min)
 - For debug-varsler: Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
 
 ### 10.2 Relevante automasjoner og script
@@ -250,7 +279,14 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | `qnum_varmepumpe_req_spk` | Endelig settpunkt etter ramp og avrunding |
 | `onsket_mode` | Beregnet hvac-modus (`heat`/`cool`) |
 | `panelovn_hp_ready` | true når varmepumpen har nådd 80 % av varmekurven |
-| `panelovn_maal_power` | Panelovn mål-pådrag (0–100 %) |
+| `panelovn_maal_power` | Panelovn mål-pådrag (0–100 %) – brukes av både climate og switch |
+| `panelovn_vt_cycle_min` | Syklustid lest fra VT `configuration.cycle_min` (default 30 min) |
+| `panelovn_switch_configured` | true dersom switch-entitet er konfigurert |
+| `pwm_period_sec` | PWM-periode i sekunder (600 = 10 min, lik automasjonens kjøreintervall) |
+| `panelovn_switch_on_time_vt_sec` | Referanse on-tid i VT-syklus (sekunder) |
+| `panelovn_switch_off_time_vt_sec` | Referanse av-tid i VT-syklus (sekunder) |
+| `panelovn_switch_on_time_actual_sec` | Effektiv on-tid per 10-min kjøring (sekunder) |
+| `panelovn_switch_skal_aktiveres` | true dersom switch-PWM skal kjøres i denne runden |
 | `drift_is_sommer` / `drift_is_vinter` | Driftsmodus-status |
 | `summer_force_heat_on` / `winter_allow_cool_on` | Override-status |
 
@@ -264,11 +300,14 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | Varmepumpa støtter ikke fan-moder | Ingen vifte-oppdatering |
 | `driftsmodus_vinter_sommer` ugyldig | Varmepumpa holdes i `heat`-modus |
 | Settpunkt utenfor `[pumpe_temp_min, pumpe_temp_maks]` | Klippes til absolutt grense |
-| `varme_climate` ikke konfigurert | Panelovn-steg hoppes over |
+| `varme_climate` ikke konfigurert | Panelovn climate-steg hoppes over |
+| `varme_switch` ikke konfigurert | Panelovn switch-steg hoppes over |
 | `preset_temperatures.frost_temp` mangler | Bruker 10 °C som fallback |
 | Varme-climate utenfor `[min_temp, max_temp]` | Klippes til klimaets absolutte grenser |
-| Overordnet climate er `off` | Overordnet oppdateres ikke; panelovn settes til frost |
+| Overordnet climate er `off` | Overordnet oppdateres ikke; panelovn settes til frost; switch slås av |
 | `panelovn_padrag_grense` = 0 | hp_norm_power settes til 100 % (unngår divisjon med null) |
+| `configuration.cycle_min` mangler på overordnet climate | Bruker 30 min som fallback |
+| Beregnet switch on-tid < minimum aktiveringstid | Switch holdes av (PWM-syklus hoppes over) |
 
 ### 10.5 Varsling og debug info
 
