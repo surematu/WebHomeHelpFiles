@@ -105,6 +105,8 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 
 Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsmodus:
 
+> **Merk:** Laster (panelovn/switch) kan bare skrues av og på maksimalt hvert **10. minutt**. Trenger du raskere regulering, bør en ekstern climate med egne syklustider benyttes i stedet – se [9.3](#93-panelovn-som-digital-utgang-switchpwm) og [Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat) som eksempel.
+
 1. Leser pådragssignal fra rom-climate (power_percent → regulated_target_temperature → 50 % fallback)
 2. Beregner minimumspådrag basert på temperaturunderskudd og preset (eco/comfort/boost)
 3. Velger høyeste av beregnet pådrag og minimum
@@ -175,6 +177,8 @@ Dersom en switch-entitet er konfigurert som varme-utgang, styres den med PWM (pu
 Disse referanseverdiene er kun til informasjon og debug. Selve styringen bruker 10-minuttersvinduet fordi automasjonen kjøres hvert 10. minutt. Duty cycle-forholdet er identisk: 60 % pådrag gir 60 % av-/på-tid uavhengig av om man bruker VT-syklusen (30 min) eller 10-min vinduet.
 
 Switch og climate-panelovn kan brukes **samtidig** – begge styres uavhengig med samme beregnet panelovn-pådrag.
+
+> **Merk – reguleringstakt:** Switchen (og climate-panelovnen) justeres maksimalt hvert **10. minutt** fordi automasjonen kjøres med dette intervallet. Dersom raskere av/på-regulering er nødvendig, bør en ekstern climate med egne, kortere syklustider benyttes i stedet for switch-PWM-styringen her – f.eks. [Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat).
 
 ## 10. Avansert
 
