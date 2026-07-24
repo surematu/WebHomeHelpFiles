@@ -19,12 +19,13 @@ Funksjonen støtter i tillegg:
 
 ## 3) Forventede entiteter
 
-Blueprinten konfigureres med to climate-entiteter:
+Blueprinten konfigureres med to obligatoriske og én valgfri climate-entitet:
 
 | Entitet (input) | Beskrivelse |
 |---|---|
-| `climate` (rom_climate) | Rom-climate som gir pådragssignal og settpunkt |
+| `climate` (rom_climate) | Overordnet climate som gir pådragssignal og settpunkt |
 | `climate` (pumpe_climate) | Varmepumpe-climate som styres av automasjonen |
+| `climate` (varme_climate) | Valgfri. Varme-climate som styres basert på overordnet modus |
 
 Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring (krever at kjøling er aktivert):
 
@@ -34,12 +35,14 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 
 ## 4) Inngangsparametere
 
-### 4.1 Varme (rom-climate)
+### 4.1 Varme (overordnet climate)
 
 | Parameter | Standard | Beskrivelse |
 |---|---:|---|
 | `padrag_regulated_offset_min` | −1 °C | Offset relativt til settpunkt som tilsvarer 0 % pådrag (brukes kun når `regulated_target_temperature` finnes og `power_percent` mangler) |
 | `padrag_regulated_offset_maks` | +1 °C | Offset relativt til settpunkt som tilsvarer 100 % pådrag |
+| `varme_climate` | – | Valgfri varme-climate. Styres basert på overordnet modus (se avsnitt 8) |
+| `frostsikring_settpunkt` | 7 °C | Settpunkt på varme-climate når overordnet er av eller i kjøling |
 
 ### 4.2 Varmepumpe
 
@@ -171,7 +174,20 @@ Aktives kun når `vifte_boost` er satt til `true` og varmepumpa støtter fan-mod
 
 Viften oppdateres kun ved faktisk endring.
 
-## 8) Oppdateringslogikk (Steg 7)
+## 8) Varme-climate styring (Steg 8)
+
+Aktiveres kun når `varme_climate` er konfigurert.
+
+Styrer settpunktet på varme-climate basert på hvac-modus på overordnet:
+
+| Tilstand | Resultat |
+|---|---|
+| Overordnet er `off` eller `cool` | Varme-climate settpunkt settes til `frostsikring_settpunkt` (default 7 °C) |
+| Overordnet er `heat` | Varme-climate settpunkt settes lik overordnet settpunkt |
+
+Settpunktet oppdateres kun ved faktisk endring.
+
+## 9) Oppdateringslogikk (Steg 7)
 
 Varmepumpa oppdateres **kun når det er behov**:
 
@@ -181,7 +197,7 @@ Varmepumpa oppdateres **kun når det er behov**:
 
 Dette minimerer unødvendige skriv til varmepumpa og reduserer støy i logg og historikk.
 
-## 9) Feilhåndtering
+## 10) Feilhåndtering
 
 | Situasjon | Håndtering |
 |---|---|
@@ -191,8 +207,9 @@ Dette minimerer unødvendige skriv til varmepumpa og reduserer støy i logg og h
 | Varmepumpa støtter ikke fan-moder | Ingen vifte-oppdatering utføres |
 | `input_select.driftsmodus_vinter_sommer` har ugyldig verdi | Varmepumpa holdes i `heat`-modus |
 | Beregnet settpunkt utenfor `[pumpe_temp_min, pumpe_temp_maks]` | Klippes til absolutt grense |
+| `varme_climate` ikke konfigurert | Steg 8 hoppes over |
 
-## 10) Statusverdier for feilsøking
+## 11) Statusverdier for feilsøking
 
 Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler), inkludert:
 
@@ -220,8 +237,13 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `onsket_mode` – beregnet hvac-modus (`heat`/`cool`)
 - `skal_oppdatere_mode` – true hvis modus faktisk skal endres
 - `onsket_vifte` / `skal_oppdatere_vifte` – ønsket vifte-modus og om den skal settes
+- `iclimate_overordnet_hvac_mode` – hvac-modus på overordnet climate
+- `varme_styrt_er_av_eller_kjoling` – true hvis overordnet er av eller i kjøling
+- `varme_styrt_onsket_spk` – beregnet ønsket settpunkt for varme-climate
+- `varme_styrt_naa_spk` – gjeldende settpunkt på varme-climate
+- `varme_styrt_spk_update_needed` – true hvis varme-climate settpunkt skal endres
 
-## 11) Dokumentasjon
+## 12) Dokumentasjon
 
 - Blueprint-beskrivelsen lenker til denne README-filen:
   https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
