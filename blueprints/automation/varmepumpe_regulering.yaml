@@ -27,8 +27,8 @@ blueprint:
     Driftsmodus (krever at kjøling er aktivert):
     Bruker alltid input_select.driftsmodus_vinter_sommer med valgene VINTER og SOMMER for
     sesongbasert styring:
-      - SOMMER: foretrekker kjøling; tillater varme hvis romtemp er mer enn maks_endring_per_kjoring under settpunktet.
-      - VINTER: foretrekker varme; tillater kjøling kun hvis romtemp er mer enn maks_endring_per_kjoring over settpunktet.
+      - SOMMER: foretrekker kjøling; tillater varme hvis romtemp er mer enn inum_kjoling_sommer_kaldt_grense under settpunktet.
+      - VINTER: foretrekker varme; tillater kjøling kun hvis romtemp er mer enn inum_kjoling_vinter_varmt_grense over settpunktet.
       - Ugyldig verdi: bruker kun romtemperatur vs settpunkt for beslutning (fallback).
 
     Avrunding av settpunkt:
@@ -38,7 +38,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.02
+    Blueprint versjon: 2026.07.03
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -277,6 +277,36 @@ blueprint:
               mode: slider
               unit_of_measurement: "°C"
 
+        inum_kjoling_sommer_kaldt_grense:
+          name: SOMMER – tving varme når romtemp er så mange grader under settpunkt (°C)
+          description: >
+            I SOMMER-modus: tving heat-modus når iclimate_varme_rt_pv < iclimate_varme_rt_spk − denne verdien.
+            Sikrer at rommet ikke blir for kaldt selv om sommermodus foretrekker kjøling.
+            Default 2°C.
+          default: 2
+          selector:
+            number:
+              min: 0.5
+              max: 10
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
+
+        inum_kjoling_vinter_varmt_grense:
+          name: VINTER – tillat kjøling når romtemp er så mange grader over settpunkt (°C)
+          description: >
+            I VINTER-modus: tillat cool-modus som nødoverkobling når iclimate_varme_rt_pv >= iclimate_varme_rt_spk + denne verdien.
+            Sikrer at rommet ikke blir for varmt selv om vintermodus foretrekker varme.
+            Default 2°C.
+          default: 2
+          selector:
+            number:
+              min: 0.5
+              max: 10
+              step: 0.5
+              mode: slider
+              unit_of_measurement: "°C"
+
 mode: restart
 
 triggers:
@@ -307,6 +337,8 @@ actions:
       ix_kjoling_aktiv: !input ix_kjoling_aktiv
       inum_kjoling_pa_delta: !input inum_kjoling_pa_delta
       inum_kjoling_av_delta: !input inum_kjoling_av_delta
+      inum_kjoling_sommer_kaldt_grense: !input inum_kjoling_sommer_kaldt_grense
+      inum_kjoling_vinter_varmt_grense: !input inum_kjoling_vinter_varmt_grense
       inum_min_padrag_comfort: !input min_padrag_comfort
       inum_min_padrag_eco: !input min_padrag_eco
       inum_min_padrag_boost: !input min_padrag_boost
@@ -470,7 +502,7 @@ actions:
             {% if not drift_available %}
               {{ 'cool' if (WantCool_SetpointComfOrHihger and WantCoolCauseHightTemp) else 'heat' }}
             {% elif drift_is_sommer %}
-              {% set force_heat = (iclimate_varme_rt_pv | float) < (iclimate_varme_rt_spk | float) - (inum_max_step | float) %}
+              {% set force_heat = (iclimate_varme_rt_pv | float) < (iclimate_varme_rt_spk | float) - (inum_kjoling_sommer_kaldt_grense | float) %}
               {% if force_heat %}
                 heat
               {% elif WantCool_SetpointComfOrHihger and WantCoolCauseHightTemp %}
@@ -479,7 +511,7 @@ actions:
                 heat
               {% endif %}
             {% else %}
-              {% set allow_cool = WantCool_SetpointComfOrHihger and WantCoolCauseHightTemp and (iclimate_varme_rt_pv | float) > (iclimate_varme_rt_spk | float) + (inum_max_step | float) %}
+              {% set allow_cool = WantCool_SetpointComfOrHihger and WantCoolCauseHightTemp and (iclimate_varme_rt_pv | float) > (iclimate_varme_rt_spk | float) + (inum_kjoling_vinter_varmt_grense | float) %}
               {{ 'cool' if allow_cool else 'heat' }}
             {% endif %}
           skal_oppdatere_mode: "{{ (onsket_mode | string | trim) != (iclimate_varmepumpe_mode | string | trim) }}"
