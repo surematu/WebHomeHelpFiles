@@ -71,8 +71,8 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 | Parameter | Standard | Beskrivelse |
 |---|---:|---|
 | `ix_kjoling_aktiv` | false | Aktiver kjøling for automatisk bytte mellom heat og cool |
-| `inum_kjoling_pa_delta` | 2 °C | Delta over settpunkt for å aktivere kjøling i fallback uten gyldig driftsmodus |
-| `inum_kjoling_av_delta` | 0.5 °C | Hysterese for å slå av aktiv override i driftsmodus (og AV-terskel i fallback) |
+| `inum_kjoling_av_delta_sommer` | 0.5 °C | SOMMER: hysterese for å slå av tvungen varme-override |
+| `inum_kjoling_av_delta_vinter` | 0.5 °C | VINTER: hysterese for å slå av tvungen kjøle-override |
 | `inum_kjoling_sommer_kaldt_grense` | 2 °C | SOMMER: tving heat når romtemp er mer enn denne verdien under settpunkt |
 | `inum_kjoling_vinter_varmt_grense` | 2 °C | VINTER: tillat cool som nødoverkobling når romtemp er mer enn denne verdien over settpunkt |
 
@@ -123,11 +123,7 @@ Varmepumpa kjøres alltid i `heat`-modus. Ingen modusbytte utføres.
 
 ### 6.2 Kjøling aktivert – driftsmodus ugyldig verdi (fallback)
 
-Hvis `input_select.driftsmodus_vinter_sommer` ikke har verdi VINTER eller SOMMER (f.eks. unavailable), baseres beslutning utelukkende på romtemperatur vs settpunkt:
-
-- Bytt til `cool` når `romtemperatur ≥ settpunkt + kjoling_pa_delta`
-- Bytt tilbake til `heat` når `romtemperatur ≤ settpunkt + kjoling_av_delta` (hysterese)
-- Kjøling sperres alltid når settpunkt er under comfort-settpunkt (f.eks. eco/natt-senking) – pumpa tvinges til `heat`
+Hvis `input_select.driftsmodus_vinter_sommer` ikke har verdi VINTER eller SOMMER (f.eks. unavailable), holdes varmepumpa i `heat`-modus inntil driftsmodus igjen er tilgjengelig.
 
 ### 6.3 Kjøling aktivert – med driftsmodus (VINTER / SOMMER)
 
@@ -136,7 +132,9 @@ Bruker alltid `input_select.driftsmodus_vinter_sommer` (sett av `driftsmodus_var
 - **SOMMER default:** `cool`
 - **VINTER default:** `heat`
 
-Override aktiveres kun ved store avvik, og hysterese (`inum_kjoling_av_delta`) brukes for å slå override av igjen:
+Override aktiveres kun ved store avvik, og separate hystereseverdier brukes for å slå override av igjen:
+- **SOMMER:** `inum_kjoling_av_delta_sommer` – hysterese for å avslutte tvungen varme
+- **VINTER:** `inum_kjoling_av_delta_vinter` – hysterese for å avslutte tvungen kjøling
 
 #### SOMMER (default = kjøling)
 
@@ -144,7 +142,7 @@ Override aktiveres kun ved store avvik, og hysterese (`inum_kjoling_av_delta`) b
 |---|---|
 | Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
 | Romtemp < settpunkt − `inum_kjoling_sommer_kaldt_grense` | `heat` (override PÅ: tvungen varme) |
-| Aktiv tvungen varme og romtemp < settpunkt + `inum_kjoling_av_delta` | `heat` (override holdes aktiv) |
+| Aktiv tvungen varme og romtemp < settpunkt + `inum_kjoling_av_delta_sommer` | `heat` (override holdes aktiv) |
 | Ellers | `cool` (override AV, tilbake til default) |
 
 #### VINTER (default = varme)
@@ -153,12 +151,12 @@ Override aktiveres kun ved store avvik, og hysterese (`inum_kjoling_av_delta`) b
 |---|---|
 | Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
 | Romtemp > settpunkt + `inum_kjoling_vinter_varmt_grense` | `cool` (override PÅ: tvungen kjøling) |
-| Aktiv tvungen kjøling og romtemp > settpunkt − `inum_kjoling_av_delta` | `cool` (override holdes aktiv) |
+| Aktiv tvungen kjøling og romtemp > settpunkt − `inum_kjoling_av_delta_vinter` | `cool` (override holdes aktiv) |
 | Ellers | `heat` (override AV, tilbake til default) |
 
-Tanken bak oppsettet er at driftsmodus bestemmer normal retning, mens dedikerte terskler (`inum_kjoling_sommer_kaldt_grense` og `inum_kjoling_vinter_varmt_grense`) avgjør når override skal slå inn. Hysterese brukes kun for å avslutte override stabilt, slik at modus ikke flapper rundt tersklene.
+Tanken bak oppsettet er at driftsmodus bestemmer normal retning, mens dedikerte terskler (`inum_kjoling_sommer_kaldt_grense` og `inum_kjoling_vinter_varmt_grense`) avgjør når override skal slå inn. Separate hystereseverdier (`inum_kjoling_av_delta_sommer` og `inum_kjoling_av_delta_vinter`) brukes kun for å avslutte override stabilt, slik at modus ikke flapper rundt tersklene.
 
-Dersom `input_select.driftsmodus_vinter_sommer` har en ugyldig verdi, brukes logikken fra avsnitt 6.2 (temperaturbasert fallback).
+Dersom `input_select.driftsmodus_vinter_sommer` har en ugyldig verdi, holdes varmepumpa i `heat`-modus (se avsnitt 6.2).
 
 ## 7) Viftelogikk (Steg 5)
 
@@ -191,7 +189,7 @@ Dette minimerer unødvendige skriv til varmepumpa og reduserer støy i logg og h
 | `regulated_target_temperature` mangler | Bruker 50 % som standardpådrag |
 | `comfort_temp` mangler | Bruker rom-settpunkt direkte som basis |
 | Varmepumpa støtter ikke fan-moder | Ingen vifte-oppdatering utføres |
-| `input_select.driftsmodus_vinter_sommer` har ugyldig verdi | Faller tilbake til temperaturbasert kjøle-/varme-beslutning |
+| `input_select.driftsmodus_vinter_sommer` har ugyldig verdi | Varmepumpa holdes i `heat`-modus |
 | Beregnet settpunkt utenfor `[pumpe_temp_min, pumpe_temp_maks]` | Klippes til absolutt grense |
 
 ## 10) Statusverdier for feilsøking
@@ -214,9 +212,8 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `qnum_varmepumpe_req_spk` – endelig settpunkt etter ramp og avrunding
 - `qx_varmepumpe_spk_update_needed` – true hvis settpunkt faktisk skal endres
 - `WantCool_SetpointComfOrHihger` – kjøling tillatt (settpunkt ≥ comfort)
-- `WantCoolCauseHighTempFallback` – fallback-kjøling ønsket (romtemp over delta uten gyldig driftsmodus)
 - `drift_modus_raw` / `drift_is_sommer` / `drift_is_vinter` / `drift_available` – driftsmodus-status
-- `drift_hysterese` – hysterese brukt for å avslutte override i driftsmodus
+- `drift_hysterese_sommer` / `drift_hysterese_vinter` – hysterese brukt for å avslutte override i driftsmodus
 - `summer_force_heat_on` / `summer_force_heat_keep` – sommer-override på/hold
 - `winter_allow_cool_on` / `winter_allow_cool_keep` – vinter-override på/hold
 - `inum_kjoling_sommer_kaldt_grense` / `inum_kjoling_vinter_varmt_grense` – dedikerte terskler for edge case
