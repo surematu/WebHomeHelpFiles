@@ -719,6 +719,10 @@ actions:
   - variables:
       panelovn_switch_configured: "{{ (iswitch_varme_styrt | string) not in ['', 'None', 'none'] }}"
   - variables:
+      # PWM-periode i sekunder = automasjonens kjøreintervall (10 min).
+      # Brukes som fellesvariabel for alle switch-tidsberegninger.
+      pwm_period_sec: 600
+  - variables:
       # Referanse on-tid basert på VT-syklus (cycle_min). Vises i trace for informasjon.
       panelovn_switch_on_time_vt_sec: >-
         {{ ((panelovn_maal_power | float(0)) / 100 * panelovn_vt_cycle_min * 60) | round(0) | int }}
@@ -727,9 +731,11 @@ actions:
       panelovn_switch_off_time_vt_sec: >-
         {{ ((1 - (panelovn_maal_power | float(0)) / 100) * panelovn_vt_cycle_min * 60) | round(0) | int }}
   - variables:
-      # Effektiv on-tid per kjøring (10-min vindu = 600 sek). Duty cycle = panelovn_maal_power %.
+      # Effektiv on-tid per kjøring (pwm_period_sec). Duty cycle = panelovn_maal_power %.
+      # Automasjonen kjører mode:restart, så ved 100 % avbrytes delay av neste trigger,
+      # og switchen holdes på gjennom neste kjøring uten at turn_off noensinne utføres.
       panelovn_switch_on_time_actual_sec: >-
-        {{ ((panelovn_maal_power | float(0)) / 100 * 600) | round(0) | int }}
+        {{ ((panelovn_maal_power | float(0)) / 100 * pwm_period_sec) | round(0) | int }}
   - variables:
       # true dersom switch skal aktiveres (konfigurert og on-tid >= minimum aktiveringstid)
       panelovn_switch_skal_aktiveres: >-
@@ -907,10 +913,12 @@ actions:
               temperature: "{{ varme_styrt_onsket_spk }}"
 
   # Steg 9b: panelovn switch PWM-styring (valgfri – kun når varme_switch er konfigurert)
-  # Effektiv PWM-periode er 10 minutter (= automasjonens kjøreintervall).
+  # Automasjonen kjører mode:restart (linje 456), dvs. ny trigger avbryter pågående kjøring.
+  # Effektiv PWM-periode er pwm_period_sec (600 s = automasjonens kjøreintervall på 10 min).
   # Switchen slås på i panelovn_switch_on_time_actual_sec sekunder, deretter av for resten.
-  # Ved 100 % pådrag (on_time=600s) vil mode:restart avbryte delay, og switchen holdes på.
-  # Referanse on/av-tider fra VT cycle_min vises som trace-variabler (panelovn_switch_on/off_time_vt_sec).
+  # Ved 100 % pådrag (on_time=600s) avbryter neste 10-min trigger delay-en,
+  # og turn_off utføres aldri – switchen holdes på gjennom neste kjøring.
+  # Referanse on/av-tider fra VT cycle_min vises som trace-variabler for informasjon.
   - if:
       - condition: template
         value_template: "{{ panelovn_switch_configured }}"

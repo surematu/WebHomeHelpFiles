@@ -159,22 +159,22 @@ Overordnet climate (rom_climate) oppdateres til samme modus som varmepumpen (hea
 
 ### 9.3 Panelovn som digital utgang (switch/PWM)
 
-Dersom en switch-entitet er konfigurert som varme-utgang, styres den med PWM (pulsbreddemodulasjon):
+Dersom en switch-entitet er konfigurert som varme-utgang, styres den med PWM (pulsbreddemodulasjon). Automasjonen kjøres med `mode: restart`, som betyr at en ny triggerhendelse avbryter pågående kjøring.
 
-- **Effektiv PWM-periode:** 10 minutter (automasjonens kjøreintervall)
-- **Beregning:** `on_time = panelovn_maal_power % × 600 sekunder`
+- **Effektiv PWM-periode:** 10 minutter (automasjonens kjøreintervall, `pwm_period_sec = 600 s`)
+- **Beregning:** `on_time_actual = panelovn_maal_power % × 600 sekunder`
 - **Eksempel (60 % pådrag):** switch på i 360 s, deretter av i 240 s per 10-minutters vindu
-- **100 % pådrag:** switchen holdes permanent på (automasjonens `mode: restart` avbryter delay, og ny kjøring slår den på igjen)
-- **0 % pådrag eller kortere on-tid enn minimum:** switchen slås umiddelbart av
+- **100 % pådrag:** on_time_actual = 600 s → neste 10-min trigger avbryter delay (mode:restart), `switch.turn_off` utføres aldri → switchen holdes permanent på gjennom neste kjøring
+- **0 % pådrag eller kortere on-tid enn minimum (`panelovn_switch_min_on_sec`):** switchen slås umiddelbart av
 
-**Syklustid fra Versatile Thermostat:**
-`configuration.cycle_min` leses fra overordnet climate og vises som trace-variabler for referanse:
-- `panelovn_switch_on_time_vt_sec` = hva on-tid ville vært i VT-syklusen
-- `panelovn_switch_off_time_vt_sec` = hva av-tid ville vært i VT-syklusen
+**Syklustid fra Versatile Thermostat (referanse):**
+`configuration.cycle_min` leses fra overordnet climate og vises som trace-variabler:
+- `panelovn_switch_on_time_vt_sec` = on-tid i VT-syklusen (f.eks. 30 min × 60 % = 1080 s)
+- `panelovn_switch_off_time_vt_sec` = av-tid i VT-syklusen (720 s)
 
-Disse er kun til informasjon – selve styringen bruker 10-minutters vinduet for å matche automasjonens kjøreintervall og gi nøyaktig duty cycle.
+Disse referanseverdiene er kun til informasjon og debug. Selve styringen bruker 10-minuttersvinduet fordi automasjonen kjøres hvert 10. minutt. Duty cycle-forholdet er identisk: 60 % pådrag gir 60 % av-/på-tid uavhengig av om man bruker VT-syklusen (30 min) eller 10-min vinduet.
 
-Switch og climate-panelovn kan brukes **samtidig** – begge styres uavhengig med samme panelovn-pådrag.
+Switch og climate-panelovn kan brukes **samtidig** – begge styres uavhengig med samme beregnet panelovn-pådrag.
 
 ## 10. Avansert
 
@@ -278,6 +278,7 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | `panelovn_maal_power` | Panelovn mål-pådrag (0–100 %) – brukes av både climate og switch |
 | `panelovn_vt_cycle_min` | Syklustid lest fra VT `configuration.cycle_min` (default 30 min) |
 | `panelovn_switch_configured` | true dersom switch-entitet er konfigurert |
+| `pwm_period_sec` | PWM-periode i sekunder (600 = 10 min, lik automasjonens kjøreintervall) |
 | `panelovn_switch_on_time_vt_sec` | Referanse on-tid i VT-syklus (sekunder) |
 | `panelovn_switch_off_time_vt_sec` | Referanse av-tid i VT-syklus (sekunder) |
 | `panelovn_switch_on_time_actual_sec` | Effektiv on-tid per 10-min kjøring (sekunder) |
