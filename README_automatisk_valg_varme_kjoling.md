@@ -29,6 +29,11 @@ Ved hver kjøring brukes følgende når tilgjengelig:
 - Gjeldende dato
 - Gjeldende driftsmodus
 
+Følgende entiteter er **hardkodet** i blueprinten (konfigureres ikke i UI):
+- `input_select.driftsmodus_vinter_sommer` – driftsmodus-helper med valgene VINTER og SOMMER
+- `sensor.utetemperatur` – nåværende utetemperatur
+- `sensor.utetemperatur_snitt_72_timer` – gjennomsnittstemperatur siste 72 timer
+
 ### Prioritet temperaturgrunnlag
 1. Gjennomsnitt av tilgjengelige temperaturverdier siste 72 timer (`sensor.utetemperatur_snitt_72_timer`)
 2. Nåværende utetemperatur (`sensor.utetemperatur`) hvis historikk mangler
@@ -149,15 +154,16 @@ Avanserte innstillinger for varsling:
 
 ## 10) Feilhåndtering (prioritet)
 
-1. Vinterperiode => VINTER
-2. Bruk historikk hvis tilgjengelig (`sensor.utetemperatur_snitt_72_timer`)
-3. Ellers bruk nåverdi (`sensor.utetemperatur`)
-4. Hvis begge mangler: kalenderreserve
-5. Mangler temperaturprognose: hopp over prognose-regler
-6. Mangler skydekning: soltillegg = 0 °C
-7. `sensor.utetemperatur` utilgjengelig: alltid varsel uavhengig av om historikk kompenserte
-8. Ved modusendring med manglende data: opplys i varsel
-9. Ved vesentlig datamangel uten endring: info-/avviksvarsel
+1. **Driftsmodus-validering**: Hvis `input_select.driftsmodus_vinter_sommer` mangler eller ikke har valgene VINTER og SOMMER → send feilvarsel og avbryt kjøring
+2. Vinterperiode => VINTER
+3. Bruk historikk hvis tilgjengelig (`sensor.utetemperatur_snitt_72_timer`)
+4. Ellers bruk nåverdi (`sensor.utetemperatur`)
+5. Hvis begge mangler: kalenderreserve
+6. Mangler temperaturprognose: hopp over prognose-regler
+7. Mangler skydekning: soltillegg = 0 °C
+8. `sensor.utetemperatur` utilgjengelig: alltid varsel uavhengig av om historikk kompenserte
+9. Ved modusendring med manglende data: opplys i varsel
+10. Ved vesentlig datamangel uten endring: info-/avviksvarsel
 
 ## 11) Statusverdier for feilsøking
 
