@@ -20,11 +20,13 @@ blueprint:
 
     Ved varme (heat):
       Pådrag 0–panelovn_padrag_grense% (default 60%) styrer varmepumpe normalisert 0–100%.
-      Pådrag panelovn_padrag_grense–100% aktiverer i tillegg varme-climate (panelovn)
+      Pådrag panelovn_padrag_grense–100% kan aktivere i tillegg varme-climate (panelovn)
       med proporsjonal temperatur-styring (ingen binær av/på):
         - Panelovn-settpunkt skaleres lineært fra frost-setpunkt (romtemp ≥ settpunkt)
           til rom-settpunkt (romtemp ≥ panelovn_delta_maks °C under settpunkt, default 2°C).
         - Lineær interpolasjon – panelovnen øker gradvis uten plutselig av/på-sykler.
+        - Panelovnen holdes igjen til varmepumpas faktiske settpunkt har nådd minst 80 %
+          av varmepumpas egen varmekurve, slik at varmepumpa får prøve først.
       Formål: prioritere varmepumpa; panelovn brukes som proporsjonal supplement.
 
     Ved kjøling (cool):
@@ -58,7 +60,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.14
+    Blueprint versjon: 2026.07.15
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -353,7 +355,9 @@ blueprint:
           name: Pådrag-grense varmepumpe / panelovn (%)
           description: >
             Ved varme: pådrag 0–[grense]% styrer varmepumpe normalisert 0–100%.
-            Pådrag [grense]–100% aktiverer i tillegg panelovn (varme-climate).
+            Pådrag [grense]–100% kan aktivere i tillegg panelovn (varme-climate),
+            men først når varmepumpas faktiske settpunkt tilsvarer minst 80%
+            av varmepumpas egen varmekurve.
             Standard 60 %. Krever at varme-climate er konfigurert.
           default: 60
           selector:
@@ -628,6 +632,8 @@ actions:
 
   # Steg 5: normaliser pådrag for varmepumpe og panelovn
   - variables:
+      iclimate_varme_rt_max_spk_spcomfort: "{{ [iclimate_varme_rt_spk, iclimate_varme_rt_sp_comfort_spkifnocomfort] | max }}"
+  - variables:
       hp_padrag_grense: "{{ inum_panelovn_padrag_grense | float(60) }}"
   - variables:
       # Varme: pådrag 0–grense% normaliseres til 0–100% for varmepumpe.
@@ -637,13 +643,29 @@ actions:
         {% set g = hp_padrag_grense | float(60) %}
         {{ ([(p / g) * 100, 100] | min) if g > 0 else 100 }}
   - variables:
+      hp_heat_spk_min: "{{ (iclimate_varme_rt_max_spk_spcomfort | float(0)) + (inum_offset_min | float(0)) }}"
+      hp_heat_spk_max: "{{ (iclimate_varme_rt_max_spk_spcomfort | float(0)) + (inum_offset_maks | float(0)) }}"
+  - variables:
+      hp_actual_power_heat: >-
+        {% set spk_now = iclimate_varmepumpe_rt_spk | float(0) %}
+        {% set spk_min = hp_heat_spk_min | float(0) %}
+        {% set spk_max = hp_heat_spk_max | float(0) %}
+        {% set span = spk_max - spk_min %}
+        {% if span <= 0 %}
+          100
+        {% else %}
+          {{ [[((spk_now - spk_min) / span) * 100, 0] | max, 100] | min }}
+        {% endif %}
+  - variables:
+      panelovn_hp_ready: "{{ (hp_actual_power_heat | float(0)) >= 80 }}"
+  - variables:
       # Panelovn: pådrag grense–100% normaliseres til 0–100%.
       # Er alltid 0 ved kjøling eller når varme-climate ikke er konfigurert.
       panelovn_maal_power: >-
         {% set p = varmepumpe_output_power | float(0) %}
         {% set g = hp_padrag_grense | float(60) %}
         {% set rest = 100.0 - g %}
-        {% if onsket_mode != 'heat' or (iclimate_varme_styrt | string) in ['', 'None', 'none'] %}
+        {% if onsket_mode != 'heat' or (iclimate_varme_styrt | string) in ['', 'None', 'none'] or not (panelovn_hp_ready | bool) %}
           0
         {% elif rest <= 0 %}
           100
@@ -652,8 +674,6 @@ actions:
         {% endif %}
 
   # Steg 6: beregn ønsket settpunkt (modus-bevisst)
-  - variables:
-      iclimate_varme_rt_max_spk_spcomfort: "{{ [iclimate_varme_rt_spk, iclimate_varme_rt_sp_comfort_spkifnocomfort] | max }}"
   - variables:
       # Effektivt hp-pådrag:
       # - Varme: normalisert (0–grense% → 0–100%), panelovn tar over etter grense
@@ -801,7 +821,8 @@ actions:
       - variables:
           varme_styrt_onsket_spk_raw: >-
             {% if iclimate_overordnet_hvac_mode == 'off' or onsket_overordnet_mode == 'cool'
-               or (panelovn_maal_power | float(0)) == 0 %}
+               or (panelovn_maal_power | float(0)) == 0
+               or not (panelovn_hp_ready | bool) %}
               {{ iclimate_varme_frost_temp | float(10) }}
             {% else %}
               {{ (iclimate_varme_frost_temp | float(10))
