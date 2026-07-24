@@ -1,91 +1,157 @@
-# Funksjonsbeskrivelse – Automatisk valg av vinter- eller sommermodus
+# Driftsmodus – Automatisk valg av varme- eller kjølemodus
 
-## 1) Formål
+## 1. Formål
 
-Denne funksjonen velger automatisk driftsmodus **VINTER** eller **SOMMER**.
-Valgt modus brukes av andre reguleringsfunksjoner.
+Denne automasjonen velger automatisk driftsmodus **VINTER** eller **SOMMER** én gang per dag, basert på utetemperatur og værvarselet.
 
-Funksjonen skal **kun** velge tillatt driftsmodus, og skal ikke:
-- regulere temperatursettpunkter
-- styre varme-/kjøleeffekt direkte
-- starte/stoppe varmepumpen direkte
+Valgt modus brukes av andre reguleringsfunksjoner (f.eks. varmepumpe-regulering) for å vite om systemet skal kjøre varme eller kjøling.
 
-Normalmodus er **VINTER** når kjølebehov ikke er påvist.
-Det finnes ingen nøytral modus.
+Automasjonen skal **kun** velge tillatt driftsmodus. Den regulerer ikke temperaturer, varme- eller kjøleeffekt direkte.
 
-## 2) Kjøretid
+## 2. Eksempler på bruk
 
-- Kjøring: hver dag kl. **20:00**
-- Valgt modus beholdes til neste kjøring
-- Modus skal ikke endres kontinuerlig gjennom døgnet
+- **Overgangen vår→sommer:** Gjennomsnittstemperaturen siste 3 dager er over 15 °C og værmeldingen viser maks over 25 °C neste dag. Systemet bytter til SOMMER-modus og varmepumpen kan starte kjøling.
+- **Tidlig høst:** Det har vært varmt, men makstemperaturen neste dag er kun 20 °C. Systemet forblir i SOMMER-modus fordi temperaturen fortsatt er over «stoppgrensen».
+- **Fast vinterperiode:** Det er 15. november. Uavhengig av vær: systemet velger alltid VINTER i november–februar.
+- **Ekstrem varme:** Prognosert maks er 30 °C neste dag. Systemet bytter til SOMMER selv om gjennomsnittstemperaturen er lav.
 
-## 3) Datagrunnlag
+## 3. FAQ – Ofte stilte spørsmål
 
-Ved hver kjøring brukes følgende når tilgjengelig:
-- Gjennomsnittstemperatur siste 72 timer (`sensor.utetemperatur_snitt_72_timer`)
-- Nåværende utetemperatur (`sensor.utetemperatur`)
-- Prognosert maksimumstemperatur neste døgn
-- Prognosert skydekning neste døgn kl. 10:00–18:00
-- Gjeldende dato
-- Gjeldende driftsmodus
+**Kan jeg bytte modus manuelt?**
+Ja, du kan manuelt endre `input_select.driftsmodus_vinter_sommer` i Home Assistant. Men neste kveld kl. 20:00 vil automasjonen overskrive dette hvis beregnet modus er annerledes.
 
-Følgende entiteter er konfigurert som blueprint-input:
-- `input_select.driftsmodus_vinter_sommer` – driftsmodus-helper med valgene VINTER og SOMMER (standard, kan endres i UI)
+**Hva skjer om temperaturdata mangler?**
+Automasjonen har fallback-logikk: bruker nåværende utetemperatur hvis historikk mangler, og kalenderperiode (faste datoer) som siste utvei. Du vil motta varsel hvis data mangler.
 
-Følgende entiteter er **hardkodet** i blueprinten (konfigureres ikke i UI):
-- `sensor.utetemperatur` – nåværende utetemperatur
-- `sensor.utetemperatur_snitt_72_timer` – gjennomsnittstemperatur siste 72 timer
+**Hva er fast vinterperiode og sommerperiode?**
+Faste perioder er sikkerhetsgrenser: november–februar er alltid VINTER, juni–august er alltid riktig modus basert på beregninger. Disse kan endres i innstillingene.
 
-### Prioritet temperaturgrunnlag
-1. Gjennomsnitt av tilgjengelige temperaturverdier siste 72 timer (`sensor.utetemperatur_snitt_72_timer`)
-2. Nåværende utetemperatur (`sensor.utetemperatur`) hvis historikk mangler
-3. Kalenderbasert reservefunksjon hvis begge mangler
+**Hva er «soltillegg»?**
+På dager med lite skyer er sola varmere og den faktiske temperaturen høyere. Soltillegget legger til noen grader på prognosert maksimumstemperatur basert på skydekning – for å gi en mer realistisk vurdering.
 
-## 4) Beregnede verdier
+**Hva er «hysterese»?**
+Hysterese er en buffer som hindrer systemet i å hoppe frem og tilbake mellom VINTER og SOMMER ved grenseverdier. Systemet forblir i SOMMER-modus selv om temperaturen faller litt under «stoppgrensen».
 
-### 4.1 Temperaturgrunnlag
-- Bruker prioritet over
-- Verdien omtales som: **Gjennomsnittstemperatur siste 72 timer**
+**Varsler automasjonen meg ved modusendring?**
+Ja, du får et Pushover-varsel når modus endres, og kan velge å få begrunnelse med i varselet.
 
-### 4.2 Soltillegg basert på skydekning (10:00–18:00)
-Faste intervaller:
-- 0–25 %
-- 26–50 %
-- 51–75 %
-- 76–100 %
+## 4. Hva slags info trengs
 
-Hvis skydekningsprognose mangler: soltillegg = 0 °C.
+- En **vær-entitet** i Home Assistant som støtter prognose (f.eks. yr.no)
+- En **`input_select`-entitet** med valgene VINTER og SOMMER (standard: `input_select.driftsmodus_vinter_sommer`)
+- Følgende entiteter er **hardkodet** og må eksistere i Home Assistant:
+  - `sensor.utetemperatur` – nåværende utetemperatur
+  - `sensor.utetemperatur_snitt_72_timer` – gjennomsnittstemperatur siste 72 timer (se eksempel i avansert seksjon)
 
-### 4.3 Makstemperatur neste døgn inkl. soltillegg
-`Makstemperatur inkl. soltillegg = Prognosert maks neste døgn + Soltillegg`
+## 5. Innstillinger
 
-Verdien brukes kun som beslutningsgrunnlag.
+**Kalenderperioder:**
 
-## 5) Parametere (standard)
+| Innstilling | Standard | Forklaring |
+|---|---:|---|
+| Fast vinterperiode start | 1. november | Fra denne datoen: alltid VINTER |
+| Fast vinterperiode slutt | 1. mars | Til denne datoen: alltid VINTER |
+| Fast sommerperiode start | 1. juni | Start av sommerperioden |
+| Fast sommerperiode slutt | 31. august | Slutt av sommerperioden |
 
-| Parameter | Standard |
-|---|---:|
-| Fast vinterperiode start | 1. november |
-| Fast vinterperiode slutt | 1. mars |
-| Fast sommerperiode start | 1. juni |
-| Fast sommerperiode slutt | 31. august |
-| Sommergrense – gjennomsnitt siste 72 timer | 15 °C |
-| Start kjøling – makstemperatur inkl. soltillegg | 23 °C |
-| Stopp kjøling – makstemperatur inkl. soltillegg | 20 °C |
-| Ekstrem varme – prognosert maks neste døgn | 27 °C |
-| Soltillegg ved 0–25 % skydekning | 3 °C |
-| Soltillegg ved 26–50 % skydekning | 2 °C |
-| Soltillegg ved 51–75 % skydekning | 1 °C |
-| Soltillegg ved 76–100 % skydekning | 0 °C |
+**Terskler og soltillegg:**
 
-## 5.1) Anbefalt helper (eksempel-YAML)
+| Innstilling | Standard | Forklaring |
+|---|---:|---|
+| Sommergrense – snitt 72 timer | 15 °C | Snitttemperatur over denne → kan bytte til SOMMER |
+| Start kjøling – maks neste dag inkl. soltillegg | 25 °C | Skift til SOMMER når maks er over denne |
+| Stopp kjøling – maks neste dag inkl. soltillegg | 22 °C | Behold SOMMER mens maks er over denne (hysterese) |
+| Ekstrem varme – prognosert maks neste dag | 28 °C | Bytt til SOMMER uavhengig av snitttemperatur |
+| Soltillegg ved 0–25 % skydekning | 3 °C | Legges til prognosert maks ved klart vær |
+| Soltillegg ved 26–50 % skydekning | 2 °C | Legges til ved litt skydekke |
+| Soltillegg ved 51–75 % skydekning | 1 °C | Legges til ved mye skydekke |
+| Soltillegg ved 76–100 % skydekning | 0 °C | Ingen tillegg ved overskyet |
 
-### Gjennomsnittstemperatur siste 72 timer
+**Valgfritt:**
 
-Blueprinten bruker alltid `sensor.utetemperatur_snitt_72_timer` for 72t snitt
-og `sensor.utetemperatur` for nåværende utetemperatur (begge er hardkodet).
-`input_select.driftsmodus_vinter_sommer` velges som blueprint-input (standard).
+| Innstilling | Standard | Forklaring |
+|---|---:|---|
+| Pushover destination | pushover | Mottakergruppe. La stå tomt for å deaktivere varsling |
+| Pushover prioritet | 0 | Prioritet for varselet |
+| Pushover TTL (sekunder) | 604800 | Levetid for varselet |
 
+**Avansert:**
+
+| Innstilling | Standard | Forklaring |
+|---|---:|---|
+| Kjør automatisk kl. 20:00 | true | Sett til av for å deaktivere automatisk kjøring |
+| Send varsel ved manuell kjøring | true | Sett til av for å ikke varsle ved manuell kjøring |
+| Vis ekstra begrunnelse | true | Inkluder detaljert begrunnelse i varselet |
+
+## 6. Funksjonsbeskrivelse
+
+Automasjonen kjøres automatisk kl. 20:00 hver kveld og sjekker følgende regler i rekkefølge (stopper ved første treff):
+
+1. **Fast vinterperiode:** Er datoen i vinterperioden? → VINTER
+2. **Etablert varmt vær:** Snitt 72t over sommergrense **og** prognosert maks inkl. soltillegg over startgrense → SOMMER
+3. **Ekstrem varme:** Prognosert maks over ekstremgrense → SOMMER
+4. **Behold SOMMER (hysterese):** Allerede i SOMMER **og** prognosert maks inkl. soltillegg over stoppgrense → behold SOMMER
+5. **Behold SOMMER uten prognose:** Allerede i SOMMER, prognose mangler, men snitt 72t er over sommergrense → behold SOMMER
+6. **Reserve ved manglende data:** Bruk fast periode eller behold gjeldende modus
+7. **Fallback:** VINTER
+
+Beregnet modus sammenlignes med gjeldende modus:
+- Ved endring: oppdater modus og send varsel
+- Ved lik modus: ingen endring (varsel sendes kun om det er vesentlig datamangel, eller ved manuell kjøring)
+
+## 7. Resultat
+
+- **`input_select.driftsmodus_vinter_sommer`** (eller valgt entitet) settes til VINTER eller SOMMER
+
+## 8. Varsling
+
+Varsling er aktivert som standard (pushover destination er satt til `pushover`).
+
+**Tittel ved modusendring:**
+> 🌡️ Driftsmodus SOMMER
+
+eller:
+> 🌡️ Driftsmodus VINTER
+
+**Eksempel på melding ved skifte til SOMMER:**
+> Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.
+>
+> Snitt 72t: 16,2 °C | Maks inkl. sol: 26 °C | Skydekke: 15 %
+> Match på regel 2.
+
+**Eksempel på melding, uendret VINTER:**
+> Driftsmodus uendret, ingen kjølebehov påvist, forblir vintermodus.
+>
+> Snitt 72t: 9 °C | Maks inkl. sol: 19 °C
+> Match på regel 7.
+
+Begrunnelsen (regel, verdier) vises kun når «Vis ekstra begrunnelse» er aktivert (standard: på).
+
+## 9. Annet
+
+### 9.1 Virkning av valgt modus
+
+Modus-valget brukes av andre automasjoner (f.eks. varmepumpe-regulering) for å avgjøre om varme eller kjøling er tillatt:
+
+**VINTER:**
+- Tillat varmedrift (varmepumpe og panelovner)
+- Sperr kjøledrift
+
+**SOMMER:**
+- Tillat kjøledrift
+- Sperr varmedrift og elektriske varmeovner
+
+## 10. Avansert
+
+### 10.1 Forutsettninger
+
+- **`sensor.utetemperatur`** – nåværende utetemperatur (hardkodet)
+- **`sensor.utetemperatur_snitt_72_timer`** – 72-timers snitt (hardkodet)
+- **`input_select.driftsmodus_vinter_sommer`** – entitet med valgene VINTER og SOMMER
+- Vær-entitet som støtter `weather.get_forecasts` (hourly)
+- Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
+
+**Eksempel på `sensor.utetemperatur_snitt_72_timer` (legg i `configuration.yaml`):**
 ```yaml
 sensor:
   - platform: statistics
@@ -96,89 +162,41 @@ sensor:
       hours: 72
 ```
 
-## 6) Beslutningsregler (rekkefølge og stopp ved første treff)
+### 10.2 Relevante automasjoner og script
 
-1. **Vinterperiode**: alltid VINTER
-2. **Start sommermodus ved etablert varmt vær**: snitt 72t over sommergrense **og** maks inkl. soltillegg over startgrense
-3. **Start sommermodus ved ekstrem varme**: prognosert maks over ekstremgrense
-4. **Behold sommermodus (hysterese)**: gjeldende SOMMER og maks inkl. soltillegg over stoppgrense
-5. **Behold sommermodus ved manglende prognose**: prognose mangler, gjeldende SOMMER, snitt 72t over sommergrense
-6. **Reserve ved manglende temperaturgrunnlag**:
-   - VINTER i vinterperiode
-   - SOMMER i sommerperiode
-   - behold gjeldende modus i overgangsperioder
-7. **Fallback**: VINTER
+| Blueprint | Formål |
+|---|---|
+| [varmepumpe_regulering.yaml](./blueprints/automation/varmepumpe_regulering.yaml) | Bruker `input_select.driftsmodus_vinter_sommer` for å avgjøre varme/kjøling. Se [README_varmepumpe_regulering.md](./README_varmepumpe_regulering.md) |
+| [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
 
-## 7) Gjennomføring av modusendring
+### 10.3 Beregnede verdier og variabler
 
-Etter beregning sammenlignes beregnet modus med gjeldende modus:
-- Ved forskjell: oppdater modus + send varsel
-- Ved lik modus: ingen endring i modus
-- Ved vesentlig datamangel uten endring: send info-/avviksvarsel
-- Ved manuelt kjørt sjekk: send alltid varsel uavhengig av modusendring
+| Variabel | Beskrivelse |
+|---|---|
+| Gjennomsnittstemperatur 72t | Lest fra `sensor.utetemperatur_snitt_72_timer` |
+| Nåtemperatur | Lest fra `sensor.utetemperatur` (fallback hvis historikk mangler) |
+| Soltillegg | Beregnet fra skydekning kl. 10–18 neste dag |
+| Maks inkl. soltillegg | Prognosert maks neste dag + soltillegg |
+| Utløsende regel | Regel 1–7 som ga det endelige modus-valget |
 
-## 8) Varsling
+### 10.4 Feilhåndtering
 
-Varsel ved modusendring skal inkludere:
-- Tittel i formatet `🌡️ Driftsmodus <modus>`
-- Kort starttekst:
-  - Regel 2 (endring til SOMMER): `Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.`
-  - Regel 7 (endring til VINTER): `Endret til vinter for kommende natt og morgendagen grunnet kaldt vær.`
-  - Regel 4 (uendret): `Driftsmodus uendret, fortsett med sommermodus grunnet fortsatt forventet kjølebehov.`
-  - Regel 7 (uendret): `Driftsmodus uendret, ingen kjølebehov påvist, forblir vintermodus.`
-  - Andre regler (uendret): `Driftsmodus uendret (<modus>). Utløsende regel: <regel>.`
-  - Modusendring (andre regler): `Driftsmodus er endret fra <gammel> til <ny>. Utløsende regel: <regel>.`
-- Begrunnelse med `Match på regel X.` på slutten for alle regler (vises kun hvis `Vis ekstra begrunnelse` er aktivert, standard: på)
-  - Regel 1: inkluderer aktuell dato og periodeintervall
-  - Regel 2: inkluderer snitt 72t, maks inkl. soltillegg, skydekke
-  - Regel 4: inkluderer maks inkl. soltillegg, evt. snitt 72t og skydekke
-  - Regel 5: inkluderer snitt 72t
-  - Regel 6: inkluderer aktuell dato og periodeinfo
-  - Regel 7: inkluderer snitt 72t, maks inkl. soltillegg, skydekke og ekstremgrense
-- Manglende data (kun når data faktisk mangler)
-- `Manuelt kjørt sjekk.` på slutten av begrunnelsen når automasjonen er manuelt kjørt
+| Situasjon | Håndtering |
+|---|---|
+| Driftsmodus-entitet mangler VINTER/SOMMER | Feilvarsel sendes, kjøring avbrytes |
+| `sensor.utetemperatur_snitt_72_timer` utilgjengelig | Bruker `sensor.utetemperatur` som fallback |
+| Begge temperaturkilder mangler | Kalenderperiode brukes som reserve |
+| Temperaturprognose mangler | Prognose-regler hoppes over |
+| Skydekning mangler | Soltillegg = 0 °C |
+| `sensor.utetemperatur` utilgjengelig | Alltid varsel uavhengig av om historikk kompenserte |
 
-Avanserte innstillinger for varsling:
-- `Kjør automatisk kl. 20:00 hver kveld` (standard: på) — sett til på for å aktivere automatisk kjøring kl. 20:00; av for å deaktivere
-- `Send varsel ved manuell kjøring` (standard: på) — sett til på for å sende varsel ved manuell kjøring; av for ikke å sende varsel
-- `Vis ekstra begrunnelse` (standard: på) — aktiver for å inkludere detaljert begrunnelse i varselet
+### 10.5 Varsling og debug info
 
-## 9) Virkning av valgt modus
+- Alle sentrale mellomverdier er synlige i Home Assistant trace-viewer (stegvise variabler)
+- Inkluderer: beregnet modus, utløsende regel, snitt 72t, nå-temp, prognose maks, skydekning, soltillegg, datatilgjengelighet
+- «Vis ekstra begrunnelse»-innstillingen inkluderer detaljert begrunnelse i varselet
 
-### VINTER
-- Tillat varmedrift
-- Tillat elektriske varmeovner
-- Sperr kjøledrift
-
-### SOMMER
-- Tillat kjøledrift
-- Sperr varmedrift
-- Sperr elektriske varmeovner
-
-## 10) Feilhåndtering (prioritet)
-
-1. **Driftsmodus-validering**: Hvis valgt driftsmodus-entitet mangler eller ikke har valgene VINTER og SOMMER → send feilvarsel og avbryt kjøring
-2. Vinterperiode => VINTER
-3. Bruk historikk hvis tilgjengelig (`sensor.utetemperatur_snitt_72_timer`)
-4. Ellers bruk nåverdi (`sensor.utetemperatur`)
-5. Hvis begge mangler: kalenderreserve
-6. Mangler temperaturprognose: hopp over prognose-regler
-7. Mangler skydekning: soltillegg = 0 °C
-8. `sensor.utetemperatur` utilgjengelig: alltid varsel uavhengig av om historikk kompenserte
-9. Ved modusendring med manglende data: opplys i varsel
-10. Ved vesentlig datamangel uten endring: info-/avviksvarsel
-
-## 11) Statusverdier for feilsøking
-
-Blueprinten skal gjøre sentrale mellomverdier synlige i trace (stegvis variabler), inkludert:
-- gjeldende/beregnet modus
-- utløsende regel
-- snitt 72t, nå-temp, prognose maks, skydekning 10–18, soltillegg, maks inkl. soltillegg
-- aktiv kalenderperiode
-- datatilgjengelighet (historikk/nå/prognose/skydekning)
-- om modus ble endret
-
-## 12) Dokumentasjon
+## 11. Dokumentasjon
 
 - Blueprint-beskrivelsen lenker til denne README-filen:
   https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
