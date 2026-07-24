@@ -13,15 +13,15 @@ blueprint:
     - Regel 6: Reserve ved manglende temperaturgrunnlag
     - Regel 7: Fallback => VINTER
 
-    Forventede entiteter (hardkodet – må eksistere i Home Assistant):
-      - input_select.driftsmodus_vinter_sommer  – med valgene VINTER og SOMMER
-      - sensor.utetemperatur                    – nåværende utetemperatur
-      - sensor.utetemperatur_snitt_72_timer     – gjennomsnittstemperatur siste 72 timer
+    Forventede entiteter:
+      - input_select.driftsmodus_vinter_sommer  – driftsmodus-helper (velges i blueprint-input)
+      - sensor.utetemperatur                    – nåværende utetemperatur (hardkodet)
+      - sensor.utetemperatur_snitt_72_timer     – gjennomsnittstemperatur siste 72 timer (hardkodet)
 
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.18
+    Blueprint versjon: 2026.07.19
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -39,6 +39,16 @@ blueprint:
           selector:
             entity:
               domain: weather
+
+        driftsmodus_entity:
+          name: Driftsmodus entitet
+          description: >
+            input_select-entitet med valgene VINTER og SOMMER.
+            Standard: input_select.driftsmodus_vinter_sommer
+          default: input_select.driftsmodus_vinter_sommer
+          selector:
+            entity:
+              domain: input_select
 
     perioder:
       name: Kalenderperioder
@@ -248,7 +258,7 @@ triggers:
 actions:
   - alias: Steg 0 - Innstillinger og input
     variables:
-      io_mode_entity: input_select.driftsmodus_vinter_sommer
+      io_mode_entity: !input driftsmodus_entity
       io_weather_entity: !input weather_entity
       io_temp_now_entity: sensor.utetemperatur
       io_temp_avg_72h_entity: sensor.utetemperatur_snitt_72_timer
@@ -286,10 +296,10 @@ actions:
     condition: template
     value_template: "{{ is_manual_run or io_auto_kjor_kveld }}"
 
-  - alias: Steg 0c - Valider driftsmodus (input_select.driftsmodus_vinter_sommer)
+  - alias: Steg 0c - Valider driftsmodus (io_mode_entity)
     variables:
-      drift_entity_state: "{{ states('input_select.driftsmodus_vinter_sommer') }}"
-      drift_entity_options: "{{ state_attr('input_select.driftsmodus_vinter_sommer', 'options') | default([]) | list }}"
+      drift_entity_state: "{{ states(io_mode_entity) }}"
+      drift_entity_options: "{{ state_attr(io_mode_entity, 'options') | default([]) | list }}"
       drift_entity_valid: >-
         {{
           drift_entity_state not in ['unknown', 'unavailable', 'none', '']
@@ -307,7 +317,7 @@ actions:
             data:
               title: "⚠️ Feil – Driftsmodus"
               message: >-
-                input_select.driftsmodus_vinter_sommer mangler eller har ikke valgene VINTER og SOMMER.
+                {{ io_mode_entity }} mangler eller har ikke valgene VINTER og SOMMER.
                 Nåværende tilstand: {{ drift_entity_state }}.
                 Tilgjengelige valg: {{ drift_entity_options | join(', ') if (drift_entity_options | count) > 0 else 'ingen' }}.
                 Automasjonen avbrytes – ingen modus er beregnet.
