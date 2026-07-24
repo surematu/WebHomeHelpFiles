@@ -73,6 +73,8 @@ Varmepumpe-reguleringen bruker alltid følgende entitet for sesongbasert styring
 | `ix_kjoling_aktiv` | false | Aktiver kjøling for automatisk bytte mellom heat og cool |
 | `inum_kjoling_pa_delta` | 2 °C | Delta over settpunkt for å aktivere kjøling |
 | `inum_kjoling_av_delta` | 0.5 °C | Delta over settpunkt for å deaktivere kjøling (hysterese) |
+| `inum_kjoling_sommer_kaldt_grense` | 2 °C | SOMMER: tving heat når romtemp er mer enn denne verdien under settpunkt |
+| `inum_kjoling_vinter_varmt_grense` | 2 °C | VINTER: tillat cool som nødoverkobling når romtemp er mer enn denne verdien over settpunkt |
 
 ## 5) Beregningslogikk
 
@@ -135,7 +137,7 @@ Bruker alltid `input_select.driftsmodus_vinter_sommer` (sett av `driftsmodus_var
 
 | Tilstand | Resultat |
 |---|---|
-| Romtemp < settpunkt − `maks_endring_per_kjoring` | `heat` (for kaldt, tving varme) |
+| Romtemp < settpunkt − `inum_kjoling_sommer_kaldt_grense` | `heat` (for kaldt, tving varme) |
 | Kjølebetingelser oppfylt (setpunkt ≥ comfort og romtemp over delta) | `cool` |
 | Ellers | `heat` |
 
@@ -143,10 +145,10 @@ Bruker alltid `input_select.driftsmodus_vinter_sommer` (sett av `driftsmodus_var
 
 | Tilstand | Resultat |
 |---|---|
-| Kjølebetingelser oppfylt **og** romtemp > settpunkt + `maks_endring_per_kjoring` | `cool` (nødoverkobling) |
+| Kjølebetingelser oppfylt **og** romtemp ≥ settpunkt + `inum_kjoling_vinter_varmt_grense` | `cool` (nødoverkobling) |
 | Ellers | `heat` |
 
-Tanken bak nødoverkoblingen: `maks_endring_per_kjoring` representerer ett steg i varmepumpe-settpunktet. Hvis romtemperaturen er mer enn ett steg over settpunktet i VINTER, er det tegn på at kjøling faktisk trengs selv om det er vinter – og omvendt i SOMMER.
+Tanken bak nødoverkoblingen: Dedikerte terskler (`inum_kjoling_sommer_kaldt_grense` og `inum_kjoling_vinter_varmt_grense`) styrer når romtemperatur-avvik er så stort at det overstyrer driftsmodusen. I SOMMER tvinges varme hvis rommet er for kaldt; i VINTER tillates kjøling som nødoverkobling hvis rommet er for varmt. Begge er separate fra ramp-begrensningen (`maks_endring_per_kjoring`) og konfigureres uavhengig.
 
 Dersom `input_select.driftsmodus_vinter_sommer` har en ugyldig verdi, brukes logikken fra avsnitt 6.2 (temperaturbasert fallback).
 
@@ -206,6 +208,7 @@ Blueprinten gjør sentrale mellomverdier synlige i HA-trace (stegvise variabler)
 - `WantCool_SetpointComfOrHihger` – kjøling tillatt (settpunkt ≥ comfort)
 - `WantCoolCauseHightTemp` – kjøling ønsket (romtemp over delta)
 - `drift_modus_raw` / `drift_is_sommer` / `drift_is_vinter` / `drift_available` – driftsmodus-status
+- `inum_kjoling_sommer_kaldt_grense` / `inum_kjoling_vinter_varmt_grense` – dedikerte terskler for edge case
 - `onsket_mode` – beregnet hvac-modus (`heat`/`cool`)
 - `skal_oppdatere_mode` – true hvis modus faktisk skal endres
 - `onsket_vifte` / `skal_oppdatere_vifte` – ønsket vifte-modus og om den skal settes
