@@ -29,8 +29,10 @@ Ved hver kjøring brukes følgende når tilgjengelig:
 - Gjeldende dato
 - Gjeldende driftsmodus
 
+Følgende entiteter er konfigurert som blueprint-input:
+- `input_select.driftsmodus_vinter_sommer` – driftsmodus-helper med valgene VINTER og SOMMER (standard, kan endres i UI)
+
 Følgende entiteter er **hardkodet** i blueprinten (konfigureres ikke i UI):
-- `input_select.driftsmodus_vinter_sommer` – driftsmodus-helper med valgene VINTER og SOMMER
 - `sensor.utetemperatur` – nåværende utetemperatur
 - `sensor.utetemperatur_snitt_72_timer` – gjennomsnittstemperatur siste 72 timer
 
@@ -82,6 +84,7 @@ Verdien brukes kun som beslutningsgrunnlag.
 
 Blueprinten bruker alltid `sensor.utetemperatur_snitt_72_timer` for 72t snitt
 og `sensor.utetemperatur` for nåværende utetemperatur (begge er hardkodet).
+`input_select.driftsmodus_vinter_sommer` velges som blueprint-input (standard).
 
 ```yaml
 sensor:
@@ -154,7 +157,7 @@ Avanserte innstillinger for varsling:
 
 ## 10) Feilhåndtering (prioritet)
 
-1. **Driftsmodus-validering**: Hvis `input_select.driftsmodus_vinter_sommer` mangler eller ikke har valgene VINTER og SOMMER → send feilvarsel og avbryt kjøring
+1. **Driftsmodus-validering**: Hvis valgt driftsmodus-entitet mangler eller ikke har valgene VINTER og SOMMER → send feilvarsel og avbryt kjøring
 2. Vinterperiode => VINTER
 3. Bruk historikk hvis tilgjengelig (`sensor.utetemperatur_snitt_72_timer`)
 4. Ellers bruk nåverdi (`sensor.utetemperatur`)
