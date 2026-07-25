@@ -60,7 +60,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.16
+    Blueprint versjon: 2026.07.17
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -108,19 +108,6 @@ blueprint:
               step: 0.5
               mode: slider
               unit_of_measurement: "°C"
-
-        varme_climate:
-          name: Climate - Varme
-          description: >
-            Valgfri. Varme-climate som styres basert på beregnet modus (heat/cool).
-            Hvis beregnet modus er kjøling eller overordnet er av, settes dette klimaet til frost-settpunkt
-            (leses fra preset_temperatures.frost_temp på overordnet climate, typisk 10 °C).
-            Ellers ved varme settes settpunktet lik overordnet settpunkt.
-            Settpunktet klampes alltid til klimaets min_temp og max_temp.
-          default: ""
-          selector:
-            entity:
-              domain: climate
 
     varmepumpe:
       name: Varmepumpe
@@ -351,6 +338,19 @@ blueprint:
       icon: mdi:radiator
       collapsed: true
       input:
+        varme_climate:
+          name: Climate - Varme
+          description: >
+            Valgfri. Varme-climate som styres basert på beregnet modus (heat/cool).
+            Hvis beregnet modus er kjøling eller overordnet er av, settes dette klimaet til frost-settpunkt
+            (leses fra preset_temperatures.frost_temp på overordnet climate, typisk 10 °C).
+            Ellers ved varme settes settpunktet lik overordnet settpunkt.
+            Settpunktet klampes alltid til klimaets min_temp og max_temp.
+          default: ""
+          selector:
+            entity:
+              domain: climate
+
         panelovn_padrag_grense:
           name: Pådrag-grense varmepumpe / panelovn (%)
           description: >
@@ -387,30 +387,25 @@ blueprint:
         varme_switch:
           name: Switch - Varme (digital utgang)
           description: >
-            Valgfri. Digital utgang (switch/relé) som supplement ved høyt pådrag, styrt med PWM.
+            Valgfri. Digital utgang (switch/relé) som supplement ved høyt pådrag, styrt i faste trinn.
             Kan brukes alene eller i tillegg til climate-panelovn.
-            Syklustiden leses automatisk fra overordnet climate (configuration.cycle_min, typisk 30 min)
-            og vises i trace-viewer. Den effektive PWM-perioden er 10 minutter (automasjonens kjøreintervall):
-            switchen slås på i (panelovn_maal_power % × 600) sekunder, deretter av for resten av perioden.
+            Fast 30-minutters syklus med 10-minutters steg:
+            under 30% = av, 30–59% = på 10 min / av 20 min, 60–89% = på 20 min / av 10 min, 90–100% = på hele tiden.
             Krever at panelovn pådrag-grense og panelovn_hp_ready er oppfylt – samme vilkår som for climate-panelovn.
           default: ""
           selector:
             entity:
               domain: switch
 
-        panelovn_switch_min_on_sec:
-          name: Minimum on-tid for switch (sekunder)
+        panelovn_prosent_output:
+          name: Utgang - Varme panelovn prosent (input_number)
           description: >
-            Dersom beregnet on-tid (i 10-min vindu) er kortere enn dette, holdes switchen av.
-            Tilsvarer minimal_activation_delay_sec i Versatile Thermostat. Default 10 sek.
-          default: 10
+            Valgfri. Skriver beregnet panelovn-pådrag (0–100%) til valgt input_number.
+            Brukes når du vil styre egen syklustid utenfor denne automasjonen i stedet for innebygd switch-trinnstyring.
+          default: ""
           selector:
-            number:
-              min: 0
-              max: 60
-              step: 1
-              mode: box
-              unit_of_measurement: "s"
+            entity:
+              domain: input_number
 
     varsling:
       name: Varsling (debug)
@@ -495,7 +490,7 @@ actions:
       inum_panelovn_padrag_grense: !input panelovn_padrag_grense
       inum_panelovn_delta_maks: !input panelovn_delta_maks
       iswitch_varme_styrt: !input varme_switch
-      inum_panelovn_switch_min_on: !input panelovn_switch_min_on_sec
+      iinputnumber_panelovn_prosent: !input panelovn_prosent_output
       ix_pushover_varsling: !input ix_pushover_varsling
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
@@ -689,17 +684,6 @@ actions:
   - variables:
       panelovn_hp_ready: "{{ (hp_actual_power_heat | float(0)) >= 80 }}"
   - variables:
-      # Les VT syklus-konfigurasjon fra overordnet climate (versatile thermostat).
-      panelovn_vt_conf: "{{ state_attr(iclimate_varme, 'configuration') }}"
-  - variables:
-      # cycle_min fra VT (typisk 30 min). Brukes til å beregne referanse on/av-tider for switch.
-      panelovn_vt_cycle_min: >-
-        {% if panelovn_vt_conf is mapping and 'cycle_min' in panelovn_vt_conf %}
-          {{ panelovn_vt_conf['cycle_min'] | float(30) }}
-        {% else %}
-          30
-        {% endif %}
-  - variables:
       # Panelovn: pådrag grense–100% normaliseres til 0–100%.
       # Er alltid 0 ved kjøling, når VERKEN climate ELLER switch er konfigurert,
       # eller når varmepumpa ikke har rampet opp til 80 % av sin varmekurve.
@@ -719,28 +703,47 @@ actions:
   - variables:
       panelovn_switch_configured: "{{ (iswitch_varme_styrt | string) not in ['', 'None', 'none'] }}"
   - variables:
-      # PWM-periode i sekunder = automasjonens kjøreintervall (10 min).
-      # Brukes som fellesvariabel for alle switch-tidsberegninger.
-      pwm_period_sec: 600
+      panelovn_prosent_output_configured: "{{ (iinputnumber_panelovn_prosent | string) not in ['', 'None', 'none'] }}"
   - variables:
-      # Referanse on-tid basert på VT-syklus (cycle_min). Vises i trace for informasjon.
-      panelovn_switch_on_time_vt_sec: >-
-        {{ ((panelovn_maal_power | float(0)) / 100 * panelovn_vt_cycle_min * 60) | round(0) | int }}
+      # Fast trinnstyring i 30-min syklus med 10-min slot:
+      # <30%=0 slot på, 30-59%=1 slot på, 60-89%=2 slot på, >=90%=3 slot på.
+      panelovn_switch_on_slots: >-
+        {% set p = panelovn_maal_power | float(0) %}
+        {% if p >= 90 %}
+          3
+        {% elif p >= 60 %}
+          2
+        {% elif p >= 30 %}
+          1
+        {% else %}
+          0
+        {% endif %}
   - variables:
-      # Referanse av-tid basert på VT-syklus. Vises i trace for informasjon.
-      panelovn_switch_off_time_vt_sec: >-
-        {{ ((1 - (panelovn_maal_power | float(0)) / 100) * panelovn_vt_cycle_min * 60) | round(0) | int }}
+      current_minutes_since_midnight: "{{ (now().hour * 60) + now().minute }}"
   - variables:
-      # Effektiv on-tid per kjøring (pwm_period_sec). Duty cycle = panelovn_maal_power %.
-      # Automasjonen kjører mode:restart, så ved 100 % avbrytes delay av neste trigger,
-      # og switchen holdes på gjennom neste kjøring uten at turn_off noensinne utføres.
-      panelovn_switch_on_time_actual_sec: >-
-        {{ ((panelovn_maal_power | float(0)) / 100 * pwm_period_sec) | round(0) | int }}
+      panelovn_10min_block_index: "{{ current_minutes_since_midnight // 10 }}"
   - variables:
-      # true dersom switch skal aktiveres (konfigurert og on-tid >= minimum aktiveringstid)
+      # Slot-indeks i fast 30-min syklus (0,1,2): 10-min blokknummer modulo 3.
+      panelovn_switch_slot_index: "{{ panelovn_10min_block_index % 3 }}"
+  - variables:
+      # true dersom switch skal være på i nåværende 10-min slot.
       panelovn_switch_skal_aktiveres: >-
         {{ panelovn_switch_configured
-           and (panelovn_switch_on_time_actual_sec | int) >= (inum_panelovn_switch_min_on | int(10)) }}
+           and (panelovn_switch_on_slots | int(0)) > 0
+           and (panelovn_switch_slot_index | int(0)) < (panelovn_switch_on_slots | int(0)) }}
+  - variables:
+      panelovn_prosent_output_onsket: "{{ (panelovn_maal_power | float(0)) | round(0) | int }}"
+  - variables:
+      panelovn_prosent_output_naa: >-
+        {% if panelovn_prosent_output_configured %}
+          {{ (states(iinputnumber_panelovn_prosent) | float(-1)) | round(0) | int }}
+        {% else %}
+          -1
+        {% endif %}
+  - variables:
+      panelovn_prosent_output_update_needed: >-
+        {{ panelovn_prosent_output_configured
+           and (panelovn_prosent_output_onsket | int(-1)) != (panelovn_prosent_output_naa | int(-1)) }}
 
   # Steg 6: beregn ønsket settpunkt (modus-bevisst)
   - variables:
@@ -912,13 +915,9 @@ actions:
             data:
               temperature: "{{ varme_styrt_onsket_spk }}"
 
-  # Steg 9b: panelovn switch PWM-styring (valgfri – kun når varme_switch er konfigurert)
-  # Automasjonen kjører mode:restart (linje 456), dvs. ny trigger avbryter pågående kjøring.
-  # Effektiv PWM-periode er pwm_period_sec (600 s = automasjonens kjøreintervall på 10 min).
-  # Switchen slås på i panelovn_switch_on_time_actual_sec sekunder, deretter av for resten.
-  # Ved 100 % pådrag (on_time=600s) avbryter neste 10-min trigger delay-en,
-  # og turn_off utføres aldri – switchen holdes på gjennom neste kjøring.
-  # Referanse on/av-tider fra VT cycle_min vises som trace-variabler for informasjon.
+  # Steg 9b: panelovn switch trinnstyring (valgfri – kun når varme_switch er konfigurert)
+  # Fast 30-min syklus med 10-min slot:
+  # <30%=av, 30-59%=på 1 av 3 slot, 60-89%=på 2 av 3 slot, 90-100%=på alle 3 slot.
   - if:
       - condition: template
         value_template: "{{ panelovn_switch_configured }}"
@@ -930,15 +929,21 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: "{{ iswitch_varme_styrt }}"
-          - delay:
-              seconds: "{{ panelovn_switch_on_time_actual_sec }}"
-          - action: switch.turn_off
-            target:
-              entity_id: "{{ iswitch_varme_styrt }}"
         else:
           - action: switch.turn_off
             target:
               entity_id: "{{ iswitch_varme_styrt }}"
+
+  # Steg 9c: valgfri prosent-utgang for panelovn (input_number)
+  - if:
+      - condition: template
+        value_template: "{{ panelovn_prosent_output_update_needed }}"
+    then:
+      - action: input_number.set_value
+        target:
+          entity_id: "{{ iinputnumber_panelovn_prosent }}"
+        data:
+          value: "{{ panelovn_prosent_output_onsket }}"
 
   # Steg 10: Pushover-varsling (debug, av som standard – ix_pushover_varsling=false)
   - if:
@@ -971,9 +976,14 @@ actions:
             {%- endif %}
             {%- if panelovn_switch_configured %}
 
-            Varme (switch PWM):
-            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | On: {{ panelovn_switch_on_time_actual_sec }}s / 600s
-            VT-syklus ref: {{ panelovn_switch_on_time_vt_sec }}s on / {{ panelovn_switch_off_time_vt_sec }}s off ({{ panelovn_vt_cycle_min | round(0) | int }} min)
+            Varme (switch):
+            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | Aktiv slot: {{ (panelovn_switch_slot_index | int) + 1 }}/3
+            Trinn: {{ panelovn_switch_on_slots | int }} av 3 slot på (10 min per slot)
+            {%- endif %}
+            {%- if panelovn_prosent_output_configured %}
+
+            Varme (prosent-utgang):
+            Output: {{ panelovn_prosent_output_onsket | int }}%
             {%- endif %}
             {%- else -%}
             Varme: Av
