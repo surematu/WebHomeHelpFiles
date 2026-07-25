@@ -5,9 +5,6 @@ blueprint:
       - Offset ved 0% pådrag (default -3°C fra basis)
       - Offset ved 100% pådrag (default +3°C fra basis)
     Basissettpunkt = max(iclimate_varme_rt_spk, comfort_temp hvis finnes).
-    Min-pådrag: (iclimate_varme_rt_spk - iclimate_varme_rt_pv) * faktor, klippet 0-100,
-    og brukes som minimum for pådrag slik at varmepumpa ikke "girer ned" når rommet ligger under.
-
     Pådrag-signal (0-100%):
     - Bruker power_percent hvis tilgjengelig.
     - Ellers, hvis regulated_target_temperature finnes, beregnes pådrag lineært fra
@@ -60,7 +57,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.18
+    Blueprint versjon: 2026.07.19
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -160,54 +157,6 @@ blueprint:
               mode: slider
               unit_of_measurement: "°C"
 
-    varmepumpe_ava:
-      name: Varmepumpe (Avansert)
-      icon: mdi:heat-pump
-      collapsed: true
-      input:
-        min_padrag_eco:
-          name: Minimum pådrag ved preset eco (%)
-          description: >
-            Setter et minimum pådrag (0–100%) når rom-climate har preset eco.
-            Default 0 gir eksisterende oppførsel uendret.
-          default: 0
-          selector:
-            number:
-              min: 0
-              max: 100
-              step: 1
-              mode: slider
-
-        min_padrag_comfort:
-          name: Minimum pådrag ved preset comfort (%)
-          description: >
-            Setter et minimum pådrag (0–100%) når rom-climate har preset comfort.
-            Default 0 gir eksisterende oppførsel uendret. 
-            Hvis vifte boost funksjon er aktiv: Burde settes lik eller under 30%
-            for å sørge for at funksjon kan skru av vifte.
-          default: 0
-          selector:
-            number:
-              min: 0
-              max: 100
-              step: 1
-              mode: slider
-
-        min_padrag_boost:
-          name: Minimum pådrag ved preset boost (%)
-          description: >
-            Setter et minimum pådrag (0–100%) når rom-climate har preset boost.
-            Default 0 gir eksisterende oppførsel uendret. 
-            Hvis vifte boost funksjon er aktiv: Hvis denne settes over
-            30% vil vifte boost alltid være på ved boost modus.
-          default: 0
-          selector:
-            number:
-              min: 0
-              max: 100
-              step: 1
-              mode: slider
-      
         varmepumpe_temp_min:
           name: Absolutt min temperatur på varmepumpe
           default: 10
@@ -229,20 +178,6 @@ blueprint:
               step: 1
               mode: box
               unit_of_measurement: "°C"
-
-        faktor_min_padrag:
-          name: Faktor for minimum pådrag
-          description: >
-            Min-pådrag = (iclimate_varme_rt_spk - iclimate_varme_rt_pv) * faktor.
-            Eksempel: iclimate_varme_rt_spk=22, iclimate_varme_rt_pv=20 gir delta=2.
-            Faktor=50 => min-pådrag=100.
-          default: 50
-          selector:
-            number:
-              min: 0
-              max: 200
-              step: 1
-              mode: box
 
     vifte:
       name: Vifte
@@ -472,7 +407,6 @@ actions:
       inum_offset_min: !input grader_under_min
       inum_offset_maks: !input grader_over_maks
       inum_max_step: !input maks_endring_per_kjoring
-      inum_faktor_min: !input faktor_min_padrag
       ix_vifte_aktiv: !input vifte_boost
       padrag_reg_offset_min: !input padrag_regulated_offset_min
       padrag_reg_offset_maks: !input padrag_regulated_offset_maks
@@ -483,9 +417,6 @@ actions:
       inum_kjoling_av_delta_vinter: !input inum_kjoling_av_delta_vinter
       inum_kjoling_sommer_kaldt_grense: !input inum_kjoling_sommer_kaldt_grense
       inum_kjoling_vinter_varmt_grense: !input inum_kjoling_vinter_varmt_grense
-      inum_min_padrag_comfort: !input min_padrag_comfort
-      inum_min_padrag_eco: !input min_padrag_eco
-      inum_min_padrag_boost: !input min_padrag_boost
       iclimate_varme_styrt: !input varme_climate
       inum_panelovn_padrag_grense: !input panelovn_padrag_grense
       inum_panelovn_delta_maks: !input panelovn_delta_maks
@@ -502,7 +433,6 @@ actions:
         {{ state_attr(iclimate_varme, 'current_temperature')
            | float(state_attr(iclimate_varme, 'temperature') | float(20)) }}
       iclimate_varme_rt_spk: "{{ state_attr(iclimate_varme, 'temperature') | float(20) }}"
-      iclimate_varme_rt_pv_below_spk: "{{ (iclimate_varme_rt_spk - iclimate_varme_rt_pv) | float(0) }}"
       iclimate_varme_rt_sp_comfort_spkifnocomfort: >-
         {% set presets = state_attr(iclimate_varme, 'preset_temperatures') %}
         {% if presets is mapping and 'comfort_temp' in presets %}
@@ -557,28 +487,11 @@ actions:
       - variables:
           varme_cur_power_calculated: 50
 
-  # Steg 3: min-pådrag (iclimate_varme_rt_spk som referanse) + effektivt pådrag
+  # Steg 3: effektivt pådrag
   - variables:
-      varmepumpe_output_power_min_cause_min_faktor: >-
-        {% set pv_below_spk = iclimate_varme_rt_pv_below_spk | float(0) %}
-        {% set v = (pv_below_spk if pv_below_spk > 0 else 0) * (inum_faktor_min | float(0)) %}
-        {{ [v, 100] | min }}
-      varmepumpe_output_power_min_cause_mode: >-
-        {% set pm = iclimate_varme_presetmode | string | lower %}
-        {% if pm == 'comfort' %}
-          {{ inum_min_padrag_comfort | float(0) }}
-        {% elif pm == 'eco' %}
-          {{ inum_min_padrag_eco | float(0) }}
-        {% elif pm == 'boost' %}
-          {{ inum_min_padrag_boost | float(0) }}
-        {% else %}
-          0
-        {% endif %}
       varmepumpe_output_power: >-
         {% set p = varme_cur_power_calculated | float(50) %}
-        {% set m1 = varmepumpe_output_power_min_cause_min_faktor | float(0) %}
-        {% set m2 = varmepumpe_output_power_min_cause_mode | float(0) %}
-        {{ [ [p, m1, m2] | max, 100 ] | min }}
+        {{ [[p, 0] | max, 100] | min }}
 
   # Steg 4: kjøling (valgfri) + driftsmodus-default med override-hysterese
   # Modus bestemmes FØR settpunkt-beregning slik at kjøling-inversjon kan brukes

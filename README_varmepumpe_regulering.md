@@ -65,6 +65,8 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Maks endring per kjøring | 1 °C | Størst tillatt settpunkt-endring pr. kjøring (hindrer brå hopp) |
 | Grader under settpunkt ved 0 % pådrag | −3 °C | Varmepumpe-settpunkt relativt til basissettpunkt ved lavt pådrag |
 | Grader over settpunkt ved 100 % pådrag | +3 °C | Varmepumpe-settpunkt relativt til basissettpunkt ved høyt pådrag |
+| Absolutt min temperatur på varmepumpe | 10 °C | Nedre grense for hvilket settpunkt automasjonen kan sende til varmepumpa |
+| Absolutt maks temperatur på varmepumpe | 29 °C | Øvre grense for hvilket settpunkt automasjonen kan sende til varmepumpa |
 
 ### Vifte
 
@@ -110,15 +112,14 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 > Eksempel: blir panelovn aktiv kl. 10:07, varer første slot bare til 10:10 før vanlig 10-min rytme tar over.
 
 1. Leser pådragssignal fra rom-climate (power_percent → regulated_target_temperature → 50 % fallback)
-2. Beregner minimumspådrag basert på temperaturunderskudd og preset (eco/comfort/boost)
-3. Velger høyeste av beregnet pådrag og minimum
-4. Bestemmer modus: varme eller kjøling (se kjølelogikk nedenfor)
-5. Beregner settpunkt fra pådrag via en lineær kurve mellom `basis+grader_under_min` og `basis+grader_over_maks`
-6. Begrenser endringen til maks ±`maks_endring_per_kjoring` fra nåværende settpunkt (ramp)
-7. Runder av til heltall eller halvt grad
-8. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres
-9. Styrer panelovnen (climate og/eller switch) proporsjonalt basert på temperaturunderskudd og pådrag (hvis konfigurert)
-10. Justerer viftehastighet (hvis aktivert)
+2. Klipper beregnet pådrag til gyldig område (0–100 %)
+3. Bestemmer modus: varme eller kjøling (se kjølelogikk nedenfor)
+4. Beregner settpunkt fra pådrag via en lineær kurve mellom `basis+grader_under_min` og `basis+grader_over_maks`
+5. Begrenser endringen til maks ±`maks_endring_per_kjoring` fra nåværende settpunkt (ramp)
+6. Runder av til heltall eller halvt grad
+7. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres
+8. Styrer panelovnen (climate og/eller switch) proporsjonalt basert på temperaturunderskudd og pådrag (hvis konfigurert)
+9. Justerer viftehastighet (hvis aktivert)
 
 **Kjølelogikk (krever driftsmodus-automasjonen):**
 - VINTER-modus: kjøler normalt ikke. Nødoverkobling slår inn ved romtemp > settpunkt + terskel.
@@ -273,7 +274,7 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 
 | Variabel | Beskrivelse |
 |---|---|
-| `varmepumpe_output_power` | Effektivt pådrag etter min-klipping |
+| `varmepumpe_output_power` | Effektivt pådrag etter klipping til 0–100 % |
 | `hp_norm_power_heat` | Normalisert HP-pådrag (0–100 %, kun varme) |
 | `varmepumpe_req_spk_raw` | Råberegnet varmepumpe-settpunkt |
 | `qnum_varmepumpe_req_spk` | Endelig settpunkt etter ramp og avrunding |
