@@ -176,6 +176,7 @@ Switch og climate-panelovn kan brukes **samtidig** – begge styres uavhengig me
 Hvis `Utgang - Varme panelovn prosent (input_number)` er satt, skriver automasjonen beregnet panelovn-pådrag (0–100 %) til denne entiteten.
 
 Dette kan brukes i stedet for switch-utgangen når du ønsker egen syklustid i annen automasjon/integrasjon.
+Eksempel: bruk verdien i en egen automasjon som slår et relé av/på med ønsket sykluslengde.
 
 ## 10. Avansert
 

@@ -719,10 +719,12 @@ actions:
           0
         {% endif %}
   - variables:
-      # Slot-indeks i fast 30-min syklus (0,1,2) basert på total minutter siden midnatt.
-      # Total_minutter // 10 gir løpende 10-min blokknummer i døgnet.
-      # Modulo 3 mapper blokknummer til syklus-slot 0/1/2 i fast 30-min rytme.
-      panelovn_switch_slot_index: "{{ ((((now().hour * 60) + now().minute) // 10) % 3) | int }}"
+      panelovn_minutes_since_midnight: "{{ ((now().hour * 60) + now().minute) | int }}"
+  - variables:
+      panelovn_ten_min_block_index: "{{ (panelovn_minutes_since_midnight | int(0) // 10) | int }}"
+  - variables:
+      # Slot-indeks i fast 30-min syklus (0,1,2): 10-min blokknummer modulo 3.
+      panelovn_switch_slot_index: "{{ ((panelovn_ten_min_block_index | int(0)) % 3) | int }}"
   - variables:
       # true dersom switch skal være på i nåværende 10-min slot.
       panelovn_switch_skal_aktiveres: >-
