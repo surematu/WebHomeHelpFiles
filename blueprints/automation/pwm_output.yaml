@@ -1,0 +1,176 @@
+blueprint:
+  name: PWM Output – Bryterstyring (WebHome Automation)
+  description: >
+    Styrer en bryter med PWM (pulsbreddemodulasjon) basert på et inngangssignal 0–100 %.
+
+    Logikk:
+    - Inngangssignal 0–100 % bestemmer hvor stor andel av perioden bryteren er PÅ.
+    - Minimum på/av-tid sikrer at bryteren ikke slår av/på for raskt ved lave/høye verdier.
+    - Offset forskyver syklusstarten slik at to PWM-er ved 50 % ikke starter til samme tid.
+
+    Eksempel (30 min periode, 50 %):
+    - Bryter PÅ de første 15 min av syklusen, deretter AV de siste 15 min.
+
+    Minimum på/av-tid (standard 5 min):
+    - Beregnet på-tid < min-tid → effektiv duty = 0 % (bryter alltid AV i hele syklusen).
+    - Beregnet av-tid < min-tid → effektiv duty = 100 % (bryter alltid PÅ i hele syklusen).
+
+    Triggere:
+    - Tidsbasert (hvert minutt): beregner og justerer brytertilstand.
+    - Tilstandsendring på bryter (fra utilgjengelig): setter korrekt tilstand ved retur fra dårlig dekning.
+
+    Blueprint versjon: 2026.07.00
+
+  domain: automation
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/pwm_output.yaml
+  author: WebHome
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    main:
+      name: Hovedinnganger
+      icon: mdi:sine-wave
+      input:
+        pwm_input_entity:
+          name: PWM inngangssignal (0–100 %)
+          description: >
+            Entitet med numerisk verdi 0–100 som bestemmer bryterens på-andel.
+            Typisk en input_number, number- eller sensor-entitet.
+          selector:
+            entity:
+              domain:
+                - input_number
+                - number
+                - sensor
+
+        pwm_switch_entity:
+          name: Utgangsbryter
+          description: Bryteren som styres av PWM-automasjonen.
+          selector:
+            entity:
+              domain: switch
+
+    settings:
+      name: Innstillinger
+      icon: mdi:tune
+      collapsed: true
+      input:
+        pwm_period:
+          name: PWM-periode (minutter)
+          description: >
+            Total lengde på én PWM-syklus. Standard 30 minutter.
+            Minimum er 10 minutter (2 × minimum på/av-tid for 5 min minimum).
+          default: 30
+          selector:
+            number:
+              min: 10
+              max: 480
+              step: 1
+              unit_of_measurement: "min"
+              mode: box
+
+        pwm_offset:
+          name: Offset (minutter)
+          description: >
+            Forskyver starttidspunktet for syklusen fremover i tid.
+            Sett ulike verdier for to PWM-er så de ikke starter på samme tid.
+            Eksempel: to enheter på 50 % med periode 30 min — sett offset 15 på den andre.
+            Verdien trenger ikke å være innenfor én periode; modulo-beregning håndterer det.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 479
+              step: 1
+              unit_of_measurement: "min"
+              mode: box
+
+        pwm_min_time:
+          name: Minimum på/av-tid (minutter)
+          description: >
+            Hvis beregnet på-tid er under dette, settes effektiv duty til 0 % (alltid AV).
+            Hvis beregnet av-tid er under dette, settes effektiv duty til 100 % (alltid PÅ).
+            Standard 5 minutter.
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              unit_of_measurement: "min"
+              mode: box
+
+mode: single
+
+triggers:
+  - trigger: time_pattern
+    minutes: /1
+    id: time
+
+  - trigger: state
+    entity_id: !input pwm_switch_entity
+    from: "unavailable"
+    id: switch_recovered
+
+actions:
+  - alias: Steg 1 – Les innstillinger fra blueprint
+    variables:
+      io_input_entity: !input pwm_input_entity
+      io_switch_entity: !input pwm_switch_entity
+      io_period: !input pwm_period
+      io_offset: !input pwm_offset
+      io_min_time: !input pwm_min_time
+
+  - alias: Steg 2 – Hent inngangsverdier og gjeldende klokkeslett
+    variables:
+      duty_raw: "{{ states(io_input_entity) | float(0) | round(1) }}"
+      period: "{{ io_period | int(30) }}"
+      offset: "{{ io_offset | int(0) }}"
+      min_time: "{{ io_min_time | int(5) }}"
+      current_minute: "{{ now().hour * 60 + now().minute }}"
+
+  - alias: Steg 3 – Beregn fase i syklusen (minutter siden syklusstart)
+    variables:
+      phase: "{{ (current_minute + offset) % period }}"
+
+  - alias: Steg 4 – Beregn rå på-tid i minutter (duty × periode)
+    variables:
+      on_time_raw: "{{ (duty_raw / 100.0) * period }}"
+
+  - alias: Steg 5 – Juster for minimum på/av-tid (clamp til 0 eller periode)
+    variables:
+      effective_on_time: >-
+        {% set t = on_time_raw | float %}
+        {% set mn = min_time | int %}
+        {% set p = period | int %}
+        {% if t < mn %}
+          0
+        {% elif (p - t) < mn %}
+          {{ p }}
+        {% else %}
+          {{ t | round(0) | int }}
+        {% endif %}
+
+  - alias: Steg 6 – Avgjør ønsket brytertilstand (fase < på-tid → PÅ)
+    variables:
+      should_be_on: "{{ (phase | int) < (effective_on_time | int) }}"
+      current_switch_state: "{{ states(io_switch_entity) }}"
+
+  - alias: Steg 7 – Sett brytertilstand hvis den er feil
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ should_be_on and current_switch_state != 'on' }}"
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: "{{ io_switch_entity }}"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ not should_be_on and current_switch_state != 'off' }}"
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: "{{ io_switch_entity }}"
