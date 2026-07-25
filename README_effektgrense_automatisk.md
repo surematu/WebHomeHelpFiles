@@ -121,13 +121,17 @@ Kun første dag i måneden, kl. 00:xx, tillater automasjonen å sette en lavere 
 - En `input_number` som brukes som kWh-grense
 - Valgfri: `input_text` for statusoppdatering
 
-### 10.2 Relevante automasjoner og script
+### 10.2 Eksempler
+
+Ingen YAML-eksempler for denne automasjonen.
+
+### 10.3 Relevante automasjoner og script
 
 | Blueprint | Formål |
 |---|---|
 | [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
 
-### 10.3 Beregnede verdier og variabler
+### 10.4 Beregnede verdier og variabler
 
 | Variabel | Beskrivelse |
 |---|---|
@@ -138,7 +142,7 @@ Kun første dag i måneden, kl. 00:xx, tillater automasjonen å sette en lavere 
 | `desired_limit` | Endelig ønsket kWh-grense (`max(temp_min_limit, month_min_limit)`) |
 | `io_current_limit` | Nåværende verdi i grense-entiteten |
 
-### 10.4 Feilhåndtering
+### 10.5 Feilhåndtering
 
 | Situasjon | Håndtering |
 |---|---|
@@ -146,7 +150,7 @@ Kun første dag i måneden, kl. 00:xx, tillater automasjonen å sette en lavere 
 | `sensor.utetemperatur` utilgjengelig | Beregning kan feile – ingen skriving utføres |
 | Pushover destination er tomt | Varsling deaktiveres stille |
 
-### 10.5 Varsling og debug info
+### 10.6 Varsling og debug info
 
 - Valgfri `input_text` kan brukes for å se siste status uten å gå inn i logg
 - Pushover-varslet inneholder beregningsverdiene for enkel kontroll

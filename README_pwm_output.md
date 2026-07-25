@@ -115,8 +115,9 @@ Denne automasjonen sender ingen varsler til bruker som standard. All tilbakemeld
 - En numerisk entitet med verdi 0–100 for inngangssignalet.
 - Ingen eksterne integrasjoner, script eller helpers er påkrevd.
 
-Eksempel på `input_number` helper:
+### 10.2 Eksempler
 
+**Eksempel på `input_number` helper:**
 ```yaml
 input_number:
   rom_varmeandel:
@@ -128,14 +129,14 @@ input_number:
     mode: slider
 ```
 
-### 10.2 Relevante automasjoner og script
+### 10.3 Relevante automasjoner og script
 
 | Blueprint | Formål |
 |---|---|
 | `varmepumpe_regulering.yaml` | Produserer 0–100 %-pådragssignal som kan brukes som PWM-inngang |
 | `kalender_kalkulert_varmebehov.yaml` | Kan sette varmenivå (0–100 %) basert på kalender og temperatur |
 
-### 10.3 Beregnede verdier og variabler
+### 10.4 Beregnede verdier og variabler
 
 | Variabel | Beskrivelse |
 |---|---|
@@ -150,7 +151,7 @@ input_number:
 | `should_be_on` | Boolean: `phase < effective_on_time` |
 | `current_switch_state` | Gjeldende tilstand til bryteren (`on`, `off`, `unavailable`, ...) |
 
-### 10.4 Feilhåndtering
+### 10.5 Feilhåndtering
 
 | Scenario | Håndtering |
 |---|---|
@@ -160,7 +161,7 @@ input_number:
 | Offset større enn periode | Modulo-beregning håndterer dette korrekt automatisk |
 | Service-kall feiler (f.eks. timeout) | HA-standard retry/feillogging; neste minutt-trigger retter opp tilstanden |
 
-### 10.5 Varsling og debug info
+### 10.6 Varsling og debug info
 
 Ingen debug-varsler. Alle mellomverdier (`phase`, `effective_on_time`, `should_be_on`, `current_switch_state`) er synlige i Home Assistant Trace Viewer for enkelt feilsøk.
 

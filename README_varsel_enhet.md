@@ -151,13 +151,17 @@ For å fastslå når en enhet sist rapporterte brukes (i prioritert rekkefølge)
 - Valgfritt: Uptime Kuma-integrasjon
 - Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
 
-### 10.2 Relevante automasjoner og script
+### 10.2 Eksempler
+
+Ingen YAML-eksempler for denne automasjonen.
+
+### 10.3 Relevante automasjoner og script
 
 | Blueprint | Formål |
 |---|---|
 | [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
 
-### 10.3 Beregnede verdier og variabler
+### 10.4 Beregnede verdier og variabler
 
 | Variabel | Beskrivelse |
 |---|---|
@@ -167,7 +171,7 @@ For å fastslå når en enhet sist rapporterte brukes (i prioritert rekkefølge)
 | `low_list_percent_clean` | Renset liste med lavt batteriprosent |
 | Uptime-statuslinjer | Formaterte linjer per Uptime Kuma-sensor |
 
-### 10.4 Feilhåndtering
+### 10.5 Feilhåndtering
 
 | Situasjon | Håndtering |
 |---|---|
@@ -175,7 +179,7 @@ For å fastslå når en enhet sist rapporterte brukes (i prioritert rekkefølge)
 | Entitet utilgjengelig | Hoppes over, inngår ikke i rapport |
 | Kritisk Uptime-sensor endrer status | Umiddelbart varsel med kritisk prioritet |
 
-### 10.5 Varsling og debug info
+### 10.6 Varsling og debug info
 
 - Sett «Debug-detaljer» til `true` for ekstra sporingsinformasjon i varselet
 - Separate Pushover-prioriteter for: vanlig varsel, kritisk offline, kritisk online/annen endring

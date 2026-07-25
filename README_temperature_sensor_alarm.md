@@ -90,23 +90,27 @@ Automasjonen er enkel og har ingen tilleggslogikk utover de tre triggerscenarioe
 - Pushover-integrasjonen må være konfigurert i Home Assistant.
 - Script-blueprintet `varsel_pushover.yaml` (script `script.varsel_pushover_send_melding_webhome`) må være installert.
 
-### 10.2 Relevante automasjoner og script
+### 10.2 Eksempler
+
+Ingen YAML-eksempler for denne automasjonen.
+
+### 10.3 Relevante automasjoner og script
 
 | Blueprint | Formål |
 |---|---|
 | [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for å sende Pushover-varsler. Brukes av denne automasjonen for utsending. |
 
-### 10.3 Beregnede verdier og variabler
+### 10.4 Beregnede verdier og variabler
 
 | Variabel | Beskrivelse |
 |---|---|
 | `sensor_name` | Sensornavnet som vises i varselet. Bruker egendefinert navn → friendly_name → entity_id |
 
-### 10.4 Feilhåndtering
+### 10.5 Feilhåndtering
 
 Ingen spesiell feilhåndtering utover de tre triggerscenarioene. Dersom Pushover ikke er konfigurert, vil utsending feile stille uten påvirkning på andre systemer.
 
-### 10.5 Varsling og debug info
+### 10.6 Varsling og debug info
 
 Ingen debug-varsling. Alle varsler er informasjonsvarsler til bruker.
 

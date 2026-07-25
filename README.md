@@ -75,7 +75,7 @@ Guidelines:
 - Sections 1–9 are written for users with limited technical knowledge; section 10 is for technical users/AI.
 - Section 8 (Varsling) describes only notifications that are **active by default**.
 - Section 10.5 covers debug notifications (typically **disabled** by default) and troubleshooting settings.
-- Subsections 10.1–10.5 are fixed and must always be present; 10.6+ are optional extensions.
+- Subsections 10.1–10.6 are fixed and must always be present; 10.7+ are optional extensions.
 - Very advanced or highly technical content that does not fit §1–9 should be moved into §10.
 - The "Formål" summary (§1) should match the summary shown on this main README page.
 

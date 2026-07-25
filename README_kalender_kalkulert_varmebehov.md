@@ -123,13 +123,17 @@ Nøkkelordet sjekkes mot «location»-feltet i kalenderhendelsen (uavhengig av s
 - Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome` (for varsling)
 - Valgfri: `input_text` for statusoppdatering
 
-### 10.2 Relevante automasjoner og script
+### 10.2 Eksempler
+
+Ingen YAML-eksempler for denne automasjonen.
+
+### 10.3 Relevante automasjoner og script
 
 | Blueprint | Formål |
 |---|---|
 | [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
 
-### 10.3 Beregnede verdier og variabler
+### 10.4 Beregnede verdier og variabler
 
 | Variabel | Beskrivelse |
 |---|---|
@@ -151,7 +155,7 @@ Nøkkelordet sjekkes mot «location»-feltet i kalenderhendelsen (uavhengig av s
 | ≤ 5 °C | 0,6 °C/time |
 | > 5 °C | 0,2 °C/time |
 
-### 10.4 Feilhåndtering
+### 10.5 Feilhåndtering
 
 | Situasjon | Håndtering |
 |---|---|
@@ -160,7 +164,7 @@ Nøkkelordet sjekkes mot «location»-feltet i kalenderhendelsen (uavhengig av s
 | Forecast mangler | Faller tilbake til `sensor.utetemperatur` |
 | Hendelsen er passert | Begge booleans settes av |
 
-### 10.5 Varsling og debug info
+### 10.6 Varsling og debug info
 
 - Valgfri `input_text` viser aktuell beregningsstatus
 - 24t-varselet sendes når neste hendelse er omtrent 24 timer frem i tid
