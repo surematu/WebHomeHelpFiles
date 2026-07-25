@@ -641,12 +641,12 @@ actions:
           skal_oppdatere_mode: "{{ iclimate_varmepumpe_mode != 'heat' }}"
 
   # Steg 4.5: beregn ønsket modus for overordnet climate
+  # Overordnet climate skal aldri stå i 'off'. Er den 'off', settes den til beregnet modus (heat/cool).
+  # Trenger systemet null varme/kjøling, brukes frost-settpunkt i stedet for off.
   - variables:
       onsket_overordnet_mode: "{{ onsket_mode }}"
   - variables:
-      # Oppdater kun når overordnet climate allerede står i heat/cool.
-      # Hvis den er off, lar vi den forbli off og bruker frost-settpunkt i stedet.
-      skal_oppdatere_overordnet: "{{ iclimate_overordnet_hvac_mode in ['heat', 'cool'] and (onsket_overordnet_mode | string) != (iclimate_overordnet_hvac_mode | string) }}"
+      skal_oppdatere_overordnet: "{{ (onsket_overordnet_mode | string) != (iclimate_overordnet_hvac_mode | string) }}"
 
   # Steg 5: normaliser pådrag for varmepumpe og panelovn
   - variables:
