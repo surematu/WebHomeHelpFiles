@@ -43,7 +43,7 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 ## 4. Hva slags info trengs
 
 - **Rom-climate** (overordnet): climate-entitet som gir pådragssignal og settpunkt (obligatorisk)
-- **Pumpe-climate** (varmepumpe): climate-entiteten som styres (obligatorisk)
+- **Varmepumpe-climate** (varmepumpe): climate-entiteten som styres (obligatorisk)
 - **Varme-climate** (panelovn): valgfri climate-entitet som supplement (valgfri)
 - **Varme-switch** (digital utgang): valgfri switch-entitet som alternativ eller supplement til climate-panelovn (valgfri)
 - **Utgang - Varme panelovn prosent** (`input_number`): valgfri prosent-utgang 0–100 % for ekstern syklusstyring (valgfri)
@@ -126,7 +126,7 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 
 ## 7. Resultat
 
-- **Pumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov
+- **Varmepumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov
 - **Varme-climate** (panelovn): settpunkt oppdateres proporsjonalt (settes til frost-setpunkt ved ingen behov)
 - **Varme-switch** (digital utgang): styres i fast 30-min trinnsyklus basert på beregnet panelovn-pådrag
 - **Utgang - Varme panelovn prosent** (`input_number`, valgfri): oppdateres med panelovn-pådrag 0–100 %
@@ -298,7 +298,7 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | `comfort_temp` mangler | Bruker rom-settpunkt direkte som basis |
 | Varmepumpa støtter ikke fan-moder | Ingen vifte-oppdatering |
 | `driftsmodus_vinter_sommer` ugyldig | Varmepumpa holdes i `heat`-modus |
-| Settpunkt utenfor `[pumpe_temp_min, pumpe_temp_maks]` | Klippes til absolutt grense |
+| Settpunkt utenfor `[varmepumpe_temp_min, varmepumpe_temp_maks]` | Klippes til absolutt grense |
 | `varme_climate` ikke konfigurert | Panelovn climate-steg hoppes over |
 | `varme_switch` ikke konfigurert | Panelovn switch-steg hoppes over |
 | `preset_temperatures.frost_temp` mangler | Bruker 10 °C som fallback |

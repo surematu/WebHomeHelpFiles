@@ -60,7 +60,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.17
+    Blueprint versjon: 2026.07.18
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -114,7 +114,7 @@ blueprint:
       icon: mdi:heat-pump
       collapsed: true
       input:
-        pumpe_climate:
+        varmepumpe_climate:
           name: Climate - Varmepumpe
           selector:
             entity:
@@ -208,7 +208,7 @@ blueprint:
               step: 1
               mode: slider
       
-        pumpe_temp_min:
+        varmepumpe_temp_min:
           name: Absolutt min temperatur på varmepumpe
           default: 10
           selector:
@@ -219,7 +219,7 @@ blueprint:
               mode: box
               unit_of_measurement: "°C"
 
-        pumpe_temp_maks:
+        varmepumpe_temp_maks:
           name: Absolutt maks temperatur på varmepumpe
           default: 29
           selector:
@@ -468,7 +468,7 @@ actions:
   # Steg 0: inputs
   - variables:
       iclimate_varme: !input rom_climate
-      iclimate_varmepumpe: !input pumpe_climate
+      iclimate_varmepumpe: !input varmepumpe_climate
       inum_offset_min: !input grader_under_min
       inum_offset_maks: !input grader_over_maks
       inum_max_step: !input maks_endring_per_kjoring
@@ -476,8 +476,8 @@ actions:
       ix_vifte_aktiv: !input vifte_boost
       padrag_reg_offset_min: !input padrag_regulated_offset_min
       padrag_reg_offset_maks: !input padrag_regulated_offset_maks
-      inum_varmepumpe_abs_min: !input pumpe_temp_min
-      inum_varmepumpe_abs_max: !input pumpe_temp_maks
+      inum_varmepumpe_abs_min: !input varmepumpe_temp_min
+      inum_varmepumpe_abs_max: !input varmepumpe_temp_maks
       ix_kjoling_aktiv: !input ix_kjoling_aktiv
       inum_kjoling_av_delta_sommer: !input inum_kjoling_av_delta_sommer
       inum_kjoling_av_delta_vinter: !input inum_kjoling_av_delta_vinter
@@ -795,9 +795,9 @@ actions:
         value_template: "{{ ix_vifte_aktiv }}"
     then:
       - variables:
-          pumpe_vifte_stottes: "{{ state_attr(iclimate_varmepumpe, 'fan_modes') is not none }}"
+          varmepumpe_vifte_stottes: "{{ state_attr(iclimate_varmepumpe, 'fan_modes') is not none }}"
           onsket_vifte: >-
-            {% if not pumpe_vifte_stottes %}
+            {% if not varmepumpe_vifte_stottes %}
               {{ iclimate_varmepumpe_fanmode }}
             {% elif iclimate_varme_presetmode == 'frost' %}
               high
@@ -808,7 +808,7 @@ actions:
             {% else %}
               {{ iclimate_varmepumpe_fanmode }}
             {% endif %}
-          skal_oppdatere_vifte: "{{ pumpe_vifte_stottes and (onsket_vifte | string) != (iclimate_varmepumpe_fanmode | string) }}"
+          skal_oppdatere_vifte: "{{ varmepumpe_vifte_stottes and (onsket_vifte | string) != (iclimate_varmepumpe_fanmode | string) }}"
     else:
       - variables:
           onsket_vifte: "{{ iclimate_varmepumpe_fanmode }}"
@@ -843,7 +843,7 @@ actions:
         then:
           - action: climate.set_hvac_mode
             target:
-              entity_id: !input pumpe_climate
+              entity_id: !input varmepumpe_climate
             data:
               hvac_mode: "{{ onsket_mode }}"
 
@@ -853,7 +853,7 @@ actions:
         then:
           - action: climate.set_temperature
             target:
-              entity_id: !input pumpe_climate
+              entity_id: !input varmepumpe_climate
             data:
               hvac_mode: "{{ onsket_mode }}"
               temperature: "{{ qnum_varmepumpe_req_spk }}"
@@ -864,7 +864,7 @@ actions:
         then:
           - action: climate.set_fan_mode
             target:
-              entity_id: !input pumpe_climate
+              entity_id: !input varmepumpe_climate
             data:
               fan_mode: "{{ onsket_vifte }}"
 
