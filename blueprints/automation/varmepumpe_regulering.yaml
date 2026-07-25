@@ -719,12 +719,12 @@ actions:
           0
         {% endif %}
   - variables:
-      minutes_since_midnight: "{{ ((now().hour * 60) + now().minute) | int }}"
+      minutes_since_midnight: "{{ (now().hour * 60) + now().minute }}"
   - variables:
-      panelovn_ten_min_block_index: "{{ (minutes_since_midnight | int(0) // 10) | int }}"
+      panelovn_ten_min_block_index: "{{ minutes_since_midnight // 10 }}"
   - variables:
       # Slot-indeks i fast 30-min syklus (0,1,2): 10-min blokknummer modulo 3.
-      panelovn_switch_slot_index: "{{ ((panelovn_ten_min_block_index | int(0)) % 3) | int }}"
+      panelovn_switch_slot_index: "{{ panelovn_ten_min_block_index % 3 }}"
   - variables:
       # true dersom switch skal være på i nåværende 10-min slot.
       panelovn_switch_skal_aktiveres: >-
