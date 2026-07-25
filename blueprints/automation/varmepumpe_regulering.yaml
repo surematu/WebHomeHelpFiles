@@ -476,19 +476,22 @@ actions:
       iclimate_varmepumpe_abs_max: "{{ state_attr(iclimate_varmepumpe, 'max_temp') | float(varmepumpe_abs_max_default) }}"
       varmepumpe_manual_min_set_raw: "{{ itext_varmepumpe_min_temp_overstyring | string | trim }}"
       varmepumpe_manual_maks_set_raw: "{{ itext_varmepumpe_maks_temp_overstyring | string | trim }}"
-      varmepumpe_manual_min_set_is_number: "{{ varmepumpe_manual_min_set_raw | regex_match('^-?[0-9]+([\\.,][0-9]+)?$') }}"
-      varmepumpe_manual_maks_set_is_number: "{{ varmepumpe_manual_maks_set_raw | regex_match('^-?[0-9]+([\\.,][0-9]+)?$') }}"
+      varmepumpe_manual_number_pattern: "^-?[0-9]+([\\.,][0-9]+)?$"
+      varmepumpe_manual_min_set_norm: "{{ varmepumpe_manual_min_set_raw | replace(',', '.') }}"
+      varmepumpe_manual_maks_set_norm: "{{ varmepumpe_manual_maks_set_raw | replace(',', '.') }}"
+      varmepumpe_manual_min_set_is_number: "{{ varmepumpe_manual_min_set_raw | regex_match(varmepumpe_manual_number_pattern) }}"
+      varmepumpe_manual_maks_set_is_number: "{{ varmepumpe_manual_maks_set_raw | regex_match(varmepumpe_manual_number_pattern) }}"
       varmepumpe_manual_min_set_enabled: "{{ (varmepumpe_manual_min_set_raw != '') and varmepumpe_manual_min_set_is_number }}"
       varmepumpe_manual_maks_set_enabled: "{{ (varmepumpe_manual_maks_set_raw != '') and varmepumpe_manual_maks_set_is_number }}"
       varmepumpe_manual_min_set_value: >-
         {% if varmepumpe_manual_min_set_enabled %}
-          {{ [iclimate_varmepumpe_abs_min | float(varmepumpe_abs_min_default), (varmepumpe_manual_min_set_raw | replace(',', '.')) | float(varmepumpe_abs_min_default)] | max }}
+          {{ [iclimate_varmepumpe_abs_min | float(varmepumpe_abs_min_default), varmepumpe_manual_min_set_norm | float(varmepumpe_abs_min_default)] | max }}
         {% else %}
           {{ iclimate_varmepumpe_abs_min }}
         {% endif %}
       varmepumpe_manual_maks_set_value: >-
         {% if varmepumpe_manual_maks_set_enabled %}
-          {{ [iclimate_varmepumpe_abs_max | float(varmepumpe_abs_max_default), (varmepumpe_manual_maks_set_raw | replace(',', '.')) | float(varmepumpe_abs_max_default)] | min }}
+          {{ [iclimate_varmepumpe_abs_max | float(varmepumpe_abs_max_default), varmepumpe_manual_maks_set_norm | float(varmepumpe_abs_max_default)] | min }}
         {% else %}
           {{ iclimate_varmepumpe_abs_max }}
         {% endif %}
@@ -500,7 +503,7 @@ actions:
       varmepumpe_effektiv_maks_setpunkt: >-
         {% set min_eff = varmepumpe_effektiv_min_setpunkt_raw | float(varmepumpe_abs_min_default) %}
         {% set max_eff = varmepumpe_effektiv_maks_setpunkt_raw | float(varmepumpe_abs_max_default) %}
-        {# Sikring: maks kan aldri være lavere enn min. Ved konflikt låses begge til min_eff. #}
+        {# Sikring: maks kan aldri være lavere enn min. Ved konflikt settes maks = min_eff. #}
         {{ max_eff if max_eff >= min_eff else min_eff }}
       iclimate_varmepumpe_sekundar_rt_spk: >-
         {% if varmepumpe_sekundar_configured %}
