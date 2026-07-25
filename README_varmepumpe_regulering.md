@@ -107,6 +107,7 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 
 > **Merk:** Laster (panelovn/switch) vurderes hvert **10. minutt**. Switch følger samtidig en fast **30-minutters syklus** (3 slot à 10 min) som er låst til klokkeslett (veggklokke), ikke til tidspunktet panelovn blir aktiv. Trenger du annen syklustid, bruk prosent-utgangen i [9.4](#94-panelovn-prosent-utgang-alternativ-til-switch) og styr syklusen eksternt.
 > Slot-grensene ligger fast på klokkeslett (:00, :10, :20, :30, :40, :50). Hvis panelovn blir aktiv midt i en slot, kan første slot bli kortere/lengre før normal rytme fortsetter ved neste slot-grense.
+> Eksempel: blir panelovn aktiv kl. 10:07, varer første slot bare til 10:10 før vanlig 10-min rytme tar over.
 
 1. Leser pådragssignal fra rom-climate (power_percent → regulated_target_temperature → 50 % fallback)
 2. Beregner minimumspådrag basert på temperaturunderskudd og preset (eco/comfort/boost)
