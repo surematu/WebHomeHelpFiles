@@ -151,6 +151,15 @@ Detaljert funksjonsbeskrivelse:
 
 ---
 
+### pwm_output.yaml — PWM Output – Bryterstyring
+
+Styrer en bryter (switch) med PWM (pulsbreddemodulasjon) basert på et inngangssignal 0–100 %. Høyere prosentandel gir lengre på-tid per syklus. En minimumsgrense for på/av-tid forhindrer at bryteren slår raskt av og på ved lave eller høye verdier. Offset-innstillingen gjør det mulig å forskyve syklusen slik at to PWM-er ved samme prosentandel ikke starter til nøyaktig samme tidspunkt.
+
+Detaljert funksjonsbeskrivelse:
+- [README_pwm_output.md](./README_pwm_output.md)
+
+---
+
 ### varsel_printer.yaml — Varsel - Printer - Blekk/Toner lavt
 
 Finner automatisk alle printer-sensorer og sender varsel via Pushover når blekk eller toner er lavere enn valgt terskel. Grupperer sensorer per printer og filtrerer ugyldige verdier automatisk.
