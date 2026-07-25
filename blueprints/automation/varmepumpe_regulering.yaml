@@ -719,9 +719,9 @@ actions:
           0
         {% endif %}
   - variables:
-      panelovn_minutes_since_midnight: "{{ ((now().hour * 60) + now().minute) | int }}"
+      minutes_since_midnight: "{{ ((now().hour * 60) + now().minute) | int }}"
   - variables:
-      panelovn_ten_min_block_index: "{{ (panelovn_minutes_since_midnight | int(0) // 10) | int }}"
+      panelovn_ten_min_block_index: "{{ (minutes_since_midnight | int(0) // 10) | int }}"
   - variables:
       # Slot-indeks i fast 30-min syklus (0,1,2): 10-min blokknummer modulo 3.
       panelovn_switch_slot_index: "{{ ((panelovn_ten_min_block_index | int(0)) % 3) | int }}"
@@ -977,7 +977,7 @@ actions:
             {%- if panelovn_switch_configured %}
 
             Varme (switch):
-            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | Slot (0-basert indeks + 1 i visning): {{ (panelovn_switch_slot_index | int) + 1 }}/3
+            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | Aktiv slot: {{ (panelovn_switch_slot_index | int) + 1 }}/3
             Trinn: {{ panelovn_switch_on_slots | int }} av 3 slot på (10 min per slot)
             {%- endif %}
             {%- if panelovn_prosent_output_configured %}
