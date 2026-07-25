@@ -230,16 +230,16 @@ Dette er nyttig når primær entitet er best til rask og lokal styring, mens sek
 
 ```yaml
 input_select:
-  auto_manuell_varmepumpe_stue:
-    name: Auto/Manuell varmepumpe stue
+  stue_panelovn_stue_auto_manuell:
+    name: Panelovn (Stue) Auto/Manuell
     options:
       - AUTO
       - MANUELL
     initial: AUTO
     icon: mdi:heat-pump
 
-  auto_manuell_varme_stue:
-    name: Auto/Manuell varme stue
+  stue_varmepumpe_stue_auto_manuell:
+    name: Varmepumpe (Stue) Auto/Manuell
     options:
       - AUTO
       - MANUELL
