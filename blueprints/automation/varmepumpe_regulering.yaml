@@ -634,6 +634,8 @@ actions:
   - variables:
       onsket_overordnet_mode: "{{ onsket_mode }}"
   - variables:
+      # Oppdater kun når overordnet climate allerede står i heat/cool.
+      # Hvis den er off, lar vi den forbli off og bruker frost-settpunkt i stedet.
       skal_oppdatere_overordnet: "{{ iclimate_overordnet_hvac_mode in ['heat', 'cool'] and (onsket_overordnet_mode | string) != (iclimate_overordnet_hvac_mode | string) }}"
 
   # Steg 5: normaliser pådrag for varmepumpe og panelovn
@@ -810,9 +812,27 @@ actions:
       skal_oppdatere_vifte_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_vifte }}"
       skal_oppdatere_mode_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_mode }}"
       skal_oppdatere_overordnet_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_overordnet }}"
+      varmepumpe_manual_min_debug_text: >-
+        {% if varmepumpe_manual_min_set_enabled %}
+          min={{ varmepumpe_manual_min_set_value | round(1) }}
+        {% else %}
+          {{ '' }}
+        {% endif %}
+      varmepumpe_manual_maks_debug_text: >-
+        {% if varmepumpe_manual_maks_set_enabled %}
+          maks={{ varmepumpe_manual_maks_set_value | round(1) }}
+        {% else %}
+          {{ '' }}
+        {% endif %}
+      varmepumpe_manual_limits_debug_joiner: >-
+        {% if varmepumpe_manual_min_set_enabled and varmepumpe_manual_maks_set_enabled %}
+          , 
+        {% else %}
+          {{ '' }}
+        {% endif %}
       varmepumpe_manual_limits_debug_suffix: >-
         {% if varmepumpe_manual_min_set_enabled or varmepumpe_manual_maks_set_enabled %}
-          , manuell{% if varmepumpe_manual_min_set_enabled %} min={{ varmepumpe_manual_min_set_value | round(1) }}{% endif %}{% if varmepumpe_manual_maks_set_enabled %}{% if varmepumpe_manual_min_set_enabled %}, {% else %} {% endif %}maks={{ varmepumpe_manual_maks_set_value | round(1) }}{% endif %}
+          , manuell {{ varmepumpe_manual_min_debug_text }}{{ varmepumpe_manual_limits_debug_joiner }}{{ varmepumpe_manual_maks_debug_text }}
         {% else %}
           {{ '' }}
         {% endif %}
