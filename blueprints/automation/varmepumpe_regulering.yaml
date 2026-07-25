@@ -471,33 +471,34 @@ actions:
       # Robust fallback hvis climate-attributter mangler/er ugyldige.
       # 10–30 °C matcher eksisterende standardgrenser i blueprinten.
       varmepumpe_abs_min_default: 10
-      varmepumpe_abs_maks_default: 30
+      varmepumpe_abs_max_default: 30
       iclimate_varmepumpe_abs_min: "{{ state_attr(iclimate_varmepumpe, 'min_temp') | float(varmepumpe_abs_min_default) }}"
-      iclimate_varmepumpe_abs_max: "{{ state_attr(iclimate_varmepumpe, 'max_temp') | float(varmepumpe_abs_maks_default) }}"
+      iclimate_varmepumpe_abs_max: "{{ state_attr(iclimate_varmepumpe, 'max_temp') | float(varmepumpe_abs_max_default) }}"
       varmepumpe_manual_min_set_raw: "{{ itext_varmepumpe_min_temp_overstyring | string | trim }}"
       varmepumpe_manual_maks_set_raw: "{{ itext_varmepumpe_maks_temp_overstyring | string | trim }}"
       varmepumpe_manual_min_set_enabled: "{{ varmepumpe_manual_min_set_raw not in ['', 'None', 'none'] }}"
       varmepumpe_manual_maks_set_enabled: "{{ varmepumpe_manual_maks_set_raw not in ['', 'None', 'none'] }}"
       varmepumpe_manual_min_set_value: >-
         {% if varmepumpe_manual_min_set_enabled %}
-          {{ varmepumpe_manual_min_set_raw | float(varmepumpe_abs_min_default) }}
+          {{ [iclimate_varmepumpe_abs_min | float(varmepumpe_abs_min_default), varmepumpe_manual_min_set_raw | float(varmepumpe_abs_min_default)] | max }}
         {% else %}
           {{ iclimate_varmepumpe_abs_min }}
         {% endif %}
       varmepumpe_manual_maks_set_value: >-
         {% if varmepumpe_manual_maks_set_enabled %}
-          {{ varmepumpe_manual_maks_set_raw | float(varmepumpe_abs_maks_default) }}
+          {{ [iclimate_varmepumpe_abs_max | float(varmepumpe_abs_max_default), varmepumpe_manual_maks_set_raw | float(varmepumpe_abs_max_default)] | min }}
         {% else %}
           {{ iclimate_varmepumpe_abs_max }}
         {% endif %}
       varmepumpe_effektiv_min_setpunkt_raw: >-
-        {{ [iclimate_varmepumpe_abs_min | float(varmepumpe_abs_min_default), varmepumpe_manual_min_set_value | float(varmepumpe_abs_min_default)] | max }}
+        {{ varmepumpe_manual_min_set_value | float(varmepumpe_abs_min_default) }}
       varmepumpe_effektiv_maks_setpunkt_raw: >-
-        {{ [iclimate_varmepumpe_abs_max | float(varmepumpe_abs_maks_default), varmepumpe_manual_maks_set_value | float(varmepumpe_abs_maks_default)] | min }}
+        {{ varmepumpe_manual_maks_set_value | float(varmepumpe_abs_max_default) }}
       varmepumpe_effektiv_min_setpunkt: "{{ varmepumpe_effektiv_min_setpunkt_raw | float(varmepumpe_abs_min_default) }}"
       varmepumpe_effektiv_maks_setpunkt: >-
         {% set min_eff = varmepumpe_effektiv_min_setpunkt_raw | float(varmepumpe_abs_min_default) %}
-        {% set max_eff = varmepumpe_effektiv_maks_setpunkt_raw | float(varmepumpe_abs_maks_default) %}
+        {% set max_eff = varmepumpe_effektiv_maks_setpunkt_raw | float(varmepumpe_abs_max_default) %}
+        {# Sikring: sørg for gyldig intervall der maks aldri blir lavere enn min. #}
         {{ max_eff if max_eff >= min_eff else min_eff }}
       iclimate_varmepumpe_sekundar_rt_spk: >-
         {% if varmepumpe_sekundar_configured %}
@@ -755,7 +756,7 @@ actions:
   - variables:
       varmepumpe_req_spk_incl_abs_limit: >-
         {% set t = varmepumpe_req_spk_raw | float(iclimate_varme_rt_max_spk_spcomfort) %}
-        {{ [ [t, varmepumpe_effektiv_min_setpunkt | float(varmepumpe_abs_min_default)] | max, varmepumpe_effektiv_maks_setpunkt | float(varmepumpe_abs_maks_default) ] | min }}
+        {{ [ [t, varmepumpe_effektiv_min_setpunkt | float(varmepumpe_abs_min_default)] | max, varmepumpe_effektiv_maks_setpunkt | float(varmepumpe_abs_max_default) ] | min }}
   - variables:
       # Mellomsteg: rundes til nærmeste halve (20.5, 20 osv.).
       # Endelig avrunding skjer i qnum_varmepumpe_req_spk basert på inum_max_step.
