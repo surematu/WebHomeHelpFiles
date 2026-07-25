@@ -646,7 +646,9 @@ actions:
   - variables:
       onsket_overordnet_mode: "{{ onsket_mode }}"
   - variables:
-      skal_oppdatere_overordnet: "{{ (onsket_overordnet_mode | string) in ['heat', 'cool'] and (onsket_overordnet_mode | string) != (iclimate_overordnet_hvac_mode | string) }}"
+      onsket_overordnet_mode_txt: "{{ onsket_overordnet_mode | string }}"
+  - variables:
+      skal_oppdatere_overordnet: "{{ onsket_overordnet_mode_txt in ['heat', 'cool'] and onsket_overordnet_mode_txt != (iclimate_overordnet_hvac_mode | string) }}"
 
   # Steg 5: normaliser pådrag for varmepumpe og panelovn
   - variables:
