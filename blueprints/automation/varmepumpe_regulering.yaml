@@ -57,7 +57,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.19
+    Blueprint versjon: 2026.07.20
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -133,8 +133,8 @@ blueprint:
           name: Grader i forhold til settpunkt ved 0% pådrag (grader_under_min)
           description: >
             Offset i °C relativt til iclimate_varme_rt_max_spk_spcomfort når varmepumpe_output_power=0.
-            Default -3 betyr basis-3. Sett f.eks 1–4 for basis+1 til basis+4.
-          default: -3
+            Default -4 betyr basis-4. Sett f.eks 1–4 for basis+1 til basis+4.
+          default: -4
           selector:
             number:
               min: -10
@@ -375,7 +375,7 @@ blueprint:
 
         pushover_ttl:
           name: Pushover TTL (sekunder)
-          default: 3600
+          default: 21600
           selector:
             number:
               min: 0
