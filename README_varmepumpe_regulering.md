@@ -105,7 +105,7 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 
 Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsmodus:
 
-> **Merk:** Laster (panelovn/switch) vurderes hvert **10. minutt**. Switch følger samtidig en fast **30-minutters syklus** (3 slot à 10 min). Trenger du annen syklustid, bruk prosent-utgangen i [9.4](#94-panelovn-prosent-utgang-alternativ-til-switch) og styr syklusen eksternt.
+> **Merk:** Laster (panelovn/switch) vurderes hvert **10. minutt**. Switch følger samtidig en fast **30-minutters syklus** (3 slot à 10 min) som er låst til klokkeslett (veggklokke), ikke til tidspunktet panelovn blir aktiv. Trenger du annen syklustid, bruk prosent-utgangen i [9.4](#94-panelovn-prosent-utgang-alternativ-til-switch) og styr syklusen eksternt.
 
 1. Leser pådragssignal fra rom-climate (power_percent → regulated_target_temperature → 50 % fallback)
 2. Beregner minimumspådrag basert på temperaturunderskudd og preset (eco/comfort/boost)

@@ -974,7 +974,7 @@ actions:
             {%- if panelovn_switch_configured %}
 
             Varme (switch):
-            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | Slot (1-basert visning): {{ (panelovn_switch_slot_index | int) + 1 }}/3
+            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | Slot (0-basert indeks + 1 i visning): {{ (panelovn_switch_slot_index | int) + 1 }}/3
             Trinn: {{ panelovn_switch_on_slots | int }} av 3 slot på (10 min per slot)
             {%- endif %}
             {%- if panelovn_prosent_output_configured %}
