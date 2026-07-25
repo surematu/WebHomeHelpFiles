@@ -720,6 +720,7 @@ actions:
         {% endif %}
   - variables:
       # Slot-indeks i fast 30-min syklus (0,1,2) basert på total minutter siden midnatt.
+      # Slot 0/1/2 tilsvarer løpende 10-min blokker i syklusen.
       panelovn_switch_slot_index: "{{ ((((now().hour * 60) + now().minute) // 10) % 3) | int }}"
   - variables:
       # true dersom switch skal være på i nåværende 10-min slot.
@@ -973,7 +974,7 @@ actions:
             {%- if panelovn_switch_configured %}
 
             Varme (switch):
-            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | Slot: {{ (panelovn_switch_slot_index | int) + 1 }}/3
+            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | Slot (1-basert visning): {{ (panelovn_switch_slot_index | int) + 1 }}/3
             Trinn: {{ panelovn_switch_on_slots | int }} av 3 slot på (10 min per slot)
             {%- endif %}
             {%- if panelovn_prosent_output_configured %}
