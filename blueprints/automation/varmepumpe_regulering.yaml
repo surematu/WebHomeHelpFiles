@@ -648,7 +648,8 @@ actions:
   - variables:
       onsket_overordnet_mode_txt: "{{ onsket_overordnet_mode | string | lower | trim }}"
   - variables:
-      # Sikker modus for overordnet climate: kun heat/cool tillates, ellers fallback til heat (aldri off).
+      # Sikker modus for overordnet climate: kun heat/cool tillates.
+      # Fallback er heat for å unngå uønsket aktiv kjøling ved ugyldig/ukjent modusverdi.
       onsket_overordnet_mode_sikker: "{{ onsket_overordnet_mode_txt if onsket_overordnet_mode_txt in ['heat', 'cool'] else 'heat' }}"
   - variables:
       iclimate_overordnet_hvac_mode_txt: "{{ iclimate_overordnet_hvac_mode | string | lower | trim }}"
@@ -989,6 +990,7 @@ actions:
             {{ (panelovn_temp_delta | float(0)) / d if d > 0 else 0 }}
       - variables:
           varme_styrt_onsket_spk_raw: >-
+            {# Off-sjekken beholdes som sikkerhet for overgangstilstander før modus-synk er utført i samme kjøring. #}
             {% if iclimate_overordnet_hvac_mode_txt == 'off' or onsket_overordnet_mode_sikker == 'cool'
                or (panelovn_maal_power | float(0)) == 0
                or not (panelovn_hp_ready | bool) %}
