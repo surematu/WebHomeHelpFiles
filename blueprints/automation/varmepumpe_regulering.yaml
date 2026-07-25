@@ -810,6 +810,14 @@ actions:
       skal_oppdatere_vifte_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_vifte }}"
       skal_oppdatere_mode_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_mode }}"
       skal_oppdatere_overordnet_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_overordnet }}"
+      varmepumpe_manual_limits_debug_suffix: >-
+        {% if varmepumpe_manual_min_set_enabled or varmepumpe_manual_maks_set_enabled %}
+          , manuell{% if varmepumpe_manual_min_set_enabled %} min={{ varmepumpe_manual_min_set_value | round(1) }}{% endif %}{% if varmepumpe_manual_maks_set_enabled %}{% if varmepumpe_manual_min_set_enabled %}, {% else %} {% endif %}maks={{ varmepumpe_manual_maks_set_value | round(1) }}{% endif %}
+        {% else %}
+          {{ '' }}
+        {% endif %}
+      varmepumpe_skrivgrenser_debug: >-
+        Skrivgrenser: {{ varmepumpe_effektiv_min_setpunkt | round(1) }}-{{ varmepumpe_effektiv_maks_setpunkt | round(1) }}°C (attrib {{ iclimate_varmepumpe_abs_min | round(1) }}-{{ iclimate_varmepumpe_abs_max | round(1) }}{{ varmepumpe_manual_limits_debug_suffix }})
       varmepumpe_primaer_endret: >-
         {{ qx_varmepumpe_spk_update_needed_effektiv
            or skal_oppdatere_vifte_effektiv
@@ -1020,7 +1028,7 @@ actions:
             Varmepumpe (Varme):
             Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ hp_norm_power_heat | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }})
-            Skrivgrenser: {{ varmepumpe_effektiv_min_setpunkt | round(1) }}-{{ varmepumpe_effektiv_maks_setpunkt | round(1) }}°C (attrib {{ iclimate_varmepumpe_abs_min | round(1) }}-{{ iclimate_varmepumpe_abs_max | round(1) }}{% if varmepumpe_manual_min_set_enabled or varmepumpe_manual_maks_set_enabled %}, manuell{% if varmepumpe_manual_min_set_enabled %} min={{ varmepumpe_manual_min_set_value | round(1) }}{% endif %}{% if varmepumpe_manual_maks_set_enabled %}{% if varmepumpe_manual_min_set_enabled %}, {% else %} {% endif %}maks={{ varmepumpe_manual_maks_set_value | round(1) }}{% endif %}{% endif %})
+            {{ varmepumpe_skrivgrenser_debug }}
             {%- if (iclimate_varme_styrt | string) not in ['', 'None', 'none'] %}
 
             Varme (climate):
@@ -1044,7 +1052,7 @@ actions:
             Varmepumpe (Kjøling):
             Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ varmepumpe_output_power | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }})
-            Skrivgrenser: {{ varmepumpe_effektiv_min_setpunkt | round(1) }}-{{ varmepumpe_effektiv_maks_setpunkt | round(1) }}°C (attrib {{ iclimate_varmepumpe_abs_min | round(1) }}-{{ iclimate_varmepumpe_abs_max | round(1) }}{% if varmepumpe_manual_min_set_enabled or varmepumpe_manual_maks_set_enabled %}, manuell{% if varmepumpe_manual_min_set_enabled %} min={{ varmepumpe_manual_min_set_value | round(1) }}{% endif %}{% if varmepumpe_manual_maks_set_enabled %}{% if varmepumpe_manual_min_set_enabled %}, {% else %} {% endif %}maks={{ varmepumpe_manual_maks_set_value | round(1) }}{% endif %}{% endif %})
+            {{ varmepumpe_skrivgrenser_debug }}
             {%- endif %}
             {%- if skal_oppdatere_vifte %}
             Vifte: {{ onsket_vifte }}
