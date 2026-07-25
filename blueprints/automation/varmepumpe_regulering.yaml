@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.23
+    Blueprint versjon: 2026.07.24
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -582,10 +582,12 @@ actions:
           skal_oppdatere_mode: "{{ iclimate_varmepumpe_mode != 'heat' }}"
 
   # Steg 4.5: beregn ønsket modus for overordnet climate
+  # Overordnet climate skal aldri stå i 'off'. Er den 'off', settes den til beregnet modus (heat/cool).
+  # Trenger systemet null varme/kjøling, brukes frost-settpunkt i stedet for off.
   - variables:
       onsket_overordnet_mode: "{{ onsket_mode }}"
   - variables:
-      skal_oppdatere_overordnet: "{{ iclimate_overordnet_hvac_mode in ['heat', 'cool'] and (onsket_overordnet_mode | string) != (iclimate_overordnet_hvac_mode | string) }}"
+      skal_oppdatere_overordnet: "{{ (onsket_overordnet_mode | string) != (iclimate_overordnet_hvac_mode | string) }}"
 
   # Steg 5: normaliser pådrag for varmepumpe og panelovn
   - variables:

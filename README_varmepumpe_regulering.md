@@ -157,7 +157,7 @@ Eksempel: Hvis rommet er mye kaldere enn ønsket og pådraget blir 80 %, økes v
 - **Varme-climate** (panelovn): settpunkt oppdateres proporsjonalt når varme-vender er `AUTO`
 - **Utgang - Varme utgang digital (switch)**: styres i fast 30-min trinnsyklus når varme-vender er `AUTO`
 - **Utgang - Varme pådrag panelovn** (`input_number`, valgfri): oppdateres med panelovn-pådrag 0–100 % når varme-vender er `AUTO`
-- **Rom-climate** (overordnet): hvac_mode synkroniseres med beregnet modus (aldri endret fra «off») når varmepumpe-vender er `AUTO`
+- **Rom-climate** (overordnet): hvac_mode synkroniseres med beregnet modus (heat/cool) – og settes aktivt til heat/cool om den er i «off» – når varmepumpe-vender er `AUTO`
 
 ## 8. Varsling
 
@@ -187,7 +187,7 @@ Dette sikrer at varmepumpen får tid til å «komme opp i fart» før panelovnen
 
 ### 9.2 Modus-endring
 
-Overordnet climate (rom_climate) oppdateres til samme modus som varmepumpen (heat/cool), men aldri dersom den er i «off»-modus.
+Overordnet climate (rom_climate) oppdateres alltid til beregnet modus (heat/cool) – også hvis den er i «off»-modus. Den settes aldri til «off». Trenger systemet minimalt pådrag, beholder den aktiv modus mens varmepumpen reguleres ned mot frost-settpunktet.
 Dette skjer kun når `Input select - Varmepumpe AUTO/MANUELL` står i `AUTO`.
 
 ### 9.3 Panelovn som digital utgang (switch)
