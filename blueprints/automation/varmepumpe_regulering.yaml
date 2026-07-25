@@ -298,7 +298,7 @@ blueprint:
         panelovn_delta_maks:
           name: Temperaturspenn for panelovn 0–100 % (°C)
           description: >
-            Hvor mange grader rommet kan ligge under settpunkt før climate-panelovn er på 100%.
+            Hvor mange grader rommet kan ligge under settpunkt før panelovn-climate er på 100%.
             0 °C under settpunkt gir 0% panelovn (frost), og valgt spenn under settpunkt gir 100%.
             Mellom disse nivåene reguleres panelovn lineært.
             Lav verdi = panelovn reagerer raskere/aggressivt hvis varmepumpa bruker tid på å hente seg inn.
@@ -727,6 +727,7 @@ actions:
         value_template: "{{ ix_vifte_aktiv }}"
     then:
       - variables:
+          # 31–50 % betyr behold eksisterende fan_mode; bare lave/høye behov tvinger ny verdi.
           onsket_vifte_target_raw: >-
             {% if iclimate_varme_presetmode == 'frost' %}
               high
