@@ -719,8 +719,8 @@ actions:
           0
         {% endif %}
   - variables:
-      # Slot-indeks i fast 30-min syklus (0,1,2) basert på klokkeslett.
-      panelovn_switch_slot_index: "{{ ((now().minute // 10) % 3) | int }}"
+      # Slot-indeks i fast 30-min syklus (0,1,2) basert på total minutter siden midnatt.
+      panelovn_switch_slot_index: "{{ ((((now().hour * 60) + now().minute) // 10) % 3) | int }}"
   - variables:
       # true dersom switch skal være på i nåværende 10-min slot.
       panelovn_switch_skal_aktiveres: >-
