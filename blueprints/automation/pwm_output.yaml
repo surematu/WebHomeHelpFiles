@@ -29,7 +29,7 @@ blueprint:
 
   input:
     main:
-      name: Hovediinnganger
+      name: Hovedinnganger
       icon: mdi:sine-wave
       input:
         pwm_input_entity:

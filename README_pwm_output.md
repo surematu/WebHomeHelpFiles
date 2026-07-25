@@ -69,7 +69,7 @@ Inngangsverdien tolkes som 0, noe som betyr at bryteren behandles som 0 % og hol
 | Offset (min) | 0 | Forskyver syklusstarten. Bruk ulike verdier på to PWM-er for å unngå synkronisert oppstart. |
 | Minimum på/av-tid (min) | 5 | Beregnet tid under dette rundes til 0 % (AV) eller 100 % (PÅ). |
 
-> **Tips om offset:** Sett offset på den ene instansen til halvparten av perioden (f.eks. 15 for 30 min periode) for å sørge for at to 50 %-lastar aldri er PÅ samtidig.
+> **Tips om offset:** Sett offset på den ene instansen til halvparten av perioden (f.eks. 15 for 30 min periode) for å sørge for at to 50 %-laster aldri er PÅ samtidig.
 
 ## 6. Funksjonsbeskrivelse
 
