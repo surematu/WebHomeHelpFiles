@@ -646,9 +646,11 @@ actions:
   - variables:
       onsket_overordnet_mode: "{{ onsket_mode }}"
   - variables:
-      onsket_overordnet_mode_txt: "{{ onsket_overordnet_mode | string }}"
+      onsket_overordnet_mode_txt: "{{ onsket_overordnet_mode | string | lower | trim }}"
   - variables:
-      skal_oppdatere_overordnet: "{{ onsket_overordnet_mode_txt in ['heat', 'cool'] and onsket_overordnet_mode_txt != (iclimate_overordnet_hvac_mode | string) }}"
+      onsket_overordnet_mode_sikker: "{{ onsket_overordnet_mode_txt if onsket_overordnet_mode_txt in ['heat', 'cool'] else 'heat' }}"
+  - variables:
+      skal_oppdatere_overordnet: "{{ onsket_overordnet_mode_sikker != (iclimate_overordnet_hvac_mode | string) }}"
 
   # Steg 5: normaliser pådrag for varmepumpe og panelovn
   - variables:
@@ -876,7 +878,7 @@ actions:
             target:
               entity_id: !input rom_climate
             data:
-              hvac_mode: "{{ onsket_overordnet_mode }}"
+              hvac_mode: "{{ onsket_overordnet_mode_sikker }}"
 
       - if:
           - condition: template
@@ -984,7 +986,7 @@ actions:
             {{ (panelovn_temp_delta | float(0)) / d if d > 0 else 0 }}
       - variables:
           varme_styrt_onsket_spk_raw: >-
-            {% if iclimate_overordnet_hvac_mode == 'off' or onsket_overordnet_mode == 'cool'
+            {% if iclimate_overordnet_hvac_mode == 'off' or onsket_overordnet_mode_sikker == 'cool'
                or (panelovn_maal_power | float(0)) == 0
                or not (panelovn_hp_ready | bool) %}
               {{ iclimate_varme_frost_temp | float(10) }}
