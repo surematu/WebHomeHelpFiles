@@ -468,6 +468,8 @@ actions:
       iclimate_varmepumpe_rt_spk: "{{ state_attr(iclimate_varmepumpe, 'temperature') | float(0) }}"
       iclimate_varmepumpe_mode: "{{ states(iclimate_varmepumpe) | string | lower }}"
       iclimate_varmepumpe_fanmode: "{{ (state_attr(iclimate_varmepumpe, 'fan_mode') | string | lower) }}"
+      # Robust fallback hvis climate-attributter mangler/er ugyldige.
+      # 10–30 °C matcher eksisterende standardgrenser i blueprinten.
       varmepumpe_abs_min_default: 10
       varmepumpe_abs_maks_default: 30
       iclimate_varmepumpe_abs_min: "{{ state_attr(iclimate_varmepumpe, 'min_temp') | float(varmepumpe_abs_min_default) }}"
