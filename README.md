@@ -59,7 +59,7 @@ Required structure for each automation README:
 
 ── AVANSERT / TEKNISK (§10–11) ──────────────────────────────────────────────
 10. Avansert            – For technical users, developers, and AI
-    10.1 Forutsettninger         – Required entities, integrations, helper YAML examples
+    10.1 Forutsettninger og eksempler         – Required entities, integrations, helper YAML examples
     10.2 Relevante automasjoner og script – Links to related automations/scripts and why
     10.3 Beregnede verdier og variabler  – Calculated values, variables, key concepts
     10.4 Feilhåndtering                  – How errors are handled; typical error scenarios
