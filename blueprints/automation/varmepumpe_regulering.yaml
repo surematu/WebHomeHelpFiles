@@ -720,7 +720,8 @@ actions:
         {% endif %}
   - variables:
       # Slot-indeks i fast 30-min syklus (0,1,2) basert på total minutter siden midnatt.
-      # Slot 0/1/2 tilsvarer løpende 10-min blokker i syklusen.
+      # Total_minutter // 10 gir løpende 10-min blokknummer i døgnet.
+      # Modulo 3 mapper blokknummer til syklus-slot 0/1/2 i fast 30-min rytme.
       panelovn_switch_slot_index: "{{ ((((now().hour * 60) + now().minute) // 10) % 3) | int }}"
   - variables:
       # true dersom switch skal være på i nåværende 10-min slot.
@@ -729,18 +730,18 @@ actions:
            and (panelovn_switch_on_slots | int(0)) > 0
            and (panelovn_switch_slot_index | int(0)) < (panelovn_switch_on_slots | int(0)) }}
   - variables:
-      panelovn_prosent_output_onsket: "{{ panelovn_maal_power | float(0) | round(0) }}"
+      panelovn_prosent_output_onsket: "{{ (panelovn_maal_power | float(0)) | round(0) | int }}"
   - variables:
       panelovn_prosent_output_naa: >-
         {% if panelovn_prosent_output_configured %}
-          {{ states(iinputnumber_panelovn_prosent) | float(-1) }}
+          {{ (states(iinputnumber_panelovn_prosent) | float(-1)) | round(0) | int }}
         {% else %}
           -1
         {% endif %}
   - variables:
       panelovn_prosent_output_update_needed: >-
         {{ panelovn_prosent_output_configured
-           and (panelovn_prosent_output_onsket | float(-1)) != (panelovn_prosent_output_naa | float(-1)) }}
+           and (panelovn_prosent_output_onsket | int(-1)) != (panelovn_prosent_output_naa | int(-1)) }}
 
   # Steg 6: beregn ønsket settpunkt (modus-bevisst)
   - variables:
