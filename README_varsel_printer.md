@@ -95,13 +95,17 @@ Automasjonen bruker et nøkkelord (`printer` som standard) for å finne relevant
 - Sensorene må ha nøkkelordet (standard `printer`) i entity_id
 - Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
 
-### 10.2 Relevante automasjoner og script
+### 10.2 Eksempler
+
+Ingen YAML-eksempler for denne automasjonen.
+
+### 10.3 Relevante automasjoner og script
 
 | Blueprint | Formål |
 |---|---|
 | [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for Pushover-utsending |
 
-### 10.3 Beregnede verdier og variabler
+### 10.4 Beregnede verdier og variabler
 
 | Variabel | Beskrivelse |
 |---|---|
@@ -109,7 +113,7 @@ Automasjonen bruker et nøkkelord (`printer` som standard) for å finne relevant
 | `grouped` | Sensorer gruppert per printer |
 | `final_message` | Samlet meldingstekst for alle printere med avvik |
 
-### 10.4 Feilhåndtering
+### 10.5 Feilhåndtering
 
 | Situasjon | Håndtering |
 |---|---|
@@ -118,7 +122,7 @@ Automasjonen bruker et nøkkelord (`printer` som standard) for å finne relevant
 | Alle sensorer over terskel | Ingen varsel sendes |
 | Wake-up entity utilgjengelig | Trigger aktiveres ikke |
 
-### 10.5 Varsling og debug info
+### 10.6 Varsling og debug info
 
 - Sett «Legg til debug-detaljer» til `true` for å få trigger-info, tellerverdier og match-statistikk i varselet
 - Nyttig ved feilsøking om forventede printere ikke dukker opp i varselet

@@ -85,22 +85,26 @@ Scriptet kjøres i `mode: parallel` med `max: 10`. Det betyr at opptil 10 varsle
 - Pushover-integrasjonen (`notify.pushover`) må være konfigurert i Home Assistant.
 - Valgfri: `notify.pushover_diverse` for separat mottakergruppe.
 
-### 10.2 Relevante automasjoner og script
+### 10.2 Eksempler
+
+Ingen YAML-eksempler for dette scriptet.
+
+### 10.3 Relevante automasjoner og script
 
 Alle automasjoner i WebHome-oppsettet bruker dette scriptet for utsending av Pushover-varsler.
 
-### 10.3 Beregnede verdier og variabler
+### 10.4 Beregnede verdier og variabler
 
 | Variabel | Beskrivelse |
 |---|---|
 | Tittel | Bygges som `<name> - <tittel>` |
 | TTL-suffiks | Levetid omregnet til lesbar tekst (sek/min/timer/dager) |
 
-### 10.4 Feilhåndtering
+### 10.5 Feilhåndtering
 
 Ingen spesiell feilhåndtering i scriptet. Feil i Pushover-integrasjonen vil gi feilmelding i Home Assistant-logg.
 
-### 10.5 Varsling og debug info
+### 10.6 Varsling og debug info
 
 Ingen debug-varsling. Scriptet er selve varslingskanalen.
 

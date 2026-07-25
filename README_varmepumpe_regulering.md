@@ -226,7 +226,9 @@ Dette er nyttig når primær entitet er best til rask og lokal styring, mens sek
 - For panelovn (switch): switch-entitet tilgjengelig i HA
 - For debug-varsler: Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
 
-#### 10.1.1 YAML-eksempel: AUTO/MANUELL-vendere
+### 10.2 Eksempler
+
+**AUTO/MANUELL-vendere (`input_select`):**
 
 ```yaml
 input_select:
@@ -253,14 +255,14 @@ Bruk disse to entitetene i blueprint-inputene:
 
 Hvis inputene ikke settes (tomt), behandles det som `AUTO`.
 
-### 10.2 Relevante automasjoner og script
+### 10.3 Relevante automasjoner og script
 
 | Blueprint | Formål |
 |---|---|
 | [driftsmodus_varme_kjoling_automatisk.yaml](./blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml) | Setter `input_select.driftsmodus_vinter_sommer` som denne automasjonen leser. Se [README_automatisk_valg_varme_kjoling.md](./README_automatisk_valg_varme_kjoling.md) |
 | [varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | Felles script for debug-varsler via Pushover |
 
-### 10.3 Beregnede verdier og variabler
+### 10.4 Beregnede verdier og variabler
 
 Kjøretid og triggere:
 - Hvert **10. minutt** (`time_pattern`)
@@ -353,7 +355,7 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | `drift_is_sommer` / `drift_is_vinter` | Driftsmodus-status |
 | `summer_force_heat_on` / `winter_allow_cool_on` | Override-status |
 
-### 10.4 Feilhåndtering
+### 10.5 Feilhåndtering
 
 | Situasjon | Håndtering |
 |---|---|
@@ -370,7 +372,7 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | Overordnet climate er `off` | Overordnet oppdateres ikke; panelovn settes til frost; switch slås av |
 | `panelovn_padrag_grense` er ugyldig eller ≤ 0 | hp_norm_power settes til 100 % (unngår divisjon med null) |
 
-### 10.5 Varsling og debug info
+### 10.6 Varsling og debug info
 
 Debug-varsler aktiveres med `ix_pushover_varsling = true`. Sendes kun ved faktisk endring.
 
