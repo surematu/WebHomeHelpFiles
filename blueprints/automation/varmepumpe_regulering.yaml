@@ -476,7 +476,7 @@ actions:
       iclimate_varmepumpe_abs_max: "{{ state_attr(iclimate_varmepumpe, 'max_temp') | float(varmepumpe_abs_max_default) }}"
       varmepumpe_manual_min_set_raw: "{{ itext_varmepumpe_min_temp_overstyring | string | trim }}"
       varmepumpe_manual_maks_set_raw: "{{ itext_varmepumpe_maks_temp_overstyring | string | trim }}"
-      varmepumpe_manual_number_pattern: "^-?[0-9]+([\\.,][0-9]+)?$"
+      varmepumpe_manual_number_pattern: '^-?[0-9]+([.,][0-9]+)?$'
       varmepumpe_manual_min_set_norm: "{{ varmepumpe_manual_min_set_raw | replace(',', '.') }}"
       varmepumpe_manual_maks_set_norm: "{{ varmepumpe_manual_maks_set_raw | replace(',', '.') }}"
       varmepumpe_manual_min_set_is_number: "{{ varmepumpe_manual_min_set_raw | regex_match(varmepumpe_manual_number_pattern) }}"
