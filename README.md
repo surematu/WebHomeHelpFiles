@@ -59,12 +59,13 @@ Required structure for each automation README:
 
 ── AVANSERT / TEKNISK (§10–11) ──────────────────────────────────────────────
 10. Avansert            – For technical users, developers, and AI
-    10.1 Forutsettninger og eksempler         – Required entities, integrations, helper YAML examples
-    10.2 Relevante automasjoner og script – Links to related automations/scripts and why
-    10.3 Beregnede verdier og variabler  – Calculated values, variables, key concepts
-    10.4 Feilhåndtering                  – How errors are handled; typical error scenarios
-    10.5 Varsling og debug info          – Debug notifications (off by default) + troubleshooting settings
-    (10.6, 10.7 … add as needed)
+    10.1 Forutsettninger         – Required entities, integrations, automations, scripts
+    10.2 Eksempler         – Relevant YAML examples
+    10.3 Relevante automasjoner og script – Links to related automations/scripts and why
+    10.4 Beregnede verdier og variabler  – Calculated values, variables, key concepts
+    10.5 Feilhåndtering                  – How errors are handled; typical error scenarios
+    10.6 Varsling og debug info          – Debug notifications (off by default) + troubleshooting settings
+    (10.7, 10.8 … add as needed)
 11. Dokumentasjon       – Links to relevant documentation
 ```
 
