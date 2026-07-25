@@ -10,6 +10,7 @@ Automasjonen kan i tillegg:
 - Styre en panelovn som supplement til varmepumpen ved høyt varmebehov
 - Bytte mellom varme og kjøling basert på årstid (krever driftsmodus-automasjonen)
 - Regulere viftehastigheten på varmepumpen
+- Synkronisere en valgfri sekundær varmepumpe-entitet etter primær
 - Sende debug-varsler ved endringer (av som standard)
 
 ## 2. Eksempler på bruk
@@ -19,6 +20,7 @@ Automasjonen kan i tillegg:
 - **Sommer, kjøling:** Driftsmodus er SOMMER. Automasjonen inverterer logikken – høyt kjøle-pådrag gir lavt settpunkt på varmepumpen (mer kjøling).
 - **Kaldt rom med panelovn:** Pådrag er 75 %. Varmepumpen er på maks, og panelovnen slippes gradvis til som supplement.
 - **Overgangssituasjon vinter:** Det er 28 °C inne og VINTER-modus. En nødoverkobling starter kjøling midlertidig.
+- **Vifte boost:** Rommet trenger mye varme. Viften settes til `high` for å flytte mer varm luft raskere ut i rommet.
 
 ## 3. FAQ – Ofte stilte spørsmål
 
@@ -37,6 +39,12 @@ Nei, kjøling er valgfri. Uten kjøling aktivert kjøres varmepumpen alltid i va
 **Hva er panelovn-funksjonen?**
 Panelovnen (varme-climate) er et supplement til varmepumpen. Den aktiveres gradvis når pådrag er over en terskel (standard 60 %) – men kun etter at varmepumpen faktisk har rampet opp til minst 80 % av sin kapasitet.
 
+**Hva brukes «Temperaturspenn for panelovn 0–100 %» til?**
+Den bestemmer hvor raskt climate-panelovnen skal trappes opp når rommet ligger under settpunkt. Lav verdi gjør at panelovnen reagerer raskt hvis varmepumpa bruker tid. Høy verdi gir roligere opptrapping. Den slår ikke av panelovn-funksjonen alene – for å deaktivere panelovn-styring må varme-utgangene stå tomme eller varme settes i `MANUELL`.
+
+**Hvorfor ha både primær og sekundær varmepumpe-entitet?**
+Primær brukes alltid først. Sekundær kan brukes som reserve eller når den støtter funksjoner som primær entitet ikke støtter, for eksempel enkelte viftevalg.
+
 **Er debug-varsler aktivert?**
 Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Aktiver debug-varsling».
 
@@ -46,37 +54,11 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 - **Input select – Varmepumpe AUTO/MANUELL**: valgfri vender for å stoppe automatisk styring av varmepumpe
 - **Input select – Varme AUTO/MANUELL**: valgfri vender for å stoppe automatisk styring av varme-utganger
 - **Varmepumpe-climate** (varmepumpe): climate-entiteten som styres (obligatorisk)
+- **Varmepumpe-climate sekundær**: valgfri ekstra climate-entitet som synkes etter primær
 - **Varme-climate** (panelovn): valgfri climate-entitet som supplement (valgfri)
-- **Varme-switch** (digital utgang): valgfri switch-entitet som alternativ eller supplement til climate-panelovn (valgfri)
-- **Utgang - Varme panelovn prosent** (`input_number`): valgfri prosent-utgang 0–100 % for ekstern syklusstyring (valgfri)
+- **Utgang - Varme utgang digital (switch)**: valgfri switch-entitet som alternativ eller supplement til climate-panelovn (valgfri)
+- **Utgang - Varme pådrag panelovn** (`input_number`): valgfri prosent-utgang 0–100 % for ekstern syklusstyring (valgfri)
 - **`input_select.driftsmodus_vinter_sommer`**: kreves kun om kjøling er aktivert
-
-### 4.1 YAML-eksempel: AUTO/MANUELL-vendere
-
-```yaml
-input_select:
-  auto_manuell_varmepumpe_stue:
-    name: Auto/Manuell varmepumpe stue
-    options:
-      - AUTO
-      - MANUELL
-    initial: AUTO
-    icon: mdi:heat-pump
-
-  auto_manuell_varme_stue:
-    name: Auto/Manuell varme stue
-    options:
-      - AUTO
-      - MANUELL
-    initial: AUTO
-    icon: mdi:radiator
-```
-
-Bruk disse to entitetene i blueprint-inputene:
-- `Input select - Varmepumpe AUTO/MANUELL`
-- `Input select - Varme AUTO/MANUELL`
-
-Hvis inputene ikke settes (tomt), behandles det som `AUTO`.
 
 ## 5. Innstillinger
 
@@ -87,11 +69,14 @@ Hvis inputene ikke settes (tomt), behandles det som `AUTO`.
 | Klima - Overordnet styring for rom (Versatile Thermostat) | – | Overordnet climate som leverer settpunkt, romtemp og pådrag (`power_percent`) |
 | Input select - Varmepumpe AUTO/MANUELL | (tomt) | Valgfri. `AUTO` (eller tom) = automasjonen styrer varmepumpe. `MANUELL` = ingen skriv til varmepumpe |
 | Input select - Varme AUTO/MANUELL | (tomt) | Valgfri. `AUTO` (eller tom) = automasjonen styrer panelovn/switch/prosent-utgang. `MANUELL` = ingen skriv til varme-utganger |
+| Pådrag-grense varmepumpe / panelovn (%) | 60 | Delingspunkt mellom varmepumpe og panelovn. Fra 0–60 % brukes hele pådraget på varmepumpa. Over grensen kan panelovn få resten, men først når varmepumpa faktisk har nådd minst 80 % av sin egen varmekurve |
 
 ### Varmepumpe
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
+| Climate - Varmepumpe | – | Primær climate-entitet som automasjonen alltid styrer først |
+| Climate - Varmepumpe sekundær | (tomt) | Valgfri sekundær climate-entitet som sjekkes 10 sekunder etter primær. Hvis ønsket modus, settpunkt eller vifte fortsatt mangler der, skrives endringen også til sekundær |
 | Maks endring per kjøring | 1 °C | Størst tillatt settpunkt-endring pr. kjøring (hindrer brå hopp) |
 | Grader under settpunkt ved 0 % pådrag | −4 °C | Varmepumpe-settpunkt relativt til basissettpunkt ved lavt pådrag |
 | Grader over settpunkt ved 100 % pådrag | +3 °C | Varmepumpe-settpunkt relativt til basissettpunkt ved høyt pådrag |
@@ -100,7 +85,7 @@ Hvis inputene ikke settes (tomt), behandles det som `AUTO`.
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
-| Vifte boost | false | Aktiver automatisk vifteregulering basert på pådrag |
+| Vifte boost | false | Aktiver automatisk vifteregulering når varmepumpa trenger hjelp til å flytte mer luft. Eksempel: frost-preset eller høyt pådrag kan gi `high`, mens lavt pådrag kan gi `medium` |
 
 ### Kjøling (valgfri funksjon)
 
@@ -117,10 +102,9 @@ Hvis inputene ikke settes (tomt), behandles det som `AUTO`.
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Climate - Varme | (tomt) | Valgfri panelovn climate-entitet som supplement ved høyt pådrag |
-| Panelovn pådrag-grense (%) | 60 | Delingspunkt mellom varmepumpe og panelovn. Over grensen får panelovn resterende pådrag (etter HP ≥80 %) |
-| Panelovn delta maks (°C) | 2,0 | Antall grader under settpunkt som tilsvarer 100 % panelovn. Lav verdi = raskere opptrapping |
-| Switch – Varme (digital utgang) | (tomt) | Valgfri switch-entitet for fast trinnstyring i stedet for eller i tillegg til climate |
-| Utgang - Varme panelovn prosent (input_number) | (tomt) | Valgfri prosent-utgang (0–100 %) for ekstern styring med egen syklustid |
+| Temperaturspenn for panelovn 0–100 % (°C) | 2,0 | Hvor mange grader under settpunkt som skal til før climate-panelovnen er på 100 %. Lav verdi = rask og aggressiv hjelp hvis varmepumpa er treg. Høy verdi = roligere opptrapping. Dette er ikke en av/på-bryter for panelovn-funksjonen |
+| Utgang - Varme utgang digital (switch) | (tomt) | Valgfri switch-entitet for fast trinnstyring i stedet for eller i tillegg til climate |
+| Utgang - Varme pådrag panelovn (input_number) | (tomt) | Valgfri prosent-utgang (0–100 %) for ekstern styring med egen syklustid |
 
 ### Varsling (debug)
 
@@ -149,17 +133,30 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 8. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres, og kun når varmepumpe-vender står i AUTO
 9. Styrer panelovnen (climate og/eller switch) proporsjonalt basert på temperaturunderskudd og pådrag (hvis konfigurert), og kun når varme-vender står i AUTO
 10. Justerer viftehastighet (hvis aktivert og varmepumpe-vender står i AUTO)
+11. Hvis sekundær varmepumpe-entitet er satt, sjekkes den 10 sekunder etterpå og manglende modus/settpunkt/vifte skrives dit også
 
 **Kjølelogikk (krever driftsmodus-automasjonen):**
 - VINTER-modus: kjøler normalt ikke. Nødoverkobling slår inn ved romtemp > settpunkt + terskel.
 - SOMMER-modus: kjøler normalt. Tvungen varme slår inn ved romtemp < settpunkt − terskel.
 
+### 6.1 Vifte boost
+
+Formålet er å hjelpe varmepumpa med å flytte varme raskere ut i rommet når behovet er stort.
+
+- **Frost-preset:** vifte settes til `high`
+- **Pådrag 0–30 %:** vifte settes til `medium`
+- **Pådrag over 50 %:** vifte settes til `high`
+- **Mellom 31 og 50 %:** vifte beholdes uendret
+
+Eksempel: Hvis rommet er mye kaldere enn ønsket og pådraget blir 80 %, økes viften til `high` for å spre varmen raskere.
+
 ## 7. Resultat
 
 - **Varmepumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov når varmepumpe-vender er `AUTO`
+- **Varmepumpe-climate sekundær** (valgfri): sjekkes 10 sekunder etter primær og får manglende modus/settpunkt/vifte skrevet ved behov
 - **Varme-climate** (panelovn): settpunkt oppdateres proporsjonalt når varme-vender er `AUTO`
-- **Varme-switch** (digital utgang): styres i fast 30-min trinnsyklus når varme-vender er `AUTO`
-- **Utgang - Varme panelovn prosent** (`input_number`, valgfri): oppdateres med panelovn-pådrag 0–100 % når varme-vender er `AUTO`
+- **Utgang - Varme utgang digital (switch)**: styres i fast 30-min trinnsyklus når varme-vender er `AUTO`
+- **Utgang - Varme pådrag panelovn** (`input_number`, valgfri): oppdateres med panelovn-pådrag 0–100 % når varme-vender er `AUTO`
 - **Rom-climate** (overordnet): hvac_mode synkroniseres med beregnet modus (aldri endret fra «off») når varmepumpe-vender er `AUTO`
 
 ## 8. Varsling
@@ -206,10 +203,16 @@ Switch og climate-panelovn kan brukes **samtidig** – begge styres uavhengig me
 
 ### 9.4 Panelovn prosent-utgang (alternativ til switch)
 
-Hvis `Utgang - Varme panelovn prosent (input_number)` er satt, skriver automasjonen beregnet panelovn-pådrag (0–100 %) til denne entiteten.
+Hvis `Utgang - Varme pådrag panelovn (input_number)` er satt, skriver automasjonen beregnet panelovn-pådrag (0–100 %) til denne entiteten.
 
 Dette kan brukes i stedet for switch-utgangen når du ønsker egen syklustid i annen automasjon/integrasjon.
 Eksempel: bruk verdien i en egen automasjon som slår et relé av/på med ønsket sykluslengde.
+
+### 9.5 Primær og sekundær varmepumpe-entitet
+
+Primær varmepumpe-entitet brukes alltid først. Hvis sekundær er satt, kontrollerer automasjonen 10 sekunder senere om sekundær fortsatt mangler ønsket modus, settpunkt eller vifte, og skriver endringen dit også.
+
+Dette er nyttig når primær entitet er best til rask og lokal styring, mens sekundær kan være nyttig som reserve eller støtte andre funksjoner. I mange oppsett er primær lokal og sekundær online/cloud-basert, men automasjonen krever bare at du velger en primær og eventuelt en sekundær. Støttede funksjoner kan variere mellom entitetene, så sekundær kan noen ganger håndtere viftevalg eller andre felt som primær ikke tilbyr.
 
 ## 10. Avansert
 
@@ -217,10 +220,38 @@ Eksempel: bruk verdien i en egen automasjon som slår et relé av/på med ønske
 
 - Rom-climate med pådragssignal (`power_percent`)
 - Varmepumpe-climate med støtte for settpunkt-justering
+- Sekundær varmepumpe-climate er valgfri, men bør peke til samme fysiske varmepumpe som primær hvis den brukes
 - For kjøling: `input_select.driftsmodus_vinter_sommer` (satt av `driftsmodus_varme_kjoling_automatisk`)
 - For panelovn (climate): `preset_temperatures.frost_temp` på overordnet climate (fallback: 10 °C)
 - For panelovn (switch): switch-entitet tilgjengelig i HA
 - For debug-varsler: Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
+
+#### 10.1.1 YAML-eksempel: AUTO/MANUELL-vendere
+
+```yaml
+input_select:
+  stue_panelovn_stue_auto_manuell:
+    name: Panelovn (Stue) Auto/Manuell
+    options:
+      - AUTO
+      - MANUELL
+    initial: AUTO
+    icon: mdi:heat-pump
+
+  stue_varmepumpe_stue_auto_manuell:
+    name: Varmepumpe (Stue) Auto/Manuell
+    options:
+      - AUTO
+      - MANUELL
+    initial: AUTO
+    icon: mdi:radiator
+```
+
+Bruk disse to entitetene i blueprint-inputene:
+- `Input select - Varmepumpe AUTO/MANUELL`
+- `Input select - Varme AUTO/MANUELL`
+
+Hvis inputene ikke settes (tomt), behandles det som `AUTO`.
 
 ### 10.2 Relevante automasjoner og script
 
@@ -236,6 +267,7 @@ Kjøretid og triggere:
 - Ved **settpunkt-endring** på rom-climate
 - Ved **driftsmodus-endring** (`input_select.driftsmodus_vinter_sommer`)
 - 5 sekunder forsinkelse for å la sensorer stabilisere seg
+- Ved sekundær varmepumpe-entitet: ytterligere 10 sekunder forsinket synk etter primær ved behov
 
 **Pådragskilde (prioritert rekkefølge):**
 1. `power_percent` fra rom-climate → brukes direkte (0–100 %)
@@ -308,6 +340,7 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | `varmepumpe_req_spk_raw` | Råberegnet varmepumpe-settpunkt |
 | `qnum_varmepumpe_req_spk` | Endelig settpunkt etter ramp og avrunding |
 | `onsket_mode` | Beregnet hvac-modus (`heat`/`cool`) |
+| `varmepumpe_primaer_endret` | true når primær varmepumpe fikk endret settpunkt, modus eller vifte |
 | `panelovn_hp_ready` | true når varmepumpen har nådd 80 % av varmekurven |
 | `panelovn_maal_power` | Panelovn mål-pådrag (0–100 %) – brukes av både climate og switch |
 | `panelovn_switch_configured` | true dersom switch-entitet er konfigurert |
@@ -316,6 +349,7 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | `panelovn_switch_skal_aktiveres` | true dersom switch skal være på i nåværende slot |
 | `panelovn_prosent_output_configured` | true dersom prosent-utgang (`input_number`) er konfigurert |
 | `panelovn_prosent_output_onsket` | Beregnet prosent som skrives til valgfri prosent-utgang |
+| `varmepumpe_sekundar_spk_update_needed` / `varmepumpe_sekundar_mode_update_needed` / `varmepumpe_sekundar_vifte_update_needed` | Viser hva som fortsatt må synkes til sekundær varmepumpe etter forsinkelsen |
 | `drift_is_sommer` / `drift_is_vinter` | Driftsmodus-status |
 | `summer_force_heat_on` / `winter_allow_cool_on` | Override-status |
 
@@ -330,10 +364,11 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | Settpunkt utenfor varmepumpas `[min_temp, max_temp]` | Klippes til grensene fra varmepumpas egne attributter |
 | `varme_climate` ikke konfigurert | Panelovn climate-steg hoppes over |
 | `varme_switch` ikke konfigurert | Panelovn switch-steg hoppes over |
+| Sekundær varmepumpe ikke konfigurert | Sekundær synk-steg hoppes over |
 | `preset_temperatures.frost_temp` mangler | Bruker 10 °C som fallback |
-| Varme-climate utenfor `[min_temp, max_temp]` | Klippes til klimaets absolutte grenser |
+| Varme-climate utenfor `[min_temp, max_temp]` | Klippes til climate-entityens absolutte grenser |
 | Overordnet climate er `off` | Overordnet oppdateres ikke; panelovn settes til frost; switch slås av |
-| `panelovn_padrag_grense` = 0 | hp_norm_power settes til 100 % (unngår divisjon med null) |
+| `panelovn_padrag_grense` er ugyldig eller ≤ 0 | hp_norm_power settes til 100 % (unngår divisjon med null) |
 
 ### 10.5 Varsling og debug info
 

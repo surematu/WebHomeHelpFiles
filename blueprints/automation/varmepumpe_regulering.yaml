@@ -10,6 +10,12 @@ blueprint:
     - Hvis power_percent mangler brukes 50% som standard.
 
     Vifte-logikk styres av boolean-input: false = ingen vifteregulering, true = vifte boost.
+    Vifte boost brukes for å hjelpe varmepumpa med å flytte mer luft når varmebehovet er høyt
+    eller når overordnet climate står i frost, f.eks. medium ved lavt behov og high ved høyt behov.
+
+    Valgfri sekundær varmepumpe-entitet kan synkes 10 sekunder etter primær varmepumpe.
+    Primær entitet prioriteres alltid først, mens sekundær kan brukes som reserve eller for
+    funksjoner som kun støttes der.
 
     Settpunkt-skriving:
 
@@ -55,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.22
+    Blueprint versjon: 2026.07.23
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -90,11 +96,29 @@ blueprint:
           description: >
             Valgfri input_select med valg AUTO/MANUELL.
             AUTO eller tom input = automasjonen kan styre varme-utganger.
-            MANUELL = automasjonen skriver ikke til panelovn climate, varme-switch eller prosent-utgang.
+            MANUELL = automasjonen skriver ikke til panelovn climate, digital varmeutgang eller prosent-utgang.
           default: ""
           selector:
             entity:
               domain: input_select
+
+        panelovn_padrag_grense:
+          name: Pådrag-grense varmepumpe / panelovn (%)
+          description: >
+            Delingspunkt mellom varmepumpe og panelovn når modus er varme.
+            Fra 0% til denne grensen brukes hele pådraget på varmepumpa (normalisert 0–100%).
+            Over grensen kan panelovn få resten av pådraget, men først etter at varmepumpa
+            faktisk har nådd minst 80% av sin egen varmekurve.
+            Høyere verdi = varmepumpa prioriteres lenger før panelovn får bidra.
+            Standard 60 %. Krever at minst én varme-utgang er konfigurert.
+          default: 60
+          selector:
+            number:
+              min: 40
+              max: 60
+              step: 5
+              mode: slider
+              unit_of_measurement: "%"
 
     varmepumpe:
       name: Varmepumpe
@@ -103,6 +127,19 @@ blueprint:
       input:
         varmepumpe_climate:
           name: Climate - Varmepumpe
+          selector:
+            entity:
+              domain: climate
+
+        varmepumpe_climate_sekundar:
+          name: Climate - Varmepumpe sekundær (valgfri)
+          description: >
+            Valgfri sekundær climate-entitet for samme varmepumpe.
+            Primær varmepumpe skrives alltid først.
+            10 sekunder senere sammenlignes sekundær entitet med ønsket modus, settpunkt og vifte,
+            og eventuelle manglende endringer skrives dit også.
+            Nyttig når sekundær entitet har reservefunksjon eller støtter funksjoner som primær ikke har.
+          default: ""
           selector:
             entity:
               domain: climate
@@ -154,7 +191,11 @@ blueprint:
       input:
         vifte_boost:
           name: Vifte boost (på/av)
-          description: "false = ingen vifteregulering. true = vifte boost ved høyt pådrag (bruker viftelogikk)."
+          description: >
+            false = ingen automatisk vifteregulering.
+            true = automasjonen prøver å hjelpe varmepumpa med mer luftflyt:
+            frost-preset gir high, lavt pådrag kan gi medium, og høyt pådrag gir high.
+            Nyttig når varmepumpa reagerer tregt eller trenger ekstra sirkulasjon ved stort varmebehov.
           default: false
           selector:
             boolean: {}
@@ -254,31 +295,16 @@ blueprint:
             entity:
               domain: climate
 
-        panelovn_padrag_grense:
-          name: Pådrag-grense varmepumpe / panelovn (%)
-          description: >
-            Delingspunkt mellom varmepumpe og panelovn når modus er varme.
-            Fra 0% til denne grensen brukes hele pådraget på varmepumpa (normalisert 0–100%).
-            Over grensen kan panelovn få resten av pådraget, men først etter at varmepumpa
-            faktisk har nådd minst 80% av sin egen varmekurve.
-            Høyere verdi = varmepumpa prioriteres lenger før panelovn får bidra.
-            Standard 60 %. Krever at minst én varme-utgang er konfigurert.
-          default: 60
-          selector:
-            number:
-              min: 10
-              max: 90
-              step: 5
-              mode: slider
-              unit_of_measurement: "%"
-
         panelovn_delta_maks:
           name: Temperaturspenn for panelovn 0–100 % (°C)
           description: >
-            Hvor mange grader rommet kan ligge under settpunkt før panelovn er på 100%.
+            Hvor mange grader rommet kan ligge under settpunkt før panelovn-climate er på 100%.
             0 °C under settpunkt gir 0% panelovn (frost), og valgt spenn under settpunkt gir 100%.
             Mellom disse nivåene reguleres panelovn lineært.
-            Lav verdi = panelovn reagerer raskere/aggressivt. Høy verdi = roligere opptrapping.
+            Lav verdi = panelovn reagerer raskere/aggressivt hvis varmepumpa bruker tid på å hente seg inn.
+            Høy verdi = roligere opptrapping.
+            Denne verdien deaktiverer ikke panelovn alene; bruk tom varme-utgang eller MANUELL for å slå av panelovn-styring.
+            Eksempel: 1 °C gir rask respons, mens 5 °C gjør at panelovn bygger seg mye roligere opp.
             Standard 2.0 °C.
           default: 2.0
           selector:
@@ -290,7 +316,7 @@ blueprint:
               unit_of_measurement: "°C"
 
         varme_switch:
-          name: Switch - Varme (digital utgang)
+          name: Utgang - Varme utgang digital (switch)
           description: >
             Valgfri. Digital utgang (switch/relé) som supplement ved høyt pådrag, styrt i faste trinn.
             Kan brukes alene eller i tillegg til climate-panelovn.
@@ -303,7 +329,7 @@ blueprint:
               domain: switch
 
         panelovn_prosent_output:
-          name: Utgang - Varme panelovn prosent (input_number)
+          name: Utgang - Varme pådrag panelovn (input_number)
           description: >
             Valgfri. Skriver beregnet panelovn-pådrag (0–100%) til valgt input_number.
             Brukes når du vil styre egen syklustid utenfor denne automasjonen i stedet for innebygd switch-trinnstyring.
@@ -374,6 +400,7 @@ actions:
   - variables:
       iclimate_varme: !input rom_climate
       iclimate_varmepumpe: !input varmepumpe_climate
+      iclimate_varmepumpe_sekundar: !input varmepumpe_climate_sekundar
       iinputselect_varmepumpe_auto_manuell: !input inputselect_varmepumpe_auto_manuell
       iinputselect_varme_auto_manuell: !input inputselect_varme_auto_manuell
       inum_offset_min: !input grader_under_min
@@ -394,6 +421,9 @@ actions:
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
+
+  - variables:
+      varmepumpe_sekundar_configured: "{{ (iclimate_varmepumpe_sekundar | string) not in ['', 'None', 'none'] }}"
 
   # Steg 1: les råverdier + attributt-eksistens
   - variables:
@@ -416,6 +446,24 @@ actions:
       iclimate_varmepumpe_fanmode: "{{ (state_attr(iclimate_varmepumpe, 'fan_mode') | string | lower) }}"
       iclimate_varmepumpe_abs_min: "{{ state_attr(iclimate_varmepumpe, 'min_temp') | float(10) }}"
       iclimate_varmepumpe_abs_max: "{{ state_attr(iclimate_varmepumpe, 'max_temp') | float(30) }}"
+      iclimate_varmepumpe_sekundar_rt_spk: >-
+        {% if varmepumpe_sekundar_configured %}
+          {{ state_attr(iclimate_varmepumpe_sekundar, 'temperature') | float(0) }}
+        {% else %}
+          0
+        {% endif %}
+      iclimate_varmepumpe_sekundar_mode: >-
+        {% if varmepumpe_sekundar_configured %}
+          {{ states(iclimate_varmepumpe_sekundar) | string | lower }}
+        {% else %}
+          none
+        {% endif %}
+      iclimate_varmepumpe_sekundar_fanmode: >-
+        {% if varmepumpe_sekundar_configured %}
+          {{ state_attr(iclimate_varmepumpe_sekundar, 'fan_mode') | string | lower }}
+        {% else %}
+          none
+        {% endif %}
       iclimate_overordnet_hvac_mode: "{{ states(iclimate_varme) | string | lower }}"
       iclimate_varme_frost_temp: >-
         {% set presets = state_attr(iclimate_varme, 'preset_temperatures') %}
@@ -679,22 +727,32 @@ actions:
         value_template: "{{ ix_vifte_aktiv }}"
     then:
       - variables:
-          varmepumpe_vifte_stottes: "{{ state_attr(iclimate_varmepumpe, 'fan_modes') is not none }}"
-          onsket_vifte: >-
-            {% if not varmepumpe_vifte_stottes %}
-              {{ iclimate_varmepumpe_fanmode }}
-            {% elif iclimate_varme_presetmode == 'frost' %}
+          # 31–50 % betyr behold eksisterende fan_mode; bare lave/høye behov tvinger ny verdi.
+          onsket_vifte_target_raw: >-
+            {% if iclimate_varme_presetmode == 'frost' %}
               high
             {% elif (varmepumpe_output_power | float(0)) <= 30 %}
               medium
             {% elif (varmepumpe_output_power | float(0)) > 50 %}
               high
             {% else %}
-              {{ iclimate_varmepumpe_fanmode }}
+              {{ '' }}
             {% endif %}
-          skal_oppdatere_vifte: "{{ varmepumpe_vifte_stottes and (onsket_vifte | string) != (iclimate_varmepumpe_fanmode | string) }}"
+          varmepumpe_vifte_stottes: "{{ state_attr(iclimate_varmepumpe, 'fan_modes') is not none }}"
+          onsket_vifte: >-
+            {% if (onsket_vifte_target_raw | string | trim) == '' %}
+              {{ iclimate_varmepumpe_fanmode }}
+            {% else %}
+              {{ onsket_vifte_target_raw }}
+            {% endif %}
+          skal_oppdatere_vifte: >-
+            {{ varmepumpe_vifte_stottes
+               and (onsket_vifte_target_raw | string | trim) != ''
+               and (onsket_vifte | string) != (iclimate_varmepumpe_fanmode | string) }}
     else:
       - variables:
+          onsket_vifte_target_raw: ""
+          varmepumpe_vifte_stottes: false
           onsket_vifte: "{{ iclimate_varmepumpe_fanmode }}"
           skal_oppdatere_vifte: false
 
@@ -703,6 +761,10 @@ actions:
       skal_oppdatere_vifte_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_vifte }}"
       skal_oppdatere_mode_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_mode }}"
       skal_oppdatere_overordnet_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_overordnet }}"
+      varmepumpe_primaer_endret: >-
+        {{ qx_varmepumpe_spk_update_needed_effektiv
+           or skal_oppdatere_vifte_effektiv
+           or skal_oppdatere_mode_effektiv }}
 
   # Steg 8: sett verdier kun ved behov
   - if:
@@ -754,6 +816,58 @@ actions:
           - action: climate.set_fan_mode
             target:
               entity_id: !input varmepumpe_climate
+            data:
+              fan_mode: "{{ onsket_vifte }}"
+
+  # Steg 8b: synk sekundær varmepumpe etter primær (valgfri)
+  - if:
+      - condition: template
+        value_template: >-
+          {{ varmepumpe_auto_aktiv
+             and varmepumpe_sekundar_configured
+             and (varmepumpe_primaer_endret or (onsket_vifte_target_raw | string | trim) != '') }}
+    then:
+      - delay:
+          seconds: 10
+      - variables:
+          varmepumpe_sekundar_rt_spk_etter_delay: "{{ state_attr(iclimate_varmepumpe_sekundar, 'temperature') | float(0) }}"
+          varmepumpe_sekundar_mode_etter_delay: "{{ states(iclimate_varmepumpe_sekundar) | string | lower }}"
+          varmepumpe_sekundar_fanmode_etter_delay: "{{ state_attr(iclimate_varmepumpe_sekundar, 'fan_mode') | string | lower }}"
+          varmepumpe_sekundar_vifte_stottes: "{{ state_attr(iclimate_varmepumpe_sekundar, 'fan_modes') is not none }}"
+      - variables:
+          varmepumpe_sekundar_spk_update_needed: >-
+            {{ (qnum_varmepumpe_req_spk | float) != (varmepumpe_sekundar_rt_spk_etter_delay | float) }}
+          varmepumpe_sekundar_mode_update_needed: >-
+            {{ (onsket_mode | string | trim) != (varmepumpe_sekundar_mode_etter_delay | string | trim) }}
+          varmepumpe_sekundar_vifte_update_needed: >-
+            {{ varmepumpe_sekundar_vifte_stottes
+               and (onsket_vifte_target_raw | string | trim) != ''
+               and (onsket_vifte | string) != (varmepumpe_sekundar_fanmode_etter_delay | string) }}
+      - if:
+          - condition: template
+            value_template: "{{ varmepumpe_sekundar_mode_update_needed }}"
+        then:
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: "{{ iclimate_varmepumpe_sekundar }}"
+            data:
+              hvac_mode: "{{ onsket_mode }}"
+      - if:
+          - condition: template
+            value_template: "{{ varmepumpe_sekundar_spk_update_needed }}"
+        then:
+          - action: climate.set_temperature
+            target:
+              entity_id: "{{ iclimate_varmepumpe_sekundar }}"
+            data:
+              temperature: "{{ qnum_varmepumpe_req_spk }}"
+      - if:
+          - condition: template
+            value_template: "{{ varmepumpe_sekundar_vifte_update_needed }}"
+        then:
+          - action: climate.set_fan_mode
+            target:
+              entity_id: "{{ iclimate_varmepumpe_sekundar }}"
             data:
               fan_mode: "{{ onsket_vifte }}"
 
