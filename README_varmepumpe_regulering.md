@@ -55,6 +55,8 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 - **Input select – Varme AUTO/MANUELL**: valgfri vender for å stoppe automatisk styring av varme-utganger
 - **Varmepumpe-climate** (varmepumpe): climate-entiteten som styres (obligatorisk)
 - **Varmepumpe-climate sekundær**: valgfri ekstra climate-entitet som synkes etter primær
+- **Varmepumpe minimum settpunkt (valgfri overstyring)**: valgfri manuell nedre skrivegrense (tom = av)
+- **Varmepumpe maksimum settpunkt (valgfri overstyring)**: valgfri manuell øvre skrivegrense (tom = av)
 - **Varme-climate** (panelovn): valgfri climate-entitet som supplement (valgfri)
 - **Utgang - Varme utgang digital (switch)**: valgfri switch-entitet som alternativ eller supplement til climate-panelovn (valgfri)
 - **Utgang - Varme pådrag panelovn** (`input_number`): valgfri prosent-utgang 0–100 % for ekstern syklusstyring (valgfri)
@@ -77,6 +79,8 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 |---|---:|---|
 | Climate - Varmepumpe | – | Primær climate-entitet som automasjonen alltid styrer først |
 | Climate - Varmepumpe sekundær | (tomt) | Valgfri sekundær climate-entitet som sjekkes 10 sekunder etter primær. Hvis ønsket modus, settpunkt eller vifte fortsatt mangler der, skrives endringen også til sekundær |
+| Varmepumpe minimum settpunkt (valgfri overstyring) | (tomt) | Valgfri manuell minimumsgrense for settpunkt-skriving. Brukes hvis rapportert `min_temp` ikke stemmer, eller for ekstra begrensning. Effektiv minimum blir strengeste verdi: `max(rapportert min_temp, manuell minimum)` |
+| Varmepumpe maksimum settpunkt (valgfri overstyring) | (tomt) | Valgfri manuell maksimumsgrense for settpunkt-skriving. Brukes hvis rapportert `max_temp` ikke stemmer, eller for ekstra begrensning. Effektiv maksimum blir strengeste verdi: `min(rapportert max_temp, manuell maksimum)` |
 | Maks endring per kjøring | 1 °C | Størst tillatt settpunkt-endring pr. kjøring (hindrer brå hopp) |
 | Grader under settpunkt ved 0 % pådrag | −4 °C | Varmepumpe-settpunkt relativt til basissettpunkt ved lavt pådrag |
 | Grader over settpunkt ved 100 % pådrag | +3 °C | Varmepumpe-settpunkt relativt til basissettpunkt ved høyt pådrag |
@@ -128,12 +132,13 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 3. Klipper beregnet pådrag til gyldig område (0–100 %)
 4. Bestemmer modus: varme eller kjøling (se kjølelogikk nedenfor)
 5. Beregner settpunkt fra pådrag via en lineær kurve mellom `basis+grader_under_min` og `basis+grader_over_maks`
-6. Begrenser endringen til maks ±`maks_endring_per_kjoring` fra nåværende settpunkt (ramp)
-7. Runder av til heltall eller halvt grad
-8. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres, og kun når varmepumpe-vender står i AUTO
-9. Styrer panelovnen (climate og/eller switch) proporsjonalt basert på temperaturunderskudd og pådrag (hvis konfigurert), og kun når varme-vender står i AUTO
-10. Justerer viftehastighet (hvis aktivert og varmepumpe-vender står i AUTO)
-11. Hvis sekundær varmepumpe-entitet er satt, sjekkes den 10 sekunder etterpå og manglende modus/settpunkt/vifte skrives dit også
+6. Begrenser med effektive skrivegrenser (strammeste kombinasjon av rapportert `min_temp/max_temp` og eventuelle manuelle overstyringer)
+7. Begrenser endringen til maks ±`maks_endring_per_kjoring` fra nåværende settpunkt (ramp)
+8. Runder av til heltall eller halvt grad
+9. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres, og kun når varmepumpe-vender står i AUTO
+10. Styrer panelovnen (climate og/eller switch) proporsjonalt basert på temperaturunderskudd og pådrag (hvis konfigurert), og kun når varme-vender står i AUTO
+11. Justerer viftehastighet (hvis aktivert og varmepumpe-vender står i AUTO)
+12. Hvis sekundær varmepumpe-entitet er satt, sjekkes den 10 sekunder etterpå og manglende modus/settpunkt/vifte skrives dit også
 
 **Kjølelogikk (krever driftsmodus-automasjonen):**
 - VINTER-modus: kjøler normalt ikke. Nødoverkobling slår inn ved romtemp > settpunkt + terskel.
@@ -283,6 +288,11 @@ Kjøretid og triggere:
 
 **Basissettpunkt:**
 `max(rom_settpunkt, comfort_settpunkt)` hvis comfort-preset finnes
+
+**Effektive skrivegrenser for varmepumpe-settpunkt:**
+- `effektiv_min = max(rapportert min_temp, manuell minimum hvis satt)`
+- `effektiv_maks = min(rapportert max_temp, manuell maksimum hvis satt)`
+- Tomme manuelle felt ignoreres.
 
 **Normalisering av pådrag for varmepumpe vs. panelovn:**
 - Varmepumpe (varme): pådrag 0–`panelovn_padrag_grense`% normaliseres til 0–100 % for HP-kurven

@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.23
+    Blueprint versjon: 2026.07.24
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -183,6 +183,28 @@ blueprint:
               step: 0.5
               mode: slider
               unit_of_measurement: "°C"
+
+        varmepumpe_min_temp_overstyring:
+          name: Varmepumpe minimum settpunkt (valgfri overstyring)
+          description: >
+            Valgfri manuell minimumsgrense for hva automasjonen får skrive til varmepumpa.
+            Brukes når rapportert min_temp i climate-attributter ikke stemmer i praksis, eller når du
+            ønsker ekstra begrensning. Tomt felt = ingen manuell overstyring.
+            Effektiv minimumsgrense blir strengeste verdi: max(rapportert min_temp, manuell minimum).
+          default: ""
+          selector:
+            text:
+
+        varmepumpe_maks_temp_overstyring:
+          name: Varmepumpe maksimum settpunkt (valgfri overstyring)
+          description: >
+            Valgfri manuell maksimumsgrense for hva automasjonen får skrive til varmepumpa.
+            Brukes når rapportert max_temp i climate-attributter ikke stemmer i praksis, eller når du
+            ønsker ekstra begrensning. Tomt felt = ingen manuell overstyring.
+            Effektiv maksimumsgrense blir strengeste verdi: min(rapportert max_temp, manuell maksimum).
+          default: ""
+          selector:
+            text:
 
     vifte:
       name: Vifte
@@ -406,6 +428,8 @@ actions:
       inum_offset_min: !input grader_under_min
       inum_offset_maks: !input grader_over_maks
       inum_max_step: !input maks_endring_per_kjoring
+      itext_varmepumpe_min_temp_overstyring: !input varmepumpe_min_temp_overstyring
+      itext_varmepumpe_maks_temp_overstyring: !input varmepumpe_maks_temp_overstyring
       ix_vifte_aktiv: !input vifte_boost
       ix_kjoling_aktiv: !input ix_kjoling_aktiv
       inum_kjoling_av_delta_sommer: !input inum_kjoling_av_delta_sommer
@@ -446,6 +470,31 @@ actions:
       iclimate_varmepumpe_fanmode: "{{ (state_attr(iclimate_varmepumpe, 'fan_mode') | string | lower) }}"
       iclimate_varmepumpe_abs_min: "{{ state_attr(iclimate_varmepumpe, 'min_temp') | float(10) }}"
       iclimate_varmepumpe_abs_max: "{{ state_attr(iclimate_varmepumpe, 'max_temp') | float(30) }}"
+      varmepumpe_manual_min_set_raw: "{{ itext_varmepumpe_min_temp_overstyring | string | trim }}"
+      varmepumpe_manual_maks_set_raw: "{{ itext_varmepumpe_maks_temp_overstyring | string | trim }}"
+      varmepumpe_manual_min_set_enabled: "{{ varmepumpe_manual_min_set_raw not in ['', 'None', 'none'] }}"
+      varmepumpe_manual_maks_set_enabled: "{{ varmepumpe_manual_maks_set_raw not in ['', 'None', 'none'] }}"
+      varmepumpe_manual_min_set_value: >-
+        {% if varmepumpe_manual_min_set_enabled %}
+          {{ varmepumpe_manual_min_set_raw | float(iclimate_varmepumpe_abs_min) }}
+        {% else %}
+          {{ iclimate_varmepumpe_abs_min }}
+        {% endif %}
+      varmepumpe_manual_maks_set_value: >-
+        {% if varmepumpe_manual_maks_set_enabled %}
+          {{ varmepumpe_manual_maks_set_raw | float(iclimate_varmepumpe_abs_max) }}
+        {% else %}
+          {{ iclimate_varmepumpe_abs_max }}
+        {% endif %}
+      varmepumpe_effektiv_min_setpunkt_raw: >-
+        {{ [iclimate_varmepumpe_abs_min | float(10), varmepumpe_manual_min_set_value | float(iclimate_varmepumpe_abs_min)] | max }}
+      varmepumpe_effektiv_maks_setpunkt_raw: >-
+        {{ [iclimate_varmepumpe_abs_max | float(30), varmepumpe_manual_maks_set_value | float(iclimate_varmepumpe_abs_max)] | min }}
+      varmepumpe_effektiv_min_setpunkt: "{{ varmepumpe_effektiv_min_setpunkt_raw | float(iclimate_varmepumpe_abs_min) }}"
+      varmepumpe_effektiv_maks_setpunkt: >-
+        {% set min_eff = varmepumpe_effektiv_min_setpunkt_raw | float(iclimate_varmepumpe_abs_min) %}
+        {% set max_eff = varmepumpe_effektiv_maks_setpunkt_raw | float(iclimate_varmepumpe_abs_max) %}
+        {{ max_eff if max_eff >= min_eff else min_eff }}
       iclimate_varmepumpe_sekundar_rt_spk: >-
         {% if varmepumpe_sekundar_configured %}
           {{ state_attr(iclimate_varmepumpe_sekundar, 'temperature') | float(0) }}
@@ -700,7 +749,7 @@ actions:
   - variables:
       varmepumpe_req_spk_incl_abs_limit: >-
         {% set t = varmepumpe_req_spk_raw | float(iclimate_varme_rt_max_spk_spcomfort) %}
-        {{ [ [t, iclimate_varmepumpe_abs_min | float(10)] | max, iclimate_varmepumpe_abs_max | float(30) ] | min }}
+        {{ [ [t, varmepumpe_effektiv_min_setpunkt | float(10)] | max, varmepumpe_effektiv_maks_setpunkt | float(30) ] | min }}
   - variables:
       # Mellomsteg: rundes til nærmeste halve (20.5, 20 osv.).
       # Endelig avrunding skjer i qnum_varmepumpe_req_spk basert på inum_max_step.
@@ -971,6 +1020,7 @@ actions:
             Varmepumpe (Varme):
             Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ hp_norm_power_heat | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }})
+            Skrivgrenser: {{ varmepumpe_effektiv_min_setpunkt | round(1) }}-{{ varmepumpe_effektiv_maks_setpunkt | round(1) }}°C (attrib {{ iclimate_varmepumpe_abs_min | round(1) }}-{{ iclimate_varmepumpe_abs_max | round(1) }}{% if varmepumpe_manual_min_set_enabled or varmepumpe_manual_maks_set_enabled %}, manuell{% if varmepumpe_manual_min_set_enabled %} min={{ varmepumpe_manual_min_set_value | round(1) }}{% endif %}{% if varmepumpe_manual_maks_set_enabled %}{% if varmepumpe_manual_min_set_enabled %}, {% else %} {% endif %}maks={{ varmepumpe_manual_maks_set_value | round(1) }}{% endif %}{% endif %})
             {%- if (iclimate_varme_styrt | string) not in ['', 'None', 'none'] %}
 
             Varme (climate):
@@ -994,6 +1044,7 @@ actions:
             Varmepumpe (Kjøling):
             Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ varmepumpe_output_power | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }})
+            Skrivgrenser: {{ varmepumpe_effektiv_min_setpunkt | round(1) }}-{{ varmepumpe_effektiv_maks_setpunkt | round(1) }}°C (attrib {{ iclimate_varmepumpe_abs_min | round(1) }}-{{ iclimate_varmepumpe_abs_max | round(1) }}{% if varmepumpe_manual_min_set_enabled or varmepumpe_manual_maks_set_enabled %}, manuell{% if varmepumpe_manual_min_set_enabled %} min={{ varmepumpe_manual_min_set_value | round(1) }}{% endif %}{% if varmepumpe_manual_maks_set_enabled %}{% if varmepumpe_manual_min_set_enabled %}, {% else %} {% endif %}maks={{ varmepumpe_manual_maks_set_value | round(1) }}{% endif %}{% endif %})
             {%- endif %}
             {%- if skal_oppdatere_vifte %}
             Vifte: {{ onsket_vifte }}
