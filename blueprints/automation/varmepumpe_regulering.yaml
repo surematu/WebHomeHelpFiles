@@ -96,7 +96,7 @@ blueprint:
           description: >
             Valgfri input_select med valg AUTO/MANUELL.
             AUTO eller tom input = automasjonen kan styre varme-utganger.
-            MANUELL = automasjonen skriver ikke til panelovn climate, varme-switch eller prosent-utgang.
+            MANUELL = automasjonen skriver ikke til panelovn climate, digital varmeutgang eller prosent-utgang.
           default: ""
           selector:
             entity:
@@ -735,7 +735,7 @@ actions:
             {% elif (varmepumpe_output_power | float(0)) > 50 %}
               high
             {% else %}
-              
+              {{ '' }}
             {% endif %}
           varmepumpe_vifte_stottes: "{{ state_attr(iclimate_varmepumpe, 'fan_modes') is not none }}"
           onsket_vifte: >-

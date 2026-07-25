@@ -368,7 +368,7 @@ Panelovn-settpunkt = `frost + (settpunkt − frost) × prop`
 | `preset_temperatures.frost_temp` mangler | Bruker 10 °C som fallback |
 | Varme-climate utenfor `[min_temp, max_temp]` | Klippes til climate-entityens absolutte grenser |
 | Overordnet climate er `off` | Overordnet oppdateres ikke; panelovn settes til frost; switch slås av |
-| `panelovn_padrag_grense` = 0 | hp_norm_power settes til 100 % (unngår divisjon med null) |
+| `panelovn_padrag_grense` er ugyldig eller ≤ 0 | hp_norm_power settes til 100 % (unngår divisjon med null) |
 
 ### 10.5 Varsling og debug info
 
