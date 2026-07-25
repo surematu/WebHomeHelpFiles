@@ -2,14 +2,12 @@ blueprint:
   name: Varmepumpe (Rom) Robot (WebHome Automation)
   description: >
     Regulerer varmepumpe-settpunkt lineært mellom:
-      - Offset ved 0% pådrag (default -3°C fra basis)
-      - Offset ved 100% pådrag (default +3°C fra basis)
+      - Offset ved 0% pådrag (grader_under_min)
+      - Offset ved 100% pådrag (grader_over_maks)
     Basissettpunkt = max(iclimate_varme_rt_spk, comfort_temp hvis finnes).
     Pådrag-signal (0-100%):
-    - Bruker power_percent hvis tilgjengelig.
-    - Ellers, hvis regulated_target_temperature finnes, beregnes pådrag lineært fra
-      (iclimate_varme_rt_spk + padrag_offset_min) => 0% til (iclimate_varme_rt_spk + padrag_offset_maks) => 100%.
-    - Ellers brukes 50% som standard.
+    - Bruker power_percent fra overordnet climate.
+    - Hvis power_percent mangler brukes 50% som standard.
 
     Vifte-logikk styres av boolean-input: false = ingen vifteregulering, true = vifte boost.
 
@@ -57,7 +55,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.21
+    Blueprint versjon: 2026.07.22
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -71,40 +69,32 @@ blueprint:
       collapsed: true
       input:
         rom_climate:
-          name: Climate - Overordnet for rom
+          name: Klima - Overordnet styring for rom (Versatile Thermostat)
           selector:
             entity:
               domain: climate
 
-        padrag_regulated_offset_min:
-          name: 0% pådrag hvis regulatedSetpoint er så mange grader i forhold til settpunkt varme (padrag_regulated_offset_min)
+        inputselect_varmepumpe_auto_manuell:
+          name: Input select - Varmepumpe AUTO/MANUELL (valgfri)
           description: >
-            Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
-            Offset relativt til iclimate_varme_rt_spk som tilsvarer 0% pådrag.
-            Eksempel: -1 betyr at regulated_target = iclimate_varme_rt_spk - 1 => 0% pådrag.
-          default: -1
+            Valgfri input_select med valg AUTO/MANUELL.
+            AUTO eller tom input = automasjonen kan styre varmepumpe (modus, settpunkt, vifte).
+            MANUELL = automasjonen leser fortsatt data, men skriver ikke til varmepumpa.
+          default: ""
           selector:
-            number:
-              min: -5
-              max: 0
-              step: 0.5
-              mode: slider
-              unit_of_measurement: "°C"
+            entity:
+              domain: input_select
 
-        padrag_regulated_offset_maks:
-          name: 100% pådrag hvis regulatedSetpoint er så mange grader i forhold til settpunkt varme (padrag_regulated_offset_maks)
+        inputselect_varme_auto_manuell:
+          name: Input select - Varme AUTO/MANUELL (valgfri)
           description: >
-            Brukes kun når regulated_target_temperature finnes og power_percent ikke finnes.
-            Offset relativt til iclimate_varme_rt_spk som tilsvarer 100% pådrag.
-            Eksempel: 1 betyr at regulated_target = iclimate_varme_rt_spk + 1 => 100% pådrag.
-          default: 1
+            Valgfri input_select med valg AUTO/MANUELL.
+            AUTO eller tom input = automasjonen kan styre varme-utganger.
+            MANUELL = automasjonen skriver ikke til panelovn climate, varme-switch eller prosent-utgang.
+          default: ""
           selector:
-            number:
-              min: 0
-              max: 5
-              step: 0.5
-              mode: slider
-              unit_of_measurement: "°C"
+            entity:
+              domain: input_select
 
     varmepumpe:
       name: Varmepumpe
@@ -155,28 +145,6 @@ blueprint:
               max: 10
               step: 0.5
               mode: slider
-              unit_of_measurement: "°C"
-
-        varmepumpe_temp_min:
-          name: Absolutt min temperatur på varmepumpe
-          default: 10
-          selector:
-            number:
-              min: 5
-              max: 25
-              step: 1
-              mode: box
-              unit_of_measurement: "°C"
-
-        varmepumpe_temp_maks:
-          name: Absolutt maks temperatur på varmepumpe
-          default: 29
-          selector:
-            number:
-              min: 15
-              max: 35
-              step: 1
-              mode: box
               unit_of_measurement: "°C"
 
     vifte:
@@ -289,11 +257,12 @@ blueprint:
         panelovn_padrag_grense:
           name: Pådrag-grense varmepumpe / panelovn (%)
           description: >
-            Ved varme: pådrag 0–[grense]% styrer varmepumpe normalisert 0–100%.
-            Pådrag [grense]–100% kan aktivere i tillegg panelovn (varme-climate),
-            men først når varmepumpas faktiske settpunkt tilsvarer minst 80%
-            av varmepumpas egen varmekurve.
-            Standard 60 %. Krever at varme-climate er konfigurert.
+            Delingspunkt mellom varmepumpe og panelovn når modus er varme.
+            Fra 0% til denne grensen brukes hele pådraget på varmepumpa (normalisert 0–100%).
+            Over grensen kan panelovn få resten av pådraget, men først etter at varmepumpa
+            faktisk har nådd minst 80% av sin egen varmekurve.
+            Høyere verdi = varmepumpa prioriteres lenger før panelovn får bidra.
+            Standard 60 %. Krever at minst én varme-utgang er konfigurert.
           default: 60
           selector:
             number:
@@ -306,9 +275,10 @@ blueprint:
         panelovn_delta_maks:
           name: Temperaturspenn for panelovn 0–100 % (°C)
           description: >
-            Romtemp-underskudd som gir panelovnen 100 % pådrag.
-            Ved 0 °C under settpunkt → panelovn 0 % (frost). Ved dette spennet under settpunkt → panelovn 100 %.
-            Lineær interpolasjon i mellom – ingen plutselig av/på.
+            Hvor mange grader rommet kan ligge under settpunkt før panelovn er på 100%.
+            0 °C under settpunkt gir 0% panelovn (frost), og valgt spenn under settpunkt gir 100%.
+            Mellom disse nivåene reguleres panelovn lineært.
+            Lav verdi = panelovn reagerer raskere/aggressivt. Høy verdi = roligere opptrapping.
             Standard 2.0 °C.
           default: 2.0
           selector:
@@ -404,14 +374,12 @@ actions:
   - variables:
       iclimate_varme: !input rom_climate
       iclimate_varmepumpe: !input varmepumpe_climate
+      iinputselect_varmepumpe_auto_manuell: !input inputselect_varmepumpe_auto_manuell
+      iinputselect_varme_auto_manuell: !input inputselect_varme_auto_manuell
       inum_offset_min: !input grader_under_min
       inum_offset_maks: !input grader_over_maks
       inum_max_step: !input maks_endring_per_kjoring
       ix_vifte_aktiv: !input vifte_boost
-      padrag_reg_offset_min: !input padrag_regulated_offset_min
-      padrag_reg_offset_maks: !input padrag_regulated_offset_maks
-      inum_varmepumpe_abs_min: !input varmepumpe_temp_min
-      inum_varmepumpe_abs_max: !input varmepumpe_temp_maks
       ix_kjoling_aktiv: !input ix_kjoling_aktiv
       inum_kjoling_av_delta_sommer: !input inum_kjoling_av_delta_sommer
       inum_kjoling_av_delta_vinter: !input inum_kjoling_av_delta_vinter
@@ -441,12 +409,13 @@ actions:
           {{ iclimate_varme_rt_spk }}
         {% endif %}
       iclimate_varme_presetmode: "{{ (state_attr(iclimate_varme, 'preset_mode') | string | lower) }}"
-      iclimate_varme_has_regulated_target: "{{ state_attr(iclimate_varme, 'regulated_target_temperature') is not none }}"
       iclimate_varme_has_power_percent: "{{ state_attr(iclimate_varme, 'power_percent') is not none }}"
       # float: bevarer 0.5-stegs presisjon fra climate-enheten (| int ville miste halve grader)
       iclimate_varmepumpe_rt_spk: "{{ state_attr(iclimate_varmepumpe, 'temperature') | float(0) }}"
       iclimate_varmepumpe_mode: "{{ states(iclimate_varmepumpe) | string | lower }}"
       iclimate_varmepumpe_fanmode: "{{ (state_attr(iclimate_varmepumpe, 'fan_mode') | string | lower) }}"
+      iclimate_varmepumpe_abs_min: "{{ state_attr(iclimate_varmepumpe, 'min_temp') | float(10) }}"
+      iclimate_varmepumpe_abs_max: "{{ state_attr(iclimate_varmepumpe, 'max_temp') | float(30) }}"
       iclimate_overordnet_hvac_mode: "{{ states(iclimate_varme) | string | lower }}"
       iclimate_varme_frost_temp: >-
         {% set presets = state_attr(iclimate_varme, 'preset_temperatures') %}
@@ -455,6 +424,24 @@ actions:
         {% else %}
           10
         {% endif %}
+
+  # Steg 1.5: auto/manuell-vendere
+  - variables:
+      varmepumpe_auto_manuell_raw: >-
+        {% if (iinputselect_varmepumpe_auto_manuell | string) in ['', 'None', 'none'] %}
+          AUTO
+        {% else %}
+          {{ states(iinputselect_varmepumpe_auto_manuell) }}
+        {% endif %}
+      varme_auto_manuell_raw: >-
+        {% if (iinputselect_varme_auto_manuell | string) in ['', 'None', 'none'] %}
+          AUTO
+        {% else %}
+          {{ states(iinputselect_varme_auto_manuell) }}
+        {% endif %}
+  - variables:
+      varmepumpe_auto_aktiv: "{{ (varmepumpe_auto_manuell_raw | string | upper) != 'MANUELL' }}"
+      varme_auto_aktiv: "{{ (varme_auto_manuell_raw | string | upper) != 'MANUELL' }}"
 
   # Steg 2: Beregn hvor mye pådrag vi har på varmekilden
   - choose:
@@ -466,22 +453,6 @@ actions:
           - variables:
               varme_cur_power_calculated: "{{ state_attr(iclimate_varme, 'power_percent') | float(50) }}"
 
-      # Case B: regulated_target_temperature finnes => beregn lineært fra offset-range
-      - conditions:
-          - condition: template
-            value_template: "{{ iclimate_varme_has_regulated_target }}"
-        sequence:
-          - variables:
-              varme_cur_power_calculated: >-
-                {% set rt = state_attr(iclimate_varme, 'regulated_target_temperature') | float(iclimate_varme_rt_spk) %}
-                {% set omin = padrag_reg_offset_min | float(-1) %}
-                {% set omax = padrag_reg_offset_maks | float(1) %}
-                {% if omin == omax %}
-                  50
-                {% else %}
-                  {% set raw = (rt - (iclimate_varme_rt_spk + omin)) / (omax - omin) * 100 %}
-                  {{ [[raw, 0] | max, 100] | min }}
-                {% endif %}
     # Case C: ingen => bruk 50%
     default:
       - variables:
@@ -681,7 +652,7 @@ actions:
   - variables:
       varmepumpe_req_spk_incl_abs_limit: >-
         {% set t = varmepumpe_req_spk_raw | float(iclimate_varme_rt_max_spk_spcomfort) %}
-        {{ [ [t, inum_varmepumpe_abs_min | float(10)] | max, inum_varmepumpe_abs_max | float(29) ] | min }}
+        {{ [ [t, iclimate_varmepumpe_abs_min | float(10)] | max, iclimate_varmepumpe_abs_max | float(30) ] | min }}
   - variables:
       # Mellomsteg: rundes til nærmeste halve (20.5, 20 osv.).
       # Endelig avrunding skjer i qnum_varmepumpe_req_spk basert på inum_max_step.
@@ -727,22 +698,28 @@ actions:
           onsket_vifte: "{{ iclimate_varmepumpe_fanmode }}"
           skal_oppdatere_vifte: false
 
+  - variables:
+      qx_varmepumpe_spk_update_needed_effektiv: "{{ varmepumpe_auto_aktiv and qx_varmepumpe_spk_update_needed }}"
+      skal_oppdatere_vifte_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_vifte }}"
+      skal_oppdatere_mode_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_mode }}"
+      skal_oppdatere_overordnet_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_overordnet }}"
+
   # Steg 8: sett verdier kun ved behov
   - if:
       - condition: or
         conditions:
           - condition: template
-            value_template: "{{ qx_varmepumpe_spk_update_needed }}"
+            value_template: "{{ qx_varmepumpe_spk_update_needed_effektiv }}"
           - condition: template
-            value_template: "{{ skal_oppdatere_vifte }}"
+            value_template: "{{ skal_oppdatere_vifte_effektiv }}"
           - condition: template
-            value_template: "{{ skal_oppdatere_mode }}"
+            value_template: "{{ skal_oppdatere_mode_effektiv }}"
           - condition: template
-            value_template: "{{ skal_oppdatere_overordnet }}"
+            value_template: "{{ skal_oppdatere_overordnet_effektiv }}"
     then:
       - if:
           - condition: template
-            value_template: "{{ skal_oppdatere_overordnet }}"
+            value_template: "{{ skal_oppdatere_overordnet_effektiv }}"
         then:
           - action: climate.set_hvac_mode
             target:
@@ -752,7 +729,7 @@ actions:
 
       - if:
           - condition: template
-            value_template: "{{ skal_oppdatere_mode }}"
+            value_template: "{{ skal_oppdatere_mode_effektiv }}"
         then:
           - action: climate.set_hvac_mode
             target:
@@ -762,7 +739,7 @@ actions:
 
       - if:
           - condition: template
-            value_template: "{{ qx_varmepumpe_spk_update_needed }}"
+            value_template: "{{ qx_varmepumpe_spk_update_needed_effektiv }}"
         then:
           - action: climate.set_temperature
             target:
@@ -772,7 +749,7 @@ actions:
 
       - if:
           - condition: template
-            value_template: "{{ skal_oppdatere_vifte }}"
+            value_template: "{{ skal_oppdatere_vifte_effektiv }}"
         then:
           - action: climate.set_fan_mode
             target:
@@ -785,7 +762,7 @@ actions:
   # Ingen binær av/på: settpunktet trappes jevnt opp etter hvert som romtemp faller under settpunkt.
   - if:
       - condition: template
-        value_template: "{{ iclimate_varme_styrt is not none and iclimate_varme_styrt != '' }}"
+        value_template: "{{ varme_auto_aktiv and iclimate_varme_styrt is not none and iclimate_varme_styrt != '' }}"
     then:
       - variables:
           varme_styrt_naa_spk: "{{ state_attr(iclimate_varme_styrt, 'temperature') | float(0) }}"
@@ -832,7 +809,7 @@ actions:
   # <30%=av, 30-59%=på 1 av 3 slot, 60-89%=på 2 av 3 slot, 90-100%=på alle 3 slot.
   - if:
       - condition: template
-        value_template: "{{ panelovn_switch_configured }}"
+        value_template: "{{ varme_auto_aktiv and panelovn_switch_configured }}"
     then:
       - if:
           - condition: template
@@ -849,7 +826,7 @@ actions:
   # Steg 9c: valgfri prosent-utgang for panelovn (input_number)
   - if:
       - condition: template
-        value_template: "{{ panelovn_prosent_output_update_needed }}"
+        value_template: "{{ varme_auto_aktiv and panelovn_prosent_output_update_needed }}"
     then:
       - action: input_number.set_value
         target:
@@ -863,9 +840,9 @@ actions:
         value_template: >-
           {{ ix_pushover_varsling
              and (pushover_destination | string | trim) != ''
-             and (qx_varmepumpe_spk_update_needed
-                  or skal_oppdatere_mode
-                  or skal_oppdatere_vifte
+             and (qx_varmepumpe_spk_update_needed_effektiv
+                  or skal_oppdatere_mode_effektiv
+                  or skal_oppdatere_vifte_effektiv
                   or (varme_styrt_spk_update_needed | default(false))) }}
     then:
       - action: script.varsel_pushover_send_melding_webhome
