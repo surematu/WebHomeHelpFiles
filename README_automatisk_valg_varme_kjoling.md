@@ -126,11 +126,11 @@ eller:
 **Innhold:**
 > Driftsmodus uendret, ingen kjølebehov påvist, forblir vintermodus.
 >
-> Begrunnelse 1 ❌:
-> -❌ Utetemp snitt 72h (18.4) under grense (15).
+> Begrunnelse sommer 1 ❌:
+> -✅ Utetemp snitt 72h (18.4) over grense (15).
 > -❌ Makstemperatur inkl. soltillegg (20.3+1) er under grense (stopp 22/ start 25). Skydekke 71%.
 >
-> Begrunnelse 2 ❌:
+> Begrunnelse sommer 2 ❌:
 > -❌ Varslet maksimum neste dag (20.3) overstiger grense for ekstrem varme (28).
 >
 > Match på regel 7. Manuelt kjørt sjekk.
