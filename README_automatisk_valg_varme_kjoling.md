@@ -108,10 +108,10 @@ Beregnet modus sammenlignes med gjeldende modus:
 Varsling er aktivert som standard (pushover destination er satt til `pushover`).
 
 **Tittel ved modusendring:**
-> 🔥 Driftsmodus VINTER
+> ❄️ Driftsmodus SOMMER
 
 eller:
-> ❄️ Driftsmodus SOMMER
+> 🔥 Driftsmodus VINTER
 
 **Eksempel på melding ved skifte til SOMMER:**
 > Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.
@@ -127,7 +127,7 @@ eller:
 > Driftsmodus uendret, ingen kjølebehov påvist, forblir vintermodus.
 >
 > Begrunnelse 1 ❌:
-> -❌ Utetemp snitt 72h (18.4) under grense (15)
+> -❌ Utetemp snitt 72h (18.4) under grense (15).
 > -❌ Makstemperatur inkl. soltillegg (20.3+1) er under grense (stopp 22/ start 25). Skydekke 71%.
 >
 > Begrunnelse 2 ❌:
