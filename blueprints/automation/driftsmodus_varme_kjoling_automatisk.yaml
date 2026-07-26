@@ -21,7 +21,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.20
+    Blueprint versjon: 2026.07.21
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -527,27 +527,28 @@ actions:
       decision_reason: >-
         {% set ns = namespace(lines=[]) %}
         {% if not has_temp_basis and not forecast_max_available %}
-        {% set ns.lines = ns.lines + ["Begrunnelse 1 ❌:"] %}
+        {% set ns.lines = ns.lines + ["Begrunnelse sommer 1 ❌:"] %}
         {% set ns.lines = ns.lines + ["-❌ Temperaturgrunnlag ikke tilgjengelig."] %}
         {% set ns.lines = ns.lines + ["-❌ Prognose for neste døgn ikke tilgjengelig."] %}
         {% elif not forecast_max_available %}
-        {% set b11 = (avg_temp_72h | float) < (t_summer_avg_limit | float) %}
-        {% set ns.lines = ns.lines + ["Begrunnelse 1 " + ("✅" if b11 else "❌") + ":"] %}
-        {% set ns.lines = ns.lines + ["-" + ("✅" if b11 else "❌") + " Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") under grense (" + (t_summer_avg_limit | int | string) + ")."] %}
+        {% set b11_summer = (avg_temp_72h | float) > (t_summer_avg_limit | float) %}
+        {% set ns.lines = ns.lines + ["Begrunnelse sommer 1 " + ("✅" if b11_summer else "❌") + ":"] %}
+        {% set ns.lines = ns.lines + ["-" + ("✅" if b11_summer else "❌") + " Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") over grense (" + (t_summer_avg_limit | int | string) + ")."] %}
         {% set ns.lines = ns.lines + ["-❌ Ingen prognose tilgjengelig for neste døgn."] %}
         {% else %}
-        {% set b11 = has_temp_basis and (avg_temp_72h | float) < (t_summer_avg_limit | float) %}
+        {% set b11_winter = has_temp_basis and (avg_temp_72h | float) < (t_summer_avg_limit | float) %}
+        {% set b11_summer = has_temp_basis and (avg_temp_72h | float) > (t_summer_avg_limit | float) %}
         {% set b12 = (forecast_max_with_solar | float) < (t_stop_cooling_limit | float) %}
-        {% set b1ok = (b11 and b12) if has_temp_basis else b12 %}
+        {% set b1ok = (b11_winter and b12) if has_temp_basis else b12 %}
         {% set b21 = (forecast_max_next_day | float) > (t_extreme_heat_limit | float) %}
         {% set cloud_txt = " Skydekke " + (cloud_avg_10_18 | round(0) | int | string) + "%." if cloud_avg_available else "" %}
-        {% set ns.lines = ns.lines + ["Begrunnelse 1 " + ("✅" if b1ok else "❌") + ":"] %}
+        {% set ns.lines = ns.lines + ["Begrunnelse sommer 1 " + ("✅" if b1ok else "❌") + ":"] %}
         {% if has_temp_basis %}
-        {% set ns.lines = ns.lines + ["-" + ("✅" if b11 else "❌") + " Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") under grense (" + (t_summer_avg_limit | int | string) + ")."] %}
+        {% set ns.lines = ns.lines + ["-" + ("✅" if b11_summer else "❌") + " Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") over grense (" + (t_summer_avg_limit | int | string) + ")."] %}
         {% endif %}
         {% set ns.lines = ns.lines + ["-" + ("✅" if b12 else "❌") + " Makstemperatur inkl. soltillegg (" + (forecast_max_next_day | round(1) | string) + "+" + (solar_addition | int | string) + ") er under grense (stopp " + (t_stop_cooling_limit | int | string) + "/ start " + (t_start_cooling_limit | int | string) + ")." + cloud_txt] %}
         {% set ns.lines = ns.lines + [""] %}
-        {% set ns.lines = ns.lines + ["Begrunnelse 2 " + ("✅" if b21 else "❌") + ":"] %}
+        {% set ns.lines = ns.lines + ["Begrunnelse sommer 2 " + ("✅" if b21 else "❌") + ":"] %}
         {% set ns.lines = ns.lines + ["-" + ("✅" if b21 else "❌") + " Varslet maksimum neste dag (" + (forecast_max_next_day | round(1) | string) + ") overstiger grense for ekstrem varme (" + (t_extreme_heat_limit | int | string) + ")."] %}
         {% endif %}
         {% set ns.lines = ns.lines + [""] %}
