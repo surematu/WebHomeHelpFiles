@@ -108,10 +108,10 @@ Beregnet modus sammenlignes med gjeldende modus:
 Varsling er aktivert som standard (pushover destination er satt til `pushover`).
 
 **Tittel ved modusendring:**
-> 🌡️ Driftsmodus SOMMER
+> ❄️ Driftsmodus SOMMER
 
 eller:
-> 🌡️ Driftsmodus VINTER
+> 🔥 Driftsmodus VINTER
 
 **Eksempel på melding ved skifte til SOMMER:**
 > Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.
@@ -121,12 +121,21 @@ eller:
 
 **Eksempel på varsel, uendret VINTER:**
 
-**Tittel:** 🌡️ Driftsmodus VINTER
+**Tittel:** 🔥 Driftsmodus VINTER
 
 **Innhold:**
 > Driftsmodus uendret, ingen kjølebehov påvist, forblir vintermodus.
 >
-> Begrunnelse: Utetemp snitt 72h (18.4) under grense (15) eller makstemperatur inkl. soltillegg (20.3+1) er under grense (22). Skydekke 71%. Detektert temperatur i morgen (20.3) er under grense for ekstrem varme (28). Match på regel 7. Manuelt kjørt sjekk.
+> Begrunnelse 1 ❌:
+> -❌ Utetemp snitt 72h (18.4) under grense (15).
+> -❌ Makstemperatur inkl. soltillegg (20.3+1) er under grense (stopp 22/ start 25). Skydekke 71%.
+>
+> Begrunnelse 2 ❌:
+> -❌ Varslet maksimum neste dag (20.3) overstiger grense for ekstrem varme (28).
+>
+> Match på regel 7. Manuelt kjørt sjekk.
+
+✅ betyr at enkeltbetingelsen er oppfylt, ❌ at den ikke er det. Gruppetittelen viser ✅ kun når alle underbetingelser er ✅.
 
 Begrunnelsen (regel, verdier) vises kun når «Vis ekstra begrunnelse» er aktivert (standard: på).
 

@@ -21,7 +21,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.19
+    Blueprint versjon: 2026.07.20
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -525,13 +525,34 @@ actions:
       calculated_mode: "{{ io_mode_heat }}"
       decision_rule: "Regel 7 - Velg vintermodus når kjølebehov ikke er påvist"
       decision_reason: >-
+        {% set ns = namespace(lines=[]) %}
         {% if not has_temp_basis and not forecast_max_available %}
-        Mangler temperaturgrunnlag og prognose for neste døgn.
+        {% set ns.lines = ns.lines + ["Begrunnelse 1 ❌:"] %}
+        {% set ns.lines = ns.lines + ["-❌ Temperaturgrunnlag ikke tilgjengelig."] %}
+        {% set ns.lines = ns.lines + ["-❌ Prognose for neste døgn ikke tilgjengelig."] %}
         {% elif not forecast_max_available %}
-        Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) under grense ({{ t_summer_avg_limit | int }}). Ingen prognose tilgjengelig for neste døgn.
+        {% set b11 = (avg_temp_72h | float) < (t_summer_avg_limit | float) %}
+        {% set ns.lines = ns.lines + ["Begrunnelse 1 " + ("✅" if b11 else "❌") + ":"] %}
+        {% set ns.lines = ns.lines + ["-" + ("✅" if b11 else "❌") + " Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") under grense (" + (t_summer_avg_limit | int | string) + ")."] %}
+        {% set ns.lines = ns.lines + ["-❌ Ingen prognose tilgjengelig for neste døgn."] %}
         {% else %}
-        {% if has_temp_basis %}Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) under grense ({{ t_summer_avg_limit | int }}) eller {% endif %}makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er under grense ({{ t_stop_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Detektert temperatur i morgen ({{ forecast_max_next_day | round(1) }}) er under grense for ekstrem varme ({{ t_extreme_heat_limit | int }}).
-        {% endif %} Match på regel 7.
+        {% set b11 = has_temp_basis and (avg_temp_72h | float) < (t_summer_avg_limit | float) %}
+        {% set b12 = (forecast_max_with_solar | float) < (t_stop_cooling_limit | float) %}
+        {% set b1ok = (b11 and b12) if has_temp_basis else b12 %}
+        {% set b21 = (forecast_max_next_day | float) > (t_extreme_heat_limit | float) %}
+        {% set cloud_txt = " Skydekke " + (cloud_avg_10_18 | round(0) | int | string) + "%." if cloud_avg_available else "" %}
+        {% set ns.lines = ns.lines + ["Begrunnelse 1 " + ("✅" if b1ok else "❌") + ":"] %}
+        {% if has_temp_basis %}
+        {% set ns.lines = ns.lines + ["-" + ("✅" if b11 else "❌") + " Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") under grense (" + (t_summer_avg_limit | int | string) + ")."] %}
+        {% endif %}
+        {% set ns.lines = ns.lines + ["-" + ("✅" if b12 else "❌") + " Makstemperatur inkl. soltillegg (" + (forecast_max_next_day | round(1) | string) + "+" + (solar_addition | int | string) + ") er under grense (stopp " + (t_stop_cooling_limit | int | string) + "/ start " + (t_start_cooling_limit | int | string) + ")." + cloud_txt] %}
+        {% set ns.lines = ns.lines + [""] %}
+        {% set ns.lines = ns.lines + ["Begrunnelse 2 " + ("✅" if b21 else "❌") + ":"] %}
+        {% set ns.lines = ns.lines + ["-" + ("✅" if b21 else "❌") + " Varslet maksimum neste dag (" + (forecast_max_next_day | round(1) | string) + ") overstiger grense for ekstrem varme (" + (t_extreme_heat_limit | int | string) + ")."] %}
+        {% endif %}
+        {% set ns.lines = ns.lines + [""] %}
+        {% set ns.lines = ns.lines + ["Match på regel 7."] %}
+        {{ ns.lines | join('\n') | trim }}
       decision_short_text: "ingen kjølebehov påvist, forblir vintermodus"
       decision_is_rule2_cooling: false
       decision_is_rule7_heating: true
@@ -547,7 +568,12 @@ actions:
               calculated_mode: "{{ io_mode_heat }}"
               decision_rule: "Regel 1 - Sikre varmedrift i vinterperioden"
               decision_reason: >-
-                Dato ({{ calc_today_day }}/{{ calc_today_month }}) er innenfor fast vinterperiode ({{ p_winter_start_day }}/{{ p_winter_start_month }}–{{ p_winter_end_day }}/{{ p_winter_end_month }}). Match på regel 1.
+                {% set ns = namespace(lines=[]) %}
+                {% set ns.lines = ns.lines + ["Begrunnelse 1 ✅:"] %}
+                {% set ns.lines = ns.lines + ["-✅ Dato (" + (calc_today_day | string) + "/" + (calc_today_month | string) + ") er innenfor fast vinterperiode (" + (p_winter_start_day | string) + "/" + (p_winter_start_month | string) + "–" + (p_winter_end_day | string) + "/" + (p_winter_end_month | string) + ")."] %}
+                {% set ns.lines = ns.lines + [""] %}
+                {% set ns.lines = ns.lines + ["Match på regel 1."] %}
+                {{ ns.lines | join('\n') | trim }}
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -568,7 +594,14 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 2 - Start sommermodus ved etablert varmt vær"
               decision_reason: >-
-                Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er over grense ({{ t_start_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Match på regel 2.
+                {% set ns = namespace(lines=[]) %}
+                {% set cloud_txt = " Skydekke " + (cloud_avg_10_18 | round(0) | int | string) + "%." if cloud_avg_available else "" %}
+                {% set ns.lines = ns.lines + ["Begrunnelse 1 ✅:"] %}
+                {% set ns.lines = ns.lines + ["-✅ Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") over grense (" + (t_summer_avg_limit | int | string) + ")."] %}
+                {% set ns.lines = ns.lines + ["-✅ Makstemperatur inkl. soltillegg (" + (forecast_max_next_day | round(1) | string) + "+" + (solar_addition | int | string) + ") er over grense (start " + (t_start_cooling_limit | int | string) + ")." + cloud_txt] %}
+                {% set ns.lines = ns.lines + [""] %}
+                {% set ns.lines = ns.lines + ["Match på regel 2."] %}
+                {{ ns.lines | join('\n') | trim }}
               decision_is_rule2_cooling: true
               decision_found: true
 
@@ -586,7 +619,13 @@ actions:
           - variables:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 3 - Start sommermodus før varslet ekstrem varme"
-              decision_reason: "Prognosert maksimumstemperatur neste døgn er over ekstremgrense."
+              decision_reason: >-
+                {% set ns = namespace(lines=[]) %}
+                {% set ns.lines = ns.lines + ["Begrunnelse 1 ✅:"] %}
+                {% set ns.lines = ns.lines + ["-✅ Varslet maksimum neste dag (" + (forecast_max_next_day | round(1) | string) + ") overstiger grense for ekstrem varme (" + (t_extreme_heat_limit | int | string) + ")."] %}
+                {% set ns.lines = ns.lines + [""] %}
+                {% set ns.lines = ns.lines + ["Match på regel 3."] %}
+                {{ ns.lines | join('\n') | trim }}
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -606,7 +645,18 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 4 - Behold sommermodus ved fortsatt forventet kjølebehov"
               decision_reason: >-
-                {% if has_temp_basis %}Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og {% endif %}makstemperatur inkl. soltillegg ({{ forecast_max_next_day | round(1) }}+{{ solar_addition | int }}) er over grense for å fortsette sommermodus ({{ t_stop_cooling_limit | int }}).{% if cloud_avg_available %} Skydekke {{ cloud_avg_10_18 | round(0) }}%.{% endif %} Match på regel 4.
+                {% set ns = namespace(lines=[]) %}
+                {% set b11 = has_temp_basis and (avg_temp_72h | float) > (t_summer_avg_limit | float) %}
+                {% set b1ok = b11 if has_temp_basis else true %}
+                {% set cloud_txt = " Skydekke " + (cloud_avg_10_18 | round(0) | int | string) + "%." if cloud_avg_available else "" %}
+                {% set ns.lines = ns.lines + ["Begrunnelse 1 " + ("✅" if b1ok else "❌") + ":"] %}
+                {% if has_temp_basis %}
+                {% set ns.lines = ns.lines + ["-" + ("✅" if b11 else "❌") + " Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") over grense (" + (t_summer_avg_limit | int | string) + ")."] %}
+                {% endif %}
+                {% set ns.lines = ns.lines + ["-✅ Makstemperatur inkl. soltillegg (" + (forecast_max_next_day | round(1) | string) + "+" + (solar_addition | int | string) + ") er over grense for å fortsette sommermodus (stopp " + (t_stop_cooling_limit | int | string) + ")." + cloud_txt] %}
+                {% set ns.lines = ns.lines + [""] %}
+                {% set ns.lines = ns.lines + ["Match på regel 4."] %}
+                {{ ns.lines | join('\n') | trim }}
               decision_short_text: "fortsett med sommermodus grunnet fortsatt forventet kjølebehov"
               decision_is_rule2_cooling: false
               decision_found: true
@@ -628,7 +678,13 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 5 - Behold kjøling ved varmt vær når prognosen mangler"
               decision_reason: >-
-                Prognose for neste døgn mangler. Utetemp snitt 72h ({{ avg_temp_72h | round(1) }}) over grense ({{ t_summer_avg_limit | int }}) og gjeldende modus er SOMMER. Match på regel 5.
+                {% set ns = namespace(lines=[]) %}
+                {% set ns.lines = ns.lines + ["Begrunnelse 1 ✅:"] %}
+                {% set ns.lines = ns.lines + ["-✅ Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") over grense (" + (t_summer_avg_limit | int | string) + ")."] %}
+                {% set ns.lines = ns.lines + ["-✅ Gjeldende modus er SOMMER (prognose mangler)."] %}
+                {% set ns.lines = ns.lines + [""] %}
+                {% set ns.lines = ns.lines + ["Match på regel 5."] %}
+                {{ ns.lines | join('\n') | trim }}
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -642,7 +698,13 @@ actions:
               calculated_mode: "{{ io_mode_heat }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (vinter)"
               decision_reason: >-
-                Temperaturgrunnlag mangler. Dato ({{ calc_today_day }}/{{ calc_today_month }}) er i vinterperioden, setter VINTER. Match på regel 6.
+                {% set ns = namespace(lines=[]) %}
+                {% set ns.lines = ns.lines + ["Begrunnelse 1 ❌:"] %}
+                {% set ns.lines = ns.lines + ["-❌ Temperaturgrunnlag ikke tilgjengelig."] %}
+                {% set ns.lines = ns.lines + ["-✅ Dato (" + (calc_today_day | string) + "/" + (calc_today_month | string) + ") er i vinterperioden."] %}
+                {% set ns.lines = ns.lines + [""] %}
+                {% set ns.lines = ns.lines + ["Match på regel 6."] %}
+                {{ ns.lines | join('\n') | trim }}
               decision_is_rule2_cooling: false
               decision_found: true
       - conditions:
@@ -653,7 +715,13 @@ actions:
               calculated_mode: "{{ io_mode_cool }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (sommer)"
               decision_reason: >-
-                Temperaturgrunnlag mangler. Dato ({{ calc_today_day }}/{{ calc_today_month }}) er i sommerperioden, setter SOMMER. Match på regel 6.
+                {% set ns = namespace(lines=[]) %}
+                {% set ns.lines = ns.lines + ["Begrunnelse 1 ❌:"] %}
+                {% set ns.lines = ns.lines + ["-❌ Temperaturgrunnlag ikke tilgjengelig."] %}
+                {% set ns.lines = ns.lines + ["-✅ Dato (" + (calc_today_day | string) + "/" + (calc_today_month | string) + ") er i sommerperioden."] %}
+                {% set ns.lines = ns.lines + [""] %}
+                {% set ns.lines = ns.lines + ["Match på regel 6."] %}
+                {{ ns.lines | join('\n') | trim }}
               decision_is_rule2_cooling: false
               decision_found: true
       - conditions:
@@ -664,7 +732,13 @@ actions:
               calculated_mode: "{{ current_mode_raw if current_mode_raw != '' else io_mode_heat }}"
               decision_rule: "Regel 6 - Reserve ved manglende temperaturgrunnlag (overgang)"
               decision_reason: >-
-                Temperaturgrunnlag mangler i overgangsperiode. Gjeldende modus ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }}) beholdes. Match på regel 6.
+                {% set ns = namespace(lines=[]) %}
+                {% set ns.lines = ns.lines + ["Begrunnelse 1 ❌:"] %}
+                {% set ns.lines = ns.lines + ["-❌ Temperaturgrunnlag ikke tilgjengelig."] %}
+                {% set ns.lines = ns.lines + ["-❌ Dato er ikke i fast sommer- eller vinterperiode. Gjeldende modus (" + (current_mode_raw if current_mode_raw != '' else 'ukjent') + ") beholdes."] %}
+                {% set ns.lines = ns.lines + [""] %}
+                {% set ns.lines = ns.lines + ["Match på regel 6."] %}
+                {{ ns.lines | join('\n') | trim }}
               decision_is_rule2_cooling: false
               decision_found: true
 
@@ -719,7 +793,7 @@ actions:
         sequence:
           - action: script.varsel_pushover_send_melding_webhome
             data:
-              title: "🌡️ Driftsmodus {{ calculated_mode }}"
+              title: "{% if calculated_mode == io_mode_heat %}🔥{% else %}❄️{% endif %} Driftsmodus {{ calculated_mode }}"
               message: |-
                 {% if decision_is_rule2_cooling %}
                 Endret til sommermodus for kommende natt og morgendagen grunnet vedvarende varmt vær.
@@ -733,7 +807,7 @@ actions:
                 {% else %}Driftsmodus uendret ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }}).
                 Utløsende regel: {{ decision_rule }}.{%- endif %}
                 {%- endif %}
-                {% if inkluder_begrunnelse %}Begrunnelse: {{ decision_reason_display }}{% endif %}
+                {% if inkluder_begrunnelse %}{{ decision_reason_display }}{% endif %}
                 {%- if missing_data_lines | count > 0 %}
 
                 Manglende data:
@@ -756,7 +830,7 @@ actions:
                 Beregning ble gjennomført uten modusendring ({{ current_mode_raw if current_mode_raw != '' else 'ukjent' }} beholdt).
                 Utløsende regel: {{ decision_rule }}.
                 {% if inkluder_begrunnelse %}
-                Begrunnelse: {{ decision_reason_display }}
+                {{ decision_reason_display }}
                 {%- endif %}
 
                 Manglende data:
