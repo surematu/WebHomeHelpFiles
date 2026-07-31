@@ -21,7 +21,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.21
+    Blueprint versjon: 2026.07.22
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -546,7 +546,7 @@ actions:
         {% if has_temp_basis %}
         {% set ns.lines = ns.lines + ["-" + ("✅" if b11_summer else "❌") + " Utetemp snitt 72h (" + (avg_temp_72h | round(1) | string) + ") over grense (" + (t_summer_avg_limit | int | string) + ")."] %}
         {% endif %}
-        {% set ns.lines = ns.lines + ["-" + ("✅" if b12 else "❌") + " Makstemperatur inkl. soltillegg (" + (forecast_max_next_day | round(1) | string) + "+" + (solar_addition | int | string) + ") er under grense (stopp " + (t_stop_cooling_limit | int | string) + "/ start " + (t_start_cooling_limit | int | string) + ")." + cloud_txt] %}
+        {% set ns.lines = ns.lines + ["-" + ("❌" if b12 else "✅") + " Makstemperatur inkl. soltillegg (" + (forecast_max_next_day | round(1) | string) + "+" + (solar_addition | int | string) + ") er under grense (stopp " + (t_stop_cooling_limit | int | string) + "/ start " + (t_start_cooling_limit | int | string) + ")." + cloud_txt] %}
         {% set ns.lines = ns.lines + [""] %}
         {% set ns.lines = ns.lines + ["Begrunnelse sommer 2 " + ("✅" if b21 else "❌") + ":"] %}
         {% set ns.lines = ns.lines + ["-" + ("✅" if b21 else "❌") + " Varslet maksimum neste dag (" + (forecast_max_next_day | round(1) | string) + ") overstiger grense for ekstrem varme (" + (t_extreme_heat_limit | int | string) + ")."] %}
