@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.25
+    Blueprint versjon: 2026.07.26
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -860,6 +860,17 @@ actions:
         {{ qx_varmepumpe_spk_update_needed_effektiv
            or skal_oppdatere_vifte_effektiv
            or skal_oppdatere_mode_effektiv }}
+  - variables:
+      # True når automasjonen bytter mellom heat og cool (ikke bare korrigerer fra f.eks. 'off').
+      # Settpunktet skrives ikke samme kjøring – modus må først få sette seg.
+      varmepumpe_mode_skifter: >-
+        {{ skal_oppdatere_mode_effektiv
+           and iclimate_varmepumpe_mode in ['heat', 'cool']
+           and onsket_mode in ['heat', 'cool']
+           and iclimate_varmepumpe_mode != onsket_mode }}
+  - variables:
+      # Blokkerer settpunkt-skriving hvis vi samtidig bytter mellom varme og kjøling.
+      qx_varmepumpe_spk_update_needed_effektiv: "{{ qx_varmepumpe_spk_update_needed_effektiv and not varmepumpe_mode_skifter }}"
 
   # Steg 8: sett verdier kun ved behov
   - if:
@@ -931,7 +942,8 @@ actions:
           varmepumpe_sekundar_vifte_stottes: "{{ state_attr(iclimate_varmepumpe_sekundar, 'fan_modes') is not none }}"
       - variables:
           varmepumpe_sekundar_spk_update_needed: >-
-            {{ (qnum_varmepumpe_req_spk | float) != (varmepumpe_sekundar_rt_spk_etter_delay | float) }}
+            {{ not varmepumpe_mode_skifter
+               and (qnum_varmepumpe_req_spk | float) != (varmepumpe_sekundar_rt_spk_etter_delay | float) }}
           varmepumpe_sekundar_mode_update_needed: >-
             {{ (onsket_mode | string | trim) != (varmepumpe_sekundar_mode_etter_delay | string | trim) }}
           varmepumpe_sekundar_vifte_update_needed: >-
