@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.26
+    Blueprint versjon: 2026.07.27
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -1077,7 +1077,7 @@ actions:
 
             {% if onsket_mode == 'heat' -%}
             Varmepumpe (Varme):
-            Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
+            Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed_effektiv %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ hp_norm_power_heat | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }})
             {{ varmepumpe_skrivgrenser_debug }}
             {%- if (iclimate_varme_styrt | string) not in ['', 'None', 'none'] %}
@@ -1101,7 +1101,7 @@ actions:
             Varme: Av
 
             Varmepumpe (Kjøling):
-            Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
+            Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed_effektiv %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ varmepumpe_output_power | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }})
             {{ varmepumpe_skrivgrenser_debug }}
             {%- endif %}
