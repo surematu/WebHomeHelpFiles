@@ -13,7 +13,7 @@ blueprint:
     Vifte boost brukes for å hjelpe varmepumpa med å flytte mer luft når varmebehovet er høyt
     eller når overordnet climate står i frost, f.eks. medium ved lavt behov og high ved høyt behov.
 
-    Valgfri sekundær varmepumpe-entitet kan synkes 10 sekunder etter primær varmepumpe.
+    Valgfri sekundær varmepumpe-entitet kan synkes 30 sekunder etter primær varmepumpe.
     Primær entitet prioriteres alltid først, mens sekundær kan brukes som reserve eller for
     funksjoner som kun støttes der.
 
@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.24
+    Blueprint versjon: 2026.07.26
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -136,7 +136,7 @@ blueprint:
           description: >
             Valgfri sekundær climate-entitet for samme varmepumpe.
             Primær varmepumpe skrives alltid først.
-            10 sekunder senere sammenlignes sekundær entitet med ønsket modus, settpunkt og vifte,
+            30 sekunder senere sammenlignes sekundær entitet med ønsket modus, settpunkt og vifte,
             og eventuelle manglende endringer skrives dit også.
             Nyttig når sekundær entitet har reservefunksjon eller støtter funksjoner som primær ikke har.
           default: ""
@@ -257,9 +257,9 @@ blueprint:
           description: >
             SOMMER: tvungen varme slås av når romtemp >= (settpunkt − inum_kjoling_sommer_kaldt_grense) + hysterese.
             Hysteresen regnes fra terskelen som slo varmen PÅ, ikke fra settpunktet.
-            Eksempel: settpunkt=22, kaldt_grense=3, hysterese=0.5 → varme startet ved 22−3=19°C, slås av igjen ved 19+0.5=19.5°C.
-            Default 0.5°C.
-          default: 0.5
+            Eksempel: settpunkt=22, kaldt_grense=3, hysterese=1 → varme startet ved 22−3=19°C, slås av igjen ved 19+1=20°C.
+            Default 1°C.
+          default: 1
           selector:
             number:
               min: 0
@@ -288,9 +288,9 @@ blueprint:
           description: >
             VINTER: tvungen kjøling slås av når romtemp <= (settpunkt + inum_kjoling_vinter_varmt_grense) − hysterese.
             Hysteresen regnes fra terskelen som slo kjølingen PÅ, ikke fra settpunktet.
-            Eksempel: settpunkt=22, varmt_grense=3, hysterese=0.5 → kjøling startet ved 22+3=25°C, slås av igjen ved 25−0.5=24.5°C.
-            Default 0.5°C.
-          default: 0.5
+            Eksempel: settpunkt=22, varmt_grense=3, hysterese=1 → kjøling startet ved 22+3=25°C, slås av igjen ved 25−1=24°C.
+            Default 1°C.
+          default: 1
           selector:
             number:
               min: 0
@@ -860,6 +860,17 @@ actions:
         {{ qx_varmepumpe_spk_update_needed_effektiv
            or skal_oppdatere_vifte_effektiv
            or skal_oppdatere_mode_effektiv }}
+  - variables:
+      # True når automasjonen bytter mellom heat og cool (ikke bare korrigerer fra f.eks. 'off').
+      # Settpunktet skrives ikke samme kjøring – modus må først få sette seg.
+      varmepumpe_mode_skifter: >-
+        {{ skal_oppdatere_mode_effektiv
+           and iclimate_varmepumpe_mode in ['heat', 'cool']
+           and onsket_mode in ['heat', 'cool']
+           and iclimate_varmepumpe_mode != onsket_mode }}
+  - variables:
+      # Blokkerer settpunkt-skriving hvis vi samtidig bytter mellom varme og kjøling.
+      qx_varmepumpe_spk_update_needed_effektiv: "{{ qx_varmepumpe_spk_update_needed_effektiv and not varmepumpe_mode_skifter }}"
 
   # Steg 8: sett verdier kun ved behov
   - if:
@@ -923,7 +934,7 @@ actions:
              and (varmepumpe_primaer_endret or (onsket_vifte_target_raw | string | trim) != '') }}
     then:
       - delay:
-          seconds: 10
+          seconds: 30
       - variables:
           varmepumpe_sekundar_rt_spk_etter_delay: "{{ state_attr(iclimate_varmepumpe_sekundar, 'temperature') | float(0) }}"
           varmepumpe_sekundar_mode_etter_delay: "{{ states(iclimate_varmepumpe_sekundar) | string | lower }}"
@@ -931,7 +942,8 @@ actions:
           varmepumpe_sekundar_vifte_stottes: "{{ state_attr(iclimate_varmepumpe_sekundar, 'fan_modes') is not none }}"
       - variables:
           varmepumpe_sekundar_spk_update_needed: >-
-            {{ (qnum_varmepumpe_req_spk | float) != (varmepumpe_sekundar_rt_spk_etter_delay | float) }}
+            {{ not varmepumpe_mode_skifter
+               and (qnum_varmepumpe_req_spk | float) != (varmepumpe_sekundar_rt_spk_etter_delay | float) }}
           varmepumpe_sekundar_mode_update_needed: >-
             {{ (onsket_mode | string | trim) != (varmepumpe_sekundar_mode_etter_delay | string | trim) }}
           varmepumpe_sekundar_vifte_update_needed: >-

@@ -78,7 +78,7 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Climate - Varmepumpe | – | Primær climate-entitet som automasjonen alltid styrer først |
-| Climate - Varmepumpe sekundær | (tomt) | Valgfri sekundær climate-entitet som sjekkes 10 sekunder etter primær. Hvis ønsket modus, settpunkt eller vifte fortsatt mangler der, skrives endringen også til sekundær |
+| Climate - Varmepumpe sekundær | (tomt) | Valgfri sekundær climate-entitet som sjekkes 30 sekunder etter primær. Hvis ønsket modus, settpunkt eller vifte fortsatt mangler der, skrives endringen også til sekundær |
 | Varmepumpe minimum settpunkt (valgfri overstyring) | (tomt) | Valgfri manuell minimumsgrense for settpunkt-skriving. Brukes hvis rapportert `min_temp` ikke stemmer, eller for ekstra begrensning. Effektiv minimum blir strengeste verdi: `max(rapportert min_temp, manuell minimum)` |
 | Varmepumpe maksimum settpunkt (valgfri overstyring) | (tomt) | Valgfri manuell maksimumsgrense for settpunkt-skriving. Brukes hvis rapportert `max_temp` ikke stemmer, eller for ekstra begrensning. Effektiv maksimum blir strengeste verdi: `min(rapportert max_temp, manuell maksimum)` |
 | Maks endring per kjøring | 1 °C | Størst tillatt settpunkt-endring pr. kjøring (hindrer brå hopp) |
@@ -96,8 +96,8 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Aktiver kjøling | false | Aktiver sesongbasert bytte mellom varme og kjøling |
-| SOMMER – hysterese kjøling av (°C) | 0,5 | Romtemp-stigning over ON-terskel før tvungen varme avsluttes |
-| VINTER – hysterese kjøling av (°C) | 0,5 | Romtemp-fall over ON-terskel før tvungen kjøling avsluttes |
+| SOMMER – hysterese kjøling av (°C) | 1 | Romtemp-stigning over ON-terskel før tvungen varme avsluttes |
+| VINTER – hysterese kjøling av (°C) | 1 | Romtemp-fall over ON-terskel før tvungen kjøling avsluttes |
 | SOMMER – tvungen varme-terskel (°C) | 2 | Tving varme når romtemp er mer enn X under settpunktet |
 | VINTER – tvungen kjøle-terskel (°C) | 2 | Tillat kjøling som nødoverkobling når romtemp er X over settpunktet |
 
@@ -135,10 +135,10 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 6. Begrenser med effektive skrivegrenser (strammeste kombinasjon av rapportert `min_temp/max_temp` og eventuelle manuelle overstyringer)
 7. Begrenser endringen til maks ±`maks_endring_per_kjoring` fra nåværende settpunkt (ramp)
 8. Runder av til heltall eller halvt grad
-9. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres, og kun når varmepumpe-vender står i AUTO
+9. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres, og kun når varmepumpe-vender står i AUTO. **Ved bytte mellom varme og kjøling skrives settpunktet ikke samme kjøring – modus får sette seg først.**
 10. Styrer panelovnen (climate og/eller switch) proporsjonalt basert på temperaturunderskudd og pådrag (hvis konfigurert), og kun når varme-vender står i AUTO
 11. Justerer viftehastighet (hvis aktivert og varmepumpe-vender står i AUTO)
-12. Hvis sekundær varmepumpe-entitet er satt, sjekkes den 10 sekunder etterpå og manglende modus/settpunkt/vifte skrives dit også
+12. Hvis sekundær varmepumpe-entitet er satt, sjekkes den 30 sekunder etterpå og manglende modus/settpunkt/vifte skrives dit også
 
 **Kjølelogikk (krever driftsmodus-automasjonen):**
 - VINTER-modus: kjøler normalt ikke. Nødoverkobling slår inn ved romtemp > settpunkt + terskel.
@@ -157,8 +157,8 @@ Eksempel: Hvis rommet er mye kaldere enn ønsket og pådraget blir 80 %, økes v
 
 ## 7. Resultat
 
-- **Varmepumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov når varmepumpe-vender er `AUTO`
-- **Varmepumpe-climate sekundær** (valgfri): sjekkes 10 sekunder etter primær og får manglende modus/settpunkt/vifte skrevet ved behov
+- **Varmepumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov når varmepumpe-vender er `AUTO`. Ved bytte mellom varme og kjøling skrives **kun modus** – settpunktet holdes til neste kjøring.
+- **Varmepumpe-climate sekundær** (valgfri): sjekkes 30 sekunder etter primær og får manglende modus/settpunkt/vifte skrevet ved behov
 - **Varme-climate** (panelovn): settpunkt oppdateres proporsjonalt når varme-vender er `AUTO`
 - **Utgang - Varme utgang digital (switch)**: styres i fast 30-min trinnsyklus når varme-vender er `AUTO`
 - **Utgang - Varme pådrag panelovn** (`input_number`, valgfri): oppdateres med panelovn-pådrag 0–100 % når varme-vender er `AUTO`
@@ -215,7 +215,7 @@ Eksempel: bruk verdien i en egen automasjon som slår et relé av/på med ønske
 
 ### 9.5 Primær og sekundær varmepumpe-entitet
 
-Primær varmepumpe-entitet brukes alltid først. Hvis sekundær er satt, kontrollerer automasjonen 10 sekunder senere om sekundær fortsatt mangler ønsket modus, settpunkt eller vifte, og skriver endringen dit også.
+Primær varmepumpe-entitet brukes alltid først. Hvis sekundær er satt, kontrollerer automasjonen 30 sekunder senere om sekundær fortsatt mangler ønsket modus, settpunkt eller vifte, og skriver endringen dit også.
 
 Dette er nyttig når primær entitet er best til rask og lokal styring, mens sekundær kan være nyttig som reserve eller støtte andre funksjoner. I mange oppsett er primær lokal og sekundær online/cloud-basert, men automasjonen krever bare at du velger en primær og eventuelt en sekundær. Støttede funksjoner kan variere mellom entitetene, så sekundær kan noen ganger håndtere viftevalg eller andre felt som primær ikke tilbyr.
 
@@ -274,7 +274,7 @@ Kjøretid og triggere:
 - Ved **settpunkt-endring** på rom-climate
 - Ved **driftsmodus-endring** (`input_select.driftsmodus_vinter_sommer`)
 - 5 sekunder forsinkelse for å la sensorer stabilisere seg
-- Ved sekundær varmepumpe-entitet: ytterligere 10 sekunder forsinket synk etter primær ved behov
+- Ved sekundær varmepumpe-entitet: ytterligere 30 sekunder forsinket synk etter primær ved behov
 
 **Pådragskilde (prioritert rekkefølge):**
 1. `power_percent` fra rom-climate → brukes direkte (0–100 %)
@@ -318,13 +318,13 @@ SOMMER (default = cool):
 | Aktiv varme-override og romtemp < (settpunkt − grense) + hysterese | `heat` (override holdes) |
 | Ellers | `cool` (override AV) |
 
-> **Eksempel VINTER** – settpunkt 22 °C, grense 3 °C, hysterese 0,5 °C:
+> **Eksempel VINTER** – settpunkt 22 °C, grense 3 °C, hysterese 1 °C:
 > - Kjøling slår PÅ når romtemp > **25 °C**
-> - Kjøling slår AV når romtemp faller under **24,5 °C**
+> - Kjøling slår AV når romtemp faller under **24 °C**
 
-> **Eksempel SOMMER** – settpunkt 22 °C, grense 3 °C, hysterese 0,5 °C:
+> **Eksempel SOMMER** – settpunkt 22 °C, grense 3 °C, hysterese 1 °C:
 > - Tvungen varme slår PÅ når romtemp < **19 °C**
-> - Tvungen varme slår AV når romtemp > **19,5 °C**
+> - Tvungen varme slår AV når romtemp > **20 °C**
 
 **Panelovn-proporsjonal-styring:**
 `prop = min(1, max(0, (settpunkt − romtemp) / panelovn_delta_maks))`
