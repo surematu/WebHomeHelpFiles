@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.28
+    Blueprint versjon: 2026.07.30
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -468,6 +468,13 @@ actions:
       iclimate_varmepumpe_rt_spk: "{{ state_attr(iclimate_varmepumpe, 'temperature') | float(0) }}"
       iclimate_varmepumpe_mode: "{{ states(iclimate_varmepumpe) | string | lower }}"
       iclimate_varmepumpe_fanmode: "{{ (state_attr(iclimate_varmepumpe, 'fan_mode') | string | lower) }}"
+      varmepumpe_tittel_navn_raw: "{{ state_attr(iclimate_varmepumpe, 'friendly_name') | string | trim }}"
+      varmepumpe_tittel_navn: >-
+        {% if varmepumpe_tittel_navn_raw not in ['', 'None', 'none', 'unknown', 'unavailable'] %}
+          {{ varmepumpe_tittel_navn_raw }}
+        {% else %}
+          {{ iclimate_varmepumpe | string | replace('climate.', '') | replace('_', ' ') | title }}
+        {% endif %}
       # Robust fallback hvis climate-attributter mangler/er ugyldige.
       # 10–30 °C matcher eksisterende standardgrenser i blueprinten.
       varmepumpe_abs_min_default: 10
@@ -1070,7 +1077,7 @@ actions:
       - action: script.varsel_pushover_send_melding_webhome
         data:
           title: >-
-            🌡️ Varmepumpe – {% if skal_oppdatere_mode_effektiv %}{{ 'Kjølemodus' if onsket_mode == 'cool' else 'Varmemodus' }}{% elif qx_varmepumpe_spk_update_needed_effektiv %}{{ qnum_varmepumpe_req_spk | round(0) | int }}°C{% if skal_oppdatere_vifte_effektiv and onsket_vifte == 'high' %} høy fart{% endif %}{% else %}{{ 'Kjølemodus' if onsket_mode == 'cool' else 'Varmemodus' }}{% endif %}
+            🌡️ {{ varmepumpe_tittel_navn }} – {% if skal_oppdatere_mode_effektiv %}{{ 'Kjølemodus' if onsket_mode == 'cool' else 'Varmemodus' }}{% elif qx_varmepumpe_spk_update_needed_effektiv %}{{ qnum_varmepumpe_req_spk | round(0) | int }}°C{% if skal_oppdatere_vifte_effektiv and onsket_vifte == 'high' %} høy fart{% endif %}{% else %}{{ 'Kjølemodus' if onsket_mode == 'cool' else 'Varmemodus' }}{% endif %}
           message: |-
             Pådrag: {{ varmepumpe_output_power | round(0) | int }}% {{ 'kjøling' if onsket_mode == 'cool' else 'varme' }}{% if skal_oppdatere_mode %} (fra {{ 'varme' if onsket_mode == 'cool' else 'kjøling' }}){% endif %}
             Romtemp: {{ iclimate_varme_rt_pv }}°C / Settpunkt: {{ iclimate_varme_rt_spk }}°C
