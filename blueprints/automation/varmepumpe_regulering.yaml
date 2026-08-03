@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.30
+    Blueprint versjon: 2026.07.31
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -862,7 +862,7 @@ actions:
           {{ '' }}
         {% endif %}
       varmepumpe_skrivgrenser_debug: >-
-        Skrivgrenser: {{ varmepumpe_effektiv_min_setpunkt | round(1) }}-{{ varmepumpe_effektiv_maks_setpunkt | round(1) }}°C (attrib {{ iclimate_varmepumpe_abs_min | round(1) }}-{{ iclimate_varmepumpe_abs_max | round(1) }}{{ varmepumpe_manual_limits_debug_suffix }})
+        Skrivgrenser: {{ varmepumpe_effektiv_min_setpunkt | round(1) }}-{{ varmepumpe_effektiv_maks_setpunkt | round(1) }}°C
       varmepumpe_primaer_endret: >-
         {{ qx_varmepumpe_spk_update_needed_effektiv
            or skal_oppdatere_vifte_effektiv
@@ -1096,8 +1096,7 @@ actions:
             {%- if panelovn_switch_configured %}
 
             Varme (switch):
-            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | Aktiv slot: {{ (panelovn_switch_slot_index | int) + 1 }}/3
-            Trinn: {{ panelovn_switch_on_slots | int }} av 3 slot på (10 min per slot)
+            Pådrag: {{ panelovn_maal_power | round(0) | int }}% | {{ panelovn_switch_on_slots | int }}/3 slot på | Nå slot {{ (panelovn_switch_slot_index | int) + 1 }}/3
             {%- endif %}
             {%- if panelovn_prosent_output_configured %}
 
