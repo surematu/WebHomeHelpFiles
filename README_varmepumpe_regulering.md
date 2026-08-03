@@ -168,7 +168,9 @@ Eksempel: Hvis rommet er mye kaldere enn ønsket og pådraget blir 80 %, økes v
 
 Debug-varsler er **av** som standard (`ix_pushover_varsling = false`). Aktiveres manuelt i innstillingene.
 
-**Tittel:** (sensornavnet fra rom-climate)
+**Tittel:** `🌡️ Varmepumpe (<navn fra varmepumpe-climate>) – <status/settpunkt>`
+
+Eksempel: `🌡️ Varmepumpe (Stue) – 22°C`
 
 **Eksempel på debug-melding (varme):**
 > Pådrag: 72 % (varme) | Rom: 20,5 °C → 22 °C
