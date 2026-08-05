@@ -69,6 +69,7 @@ Ja, begge booleans (`preheat_boolean` og `heat_boolean`) settes av utenfor varme
 | Pushover destination | pushover | Mottakergruppe. La stå tomt for å deaktivere varsling |
 | Pushover prioritet | 1 | Prioritet for varselet |
 | Pushover TTL (sekunder) | 604800 | Levetid for varselet (604800 = 7 dager) |
+| Send varsel ved manuell kjøring | true | Sender varsel når automasjonen kjøres manuelt |
 
 ## 6. Funksjonsbeskrivelse
 
@@ -94,6 +95,8 @@ Automasjonen kjøres hvert 10. minutt og ved Home Assistant-restart:
 
 Varsling er aktivert som standard (pushover destination er satt til `pushover`). Varsel sendes ca. 24 timer før neste hendelse.
 
+Ved manuell kjøring sendes et eget varsel med gjeldende plan hvis «Send varsel ved manuell kjøring» er aktivert.
+
 **Tittel:**
 > 🔥 Varmeplan 🔥
 
@@ -103,6 +106,9 @@ Varsling er aktivert som standard (pushover destination er satt til `pushover`).
 
 **Eksempel på melding (ingen varme):**
 > Ingen varme for hendelse om 24 timer (sted inneholder ikke «kontor») – Team-møte
+
+**Tittel ved manuell kjøring:**
+> 🔥 Varmeplan (manuell kjøring) 🔥
 
 For å deaktivere varsling, tøm feltet «Pushover destination» i innstillingene.
 

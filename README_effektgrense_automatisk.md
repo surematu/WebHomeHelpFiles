@@ -72,6 +72,7 @@ Automasjonen skriver bare lavere verdier første time første dag i måneden, sl
 | Pushover destination | pushover | Mottakergruppe. La stå tomt for å deaktivere varsling |
 | Pushover prioritet | 0 | Prioritet for varselet |
 | Pushover TTL (sekunder) | 604800 | Levetid for varselet (604800 = 7 dager) |
+| Send varsel ved manuell kjøring | true | Sender varsel når automasjonen kjøres manuelt |
 
 ## 6. Funksjonsbeskrivelse
 
@@ -96,12 +97,17 @@ Automasjonen kjøres hver hele time og gjør følgende:
 
 Varsling er aktivert som standard (pushover destination er satt til `pushover`). Varsel sendes kun når verdien faktisk endres.
 
+Ved manuell kjøring sendes et eget varsel hvis «Send varsel ved manuell kjøring» er aktivert, selv om ingen endring ble gjort.
+
 **Tittel:**
 > ⚡ KWh-grense ⚡
 
 **Eksempel på melding:**
 > Basert på: Utetemp (−10°C = 9 kWh) og måned (9 kWh)
 > Justering: 4,5 kWh → 9 kWh.
+
+**Tittel ved manuell kjøring uten endring:**
+> ⚡ KWh-grense (manuell kjøring) ⚡
 
 For å deaktivere varsling, tøm feltet «Pushover destination» i innstillingene.
 

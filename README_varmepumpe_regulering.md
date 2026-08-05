@@ -110,12 +110,12 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Utgang - Varme utgang digital (switch) | (tomt) | Valgfri switch-entitet for fast trinnstyring i stedet for eller i tillegg til climate |
 | Utgang - Varme pådrag panelovn (input_number) | (tomt) | Valgfri prosent-utgang (0–100 %) for ekstern styring med egen syklustid |
 
-### Varsling (debug)
+### Avansert
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Aktiver debug-varsling | false | Aktiver Pushover-varsler ved endringer |
-| Send varsling ved manuell kjøring | true | Sender alltid Pushover ved manuell kjøring når aktivert, også uten vanlige endringer |
+| Send varsel ved manuell kjøring | true | Sender varsel når automasjonen kjøres manuelt |
 | Pushover destination | pushover | Mottakergruppe |
 | Pushover prioritet | −1 | Prioritet for debug-varsler |
 | Pushover TTL (sekunder) | 21600 | Levetid for debug-varsler |
@@ -169,7 +169,7 @@ Eksempel: Hvis rommet er mye kaldere enn ønsket og pådraget blir 80 %, økes v
 
 Debug-varsler er **av** som standard (`ix_pushover_varsling = false`). Aktiveres manuelt i innstillingene.
 
-Hvis `Send varsling ved manuell kjøring` er aktivert, sendes det alltid Pushover når automasjonen startes manuelt. Hvis varmepumpa da er `unknown` eller `unavailable`, beskriver meldingen tydelig at varmepumpa er utilgjengelig i stedet for å vise en misvisende settpunkt-endring.
+Hvis `Send varsel ved manuell kjøring` er aktivert, sendes det alltid Pushover når automasjonen startes manuelt. Hvis varmepumpa da er `unknown` eller `unavailable`, beskriver meldingen tydelig at varmepumpa er utilgjengelig i stedet for å vise en misvisende settpunkt-endring.
 
 **Tittel:** `🌡️ <navn fra varmepumpe-climate> – <status/settpunkt>`
 

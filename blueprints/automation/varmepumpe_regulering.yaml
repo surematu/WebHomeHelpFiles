@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.34
+    Blueprint versjon: 2026.07.35
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -360,9 +360,9 @@ blueprint:
             entity:
               domain: input_number
 
-    varsling:
-      name: Varsling (debug)
-      icon: mdi:bell-outline
+    avansert:
+      name: Avansert
+      icon: mdi:cog-outline
       collapsed: true
       input:
         ix_pushover_varsling:
@@ -374,11 +374,11 @@ blueprint:
           selector:
             boolean: {}
 
-        ix_pushover_manuell_kjoring:
-          name: Send varsling ved manuell kjøring
+        varsel_ved_manuell_kjoring:
+          name: Send varsel ved manuell kjøring
           description: >
-            Hvis true sendes Pushover-varsling alltid ved manuell kjøring av automasjonen,
-            også når vanlig debug-varsling ellers ikke ville blitt sendt.
+            Sett til true for å sende varsel når automasjonen kjøres manuelt.
+            Sett til false for å ikke sende varsel ved manuell kjøring.
           default: true
           selector:
             boolean: {}
@@ -451,7 +451,7 @@ actions:
       iswitch_varme_styrt: !input varme_switch
       iinputnumber_panelovn_prosent: !input panelovn_prosent_output
       ix_pushover_varsling: !input ix_pushover_varsling
-      ix_pushover_manuell_kjoring: !input ix_pushover_manuell_kjoring
+      io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
@@ -575,9 +575,8 @@ actions:
   - variables:
       varmepumpe_tilgjengelig: "{{ iclimate_varmepumpe_mode not in ['unknown', 'unavailable'] }}"
   - variables:
-      trigger_platform: "{{ trigger.platform | default('') }}"
-      manuell_kjoring: "{{ trigger_platform == 'manual' }}"
-      pushover_manuell_kjoring_aktiv: "{{ ix_pushover_manuell_kjoring and manuell_kjoring }}"
+      is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'state'] }}"
+      pushover_manuell_kjoring_aktiv: "{{ io_varsel_ved_manuell_kjoring and is_manual_run }}"
 
   # Steg 2: Beregn hvor mye pådrag vi har på varmekilden
   - choose:
