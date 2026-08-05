@@ -540,6 +540,12 @@ actions:
         {% else %}
           none
         {% endif %}
+      varmepumpe_sekundar_tilgjengelig: >-
+        {% if varmepumpe_sekundar_configured %}
+          {{ iclimate_varmepumpe_sekundar_mode not in ['unknown', 'unavailable'] }}
+        {% else %}
+          false
+        {% endif %}
       iclimate_overordnet_hvac_mode: "{{ states(iclimate_varme) | string | lower }}"
       iclimate_varme_frost_temp: >-
         {% set presets = state_attr(iclimate_varme, 'preset_temperatures') %}
@@ -953,8 +959,8 @@ actions:
       - condition: template
         value_template: >-
           {{ varmepumpe_auto_aktiv
-             and varmepumpe_tilgjengelig
              and varmepumpe_sekundar_configured
+             and varmepumpe_sekundar_tilgjengelig
              and (varmepumpe_primaer_endret or (onsket_vifte_target_raw | string | trim) != '') }}
     then:
       - delay:

@@ -158,7 +158,7 @@ Eksempel: Hvis rommet er mye kaldere enn ønsket og pådraget blir 80 %, økes v
 ## 7. Resultat
 
 - **Varmepumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov når varmepumpe-vender er `AUTO` og entiteten er tilgjengelig. Ved bytte mellom varme og kjøling skrives **kun modus** – settpunktet holdes til neste kjøring.
-- **Varmepumpe-climate sekundær** (valgfri): sjekkes 30 sekunder etter primær og får manglende modus/settpunkt/vifte skrevet ved behov
+- **Varmepumpe-climate sekundær** (valgfri): sjekkes 30 sekunder etter primær og får manglende modus/settpunkt/vifte skrevet ved behov når sekundær entitet er tilgjengelig, også hvis primær er utilgjengelig
 - **Varme-climate** (panelovn): settpunkt oppdateres proporsjonalt når varme-vender er `AUTO`
 - **Utgang - Varme utgang digital (switch)**: styres i fast 30-min trinnsyklus når varme-vender er `AUTO`
 - **Utgang - Varme pådrag panelovn** (`input_number`, valgfri): oppdateres med panelovn-pådrag 0–100 % når varme-vender er `AUTO`
