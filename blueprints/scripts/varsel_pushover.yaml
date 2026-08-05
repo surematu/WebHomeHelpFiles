@@ -5,7 +5,7 @@ blueprint:
     Basert på eksisterende automasjonslogikk, som script blueprint med runtime fields ved script-kall.
 
     Blueprint versjon:
-    2026.08.00
+    2026.08.01
   domain: script
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/scripts/varsel_pushover.yaml
   input:
@@ -45,12 +45,22 @@ fields:
         step: 1
   ttl_hours:
     name: TTL (timer)
-    description: Time-to-live i timer. Omregnes til sekunder internt.
+    description: Time-to-live i timer. Omregnes til sekunder internt. Har prioritet over ttl (sekunder) hvis begge er satt.
     default: 6
     selector:
       number:
         min: 0
         max: 8760
+        step: 1
+  ttl:
+    name: TTL (sekunder) – DEPRECATED
+    description: >
+      DEPRECATED – bruk ttl_hours i stedet. Time-to-live i sekunder (gammel variabel).
+      Brukes kun hvis ttl_hours ikke er satt. Vil bli fjernet i fremtidig versjon.
+    selector:
+      number:
+        min: 1
+        max: 1000000
         step: 1
   url:
     name: URL
@@ -74,8 +84,16 @@ sequence:
       call_message: "{{ message | default('Melding', true) }}"
       call_destination: "{{ destination | default('pushover', true) | lower }}"
       call_priority: "{{ priority | default(0) | int }}"
-      call_ttl_hours: "{{ ttl_hours | default(6) | float }}"
-      call_ttl_seconds: "{{ (call_ttl_hours * 3600) | int }}"
+      call_ttl_hours_raw: "{{ ttl_hours | default(None) }}"
+      call_ttl_seconds_legacy: "{{ ttl | default(None) }}"
+      call_ttl_seconds: >
+        {% if call_ttl_hours_raw is not none and call_ttl_hours_raw != '' %}
+          {{ (call_ttl_hours_raw | float(6) * 3600) | int }}
+        {% elif call_ttl_seconds_legacy is not none and call_ttl_seconds_legacy != '' %}
+          {{ call_ttl_seconds_legacy | int }}
+        {% else %}
+          {{ (6 * 3600) | int }}
+        {% endif %}
       call_url: "{{ url | default('', true) }}"
       call_url_title: "{{ url_title | default('', true) }}"
 

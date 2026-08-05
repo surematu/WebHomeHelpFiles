@@ -50,7 +50,8 @@ TTL (Time To Live) er levetiden for et varsel i timer. Etter denne tiden fjernes
 | Melding | Melding | Innholdet i meldingen |
 | Destination | pushover | `pushover` eller `pushover_diverse` |
 | Priority | 0 | Prioritet (−2 = lavest, 2 = høyest) |
-| TTL | 6 (timer) | Levetid for varselet i timer |
+| TTL (timer) | 6 (timer) | Levetid for varselet i timer. Har prioritet over `ttl` hvis begge er satt. |
+| TTL (sekunder) *(DEPRECATED)* | *(ikke i bruk)* | Gammel variabel i sekunder. Brukes kun hvis `ttl_hours` ikke er satt. **Skal fjernes** – bruk `ttl_hours` i stedet. |
 | URL | (WebHome-lenke) | Valgfri lenke i meldingen |
 | URL title | (WebHome-tekst) | Tekst for lenken |
 
@@ -98,8 +99,9 @@ Alle automasjoner i WebHome-oppsettet bruker dette scriptet for utsending av Pus
 | Variabel | Beskrivelse |
 |---|---|
 | Tittel | Bygges som `<name> - <tittel>` |
-| call_ttl_hours | Input TTL i timer |
-| call_ttl_seconds | TTL omregnet til sekunder (timer × 3600) |
+| call_ttl_hours_raw | Input TTL i timer (`ttl_hours`), brukes med prioritet |
+| call_ttl_seconds_legacy | Input TTL i sekunder (`ttl`, deprecated), brukes kun hvis `ttl_hours` ikke er satt |
+| call_ttl_seconds | TTL omregnet til sekunder (fra timer × 3600, eller direkte fra sekunder) |
 | TTL-suffiks | Levetid omregnet til lesbar tekst (sek/min/timer/dager) |
 
 ### 10.5 Feilhåndtering
