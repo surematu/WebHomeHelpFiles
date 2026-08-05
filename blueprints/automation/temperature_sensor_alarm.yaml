@@ -116,7 +116,7 @@ actions:
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
-      pushover_ttl_seconds: "{{ pushover_ttl | float(168) * 3600 | int }}"
+      pushover_ttl_seconds: "{{ (pushover_ttl | float(168)) * 3600 | int }}"
       alarm_1_threshold: !input alarm_1_threshold
       alarm_2_threshold: !input alarm_2_threshold
 

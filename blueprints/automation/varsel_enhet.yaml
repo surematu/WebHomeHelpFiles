@@ -270,7 +270,7 @@ action:
       pushover_priority_urgent_offline: !input pushover_priority_urgent_offline
       pushover_priority_urgent_other: !input pushover_priority_urgent_other
       pushover_ttl: !input pushover_ttl
-      pushover_ttl_seconds: "{{ pushover_ttl | float(168) * 3600 | int }}"
+      pushover_ttl_seconds: "{{ (pushover_ttl | float(168)) * 3600 | int }}"
       urgent_sensors_input: !input urgent_sensors
 
       # Del 2 – langsomt signal: terskel i sekunder og label

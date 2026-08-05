@@ -174,7 +174,7 @@ Feltet plasseres i `avansert`-seksjonen (collapsed som standard), sammen med and
 pushover_destination: !input pushover_destination
 pushover_priority: !input pushover_priority
 pushover_ttl: !input pushover_ttl
-pushover_ttl_seconds: "{{ pushover_ttl | float(168) * 3600 | int }}"
+pushover_ttl_seconds: "{{ (pushover_ttl | float(168)) * 3600 | int }}"
 io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
 is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'state'] }}"
 ```
