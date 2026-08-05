@@ -135,7 +135,7 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 6. Begrenser med effektive skrivegrenser (strammeste kombinasjon av rapportert `min_temp/max_temp` og eventuelle manuelle overstyringer)
 7. Begrenser endringen til maks ±`maks_endring_per_kjoring` fra nåværende settpunkt (ramp)
 8. Runder av til heltall eller halvt grad
-9. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres, og kun når varmepumpe-vender står i AUTO. **Ved bytte mellom varme og kjøling skrives settpunktet ikke samme kjøring – modus får sette seg først.**
+9. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres, og kun når varmepumpe-vender står i AUTO. Hvis varmepumpa er `unknown` eller `unavailable`, hoppes all skriving til varmepumpa og tilhørende debug-varsel over. **Ved bytte mellom varme og kjøling skrives settpunktet ikke samme kjøring – modus får sette seg først.**
 10. Styrer panelovnen (climate og/eller switch) proporsjonalt basert på temperaturunderskudd og pådrag (hvis konfigurert), og kun når varme-vender står i AUTO
 11. Justerer viftehastighet (hvis aktivert og varmepumpe-vender står i AUTO)
 12. Hvis sekundær varmepumpe-entitet er satt, sjekkes den 30 sekunder etterpå og manglende modus/settpunkt/vifte skrives dit også
@@ -157,7 +157,7 @@ Eksempel: Hvis rommet er mye kaldere enn ønsket og pådraget blir 80 %, økes v
 
 ## 7. Resultat
 
-- **Varmepumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov når varmepumpe-vender er `AUTO`. Ved bytte mellom varme og kjøling skrives **kun modus** – settpunktet holdes til neste kjøring.
+- **Varmepumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov når varmepumpe-vender er `AUTO` og entiteten er tilgjengelig. Ved bytte mellom varme og kjøling skrives **kun modus** – settpunktet holdes til neste kjøring.
 - **Varmepumpe-climate sekundær** (valgfri): sjekkes 30 sekunder etter primær og får manglende modus/settpunkt/vifte skrevet ved behov
 - **Varme-climate** (panelovn): settpunkt oppdateres proporsjonalt når varme-vender er `AUTO`
 - **Utgang - Varme utgang digital (switch)**: styres i fast 30-min trinnsyklus når varme-vender er `AUTO`
