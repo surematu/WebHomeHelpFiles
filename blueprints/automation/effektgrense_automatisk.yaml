@@ -22,8 +22,7 @@ blueprint:
     - Ute-temperatur "nå" er hardkodet til sensor.utetemperatur (endre i YAML hvis du bruker annen sensor).
 
 
-    Blueprint versjon: 2026.07.00
-    2026.07.02
+    Blueprint versjon: 2026.07.03
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/effektgrense_automatisk.yaml
   author: WebHome
@@ -217,6 +216,15 @@ blueprint:
               step: 60
               mode: box
 
+        varsel_ved_manuell_kjoring:
+          name: Send varsel ved manuell kjøring
+          description: >
+            Sett til true for å sende varsel når automasjonen kjøres manuelt.
+            Sett til false for å ikke sende varsel ved manuell kjøring.
+          default: true
+          selector:
+            boolean:
+
 mode: single
 
 triggers:
@@ -236,6 +244,7 @@ actions:
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
+      io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
 
       hours_to_check_temp: !input hours_to_check
 
@@ -263,6 +272,7 @@ actions:
 
       # "Første kjøring i måneden, første time"
       is_month_reset_window: "{{ now().day == 1 and now().hour == 0 }}"
+      is_manual_run: "{{ trigger is none or trigger.platform != 'time_pattern' }}"
 
   - alias: Hent værvarsel (timevis)
     action: weather.get_forecasts
@@ -397,3 +407,20 @@ actions:
                       destination: "{{ pushover_destination }}"
                       priority: "{{ pushover_priority | int(0) }}"
                       ttl: "{{ pushover_ttl | int(604800) }}"
+
+  - alias: Varsling ved manuell kjøring (valgfri)
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring and (pushover_destination | string | trim) != '' and not should_write }}"
+        sequence:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "⚡ KWh-grense (manuell kjøring) ⚡"
+              message: |-
+                Ingen endring nødvendig.
+                Gjeldende grense: {{ io_current_limit }} kwh (beregnet: {{ desired_limit | round(1) }} kwh).
+                Utetemp snitt: {{ average_temp | round(1) }}°C.
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl: "{{ pushover_ttl | int(604800) }}"

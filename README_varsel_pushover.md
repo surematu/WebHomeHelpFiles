@@ -108,6 +108,70 @@ Ingen spesiell feilhåndtering i scriptet. Feil i Pushover-integrasjonen vil gi 
 
 Ingen debug-varsling. Scriptet er selve varslingskanalen.
 
+### 10.7 Felles varslingsmønster for automasjoner
+
+Alle automasjoner i WebHome-oppsettet følger et felles mønster for varsling. Dette gjør det enkelt å forstå og feilsøke automasjonene.
+
+#### Blueprint-input (legges inn i avansert-seksjonen)
+
+```yaml
+varsel_ved_manuell_kjoring:
+  name: Send varsel ved manuell kjøring
+  description: >
+    Sett til true for å sende varsel når automasjonen kjøres manuelt.
+    Sett til false for å ikke sende varsel ved manuell kjøring.
+  default: true
+  selector:
+    boolean:
+```
+
+Feltet plasseres i `avansert`-seksjonen (collapsed som standard), sammen med andre debug/avanserte innstillinger.
+
+#### Variable-oppsettet (steg 0 / innstillinger)
+
+```yaml
+io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
+is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'state'] }}"
+```
+
+> **Tilpass trigger-listen** for din automasjon – erstatt `time_pattern` og `state` med de faktiske triggerene automasjonen bruker (f.eks. kun `time_pattern` hvis den bare har én triggertype). `trigger is none` dekker manuell kjøring fra UI.
+
+#### Deteksjon av manuell kjøring
+
+En automasjon er «kjørt manuelt» når `trigger is none`. Dette skjer når automasjonen kjøres fra Home Assistant-UI, via developer tools, eller fra en annen automasjon via `automation.trigger`.
+
+Automasjoner som normalt trigges av tid/tilstand vil alltid ha `trigger.platform` satt. En manuell kjøring gir `trigger == none` (ikke `trigger.platform == 'manual'` – det er en vanlig misforståelse).
+
+#### Varsle ved manuell kjøring
+
+```yaml
+- alias: Varsling ved manuell kjøring (valgfri)
+  choose:
+    - conditions:
+        - condition: template
+          value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring and (pushover_destination | string | trim) != '' }}"
+      sequence:
+        - action: script.varsel_pushover_send_melding_webhome
+          data:
+            title: "🔔 AutomasjonNavn (manuell kjøring)"
+            message: |-
+              Kjørt manuelt. Gjeldende status: ...
+            destination: "{{ pushover_destination }}"
+            priority: "{{ pushover_priority | int(0) }}"
+            ttl: "{{ pushover_ttl | int(604800) }}"
+```
+
+Varselet legges som siste steg i automasjonen, etter all logikk er utført. På denne måten reflekterer meldingen det endelige resultatet av kjøringen.
+
+#### Oppsummering
+
+| Hva | Beskrivelse |
+|---|---|
+| Input-navn | `varsel_ved_manuell_kjoring` |
+| Intern variabel | `io_varsel_ved_manuell_kjoring` |
+| Manuell kjøring | `is_manual_run: "{{ trigger is none or trigger.platform not in ['...'] }}"` |
+| Betingelse for varsel | `is_manual_run and io_varsel_ved_manuell_kjoring and pushover_destination != ''` |
+
 ## 11. Dokumentasjon
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/scripts/varsel_pushover.yaml
