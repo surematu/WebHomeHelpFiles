@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.32
+    Blueprint versjon: 2026.07.33
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -374,6 +374,15 @@ blueprint:
           selector:
             boolean: {}
 
+        ix_pushover_manuell_kjoring:
+          name: Send varsling ved manuell kjøring
+          description: >
+            Hvis true sendes Pushover-varsling alltid ved manuell kjøring av automasjonen,
+            også når vanlig debug-varsling ellers ikke ville blitt sendt.
+          default: false
+          selector:
+            boolean: {}
+
         pushover_destination:
           name: Pushover destination
           description: Mottakergruppe i script.varsel_pushover_send_melding_webhome.
@@ -442,6 +451,7 @@ actions:
       iswitch_varme_styrt: !input varme_switch
       iinputnumber_panelovn_prosent: !input panelovn_prosent_output
       ix_pushover_varsling: !input ix_pushover_varsling
+      ix_pushover_manuell_kjoring: !input ix_pushover_manuell_kjoring
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
@@ -530,6 +540,12 @@ actions:
         {% else %}
           none
         {% endif %}
+      varmepumpe_sekundar_tilgjengelig: >-
+        {% if varmepumpe_sekundar_configured %}
+          {{ iclimate_varmepumpe_sekundar_mode not in ['unknown', 'unavailable'] }}
+        {% else %}
+          false
+        {% endif %}
       iclimate_overordnet_hvac_mode: "{{ states(iclimate_varme) | string | lower }}"
       iclimate_varme_frost_temp: >-
         {% set presets = state_attr(iclimate_varme, 'preset_temperatures') %}
@@ -556,6 +572,12 @@ actions:
   - variables:
       varmepumpe_auto_aktiv: "{{ (varmepumpe_auto_manuell_raw | string | upper) != 'MANUELL' }}"
       varme_auto_aktiv: "{{ (varme_auto_manuell_raw | string | upper) != 'MANUELL' }}"
+  - variables:
+      varmepumpe_tilgjengelig: "{{ iclimate_varmepumpe_mode not in ['unknown', 'unavailable'] }}"
+  - variables:
+      trigger_platform: "{{ trigger.platform | default('') }}"
+      manuell_kjoring: "{{ trigger_platform == 'manual' }}"
+      pushover_manuell_kjoring_aktiv: "{{ ix_pushover_manuell_kjoring and manuell_kjoring }}"
 
   # Steg 2: Beregn hvor mye pådrag vi har på varmekilden
   - choose:
@@ -833,10 +855,10 @@ actions:
           skal_oppdatere_vifte: false
 
   - variables:
-      qx_varmepumpe_spk_update_needed_effektiv: "{{ varmepumpe_auto_aktiv and qx_varmepumpe_spk_update_needed }}"
-      skal_oppdatere_vifte_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_vifte }}"
-      skal_oppdatere_mode_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_mode }}"
-      skal_oppdatere_overordnet_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_overordnet }}"
+      qx_varmepumpe_spk_update_needed_effektiv: "{{ varmepumpe_auto_aktiv and varmepumpe_tilgjengelig and qx_varmepumpe_spk_update_needed }}"
+      skal_oppdatere_vifte_effektiv: "{{ varmepumpe_auto_aktiv and varmepumpe_tilgjengelig and skal_oppdatere_vifte }}"
+      skal_oppdatere_mode_effektiv: "{{ varmepumpe_auto_aktiv and varmepumpe_tilgjengelig and skal_oppdatere_mode }}"
+      skal_oppdatere_overordnet_effektiv: "{{ varmepumpe_auto_aktiv and varmepumpe_tilgjengelig and skal_oppdatere_overordnet }}"
       varmepumpe_manual_min_debug_text: >-
         {% if varmepumpe_manual_min_set_enabled %}
           min={{ varmepumpe_manual_min_set_value | round(1) }}
@@ -938,6 +960,7 @@ actions:
         value_template: >-
           {{ varmepumpe_auto_aktiv
              and varmepumpe_sekundar_configured
+             and varmepumpe_sekundar_tilgjengelig
              and (varmepumpe_primaer_endret or (onsket_vifte_target_raw | string | trim) != '') }}
     then:
       - delay:
@@ -1072,7 +1095,8 @@ actions:
              and (qx_varmepumpe_spk_update_needed_effektiv
                   or skal_oppdatere_mode_effektiv
                   or skal_oppdatere_vifte_effektiv
-                  or (varme_styrt_spk_update_needed | default(false))) }}
+                  or (varme_styrt_spk_update_needed | default(false)))
+             or (pushover_manuell_kjoring_aktiv and (pushover_destination | string | trim) != '') }}
     then:
       - action: script.varsel_pushover_send_melding_webhome
         data:
@@ -1084,8 +1108,12 @@ actions:
 
             {% if onsket_mode == 'heat' -%}
             Varmepumpe (Varme):
+            {% if not varmepumpe_tilgjengelig and pushover_manuell_kjoring_aktiv %}
+            Varmepumpe er utilgjengelig
+            {% else %}
             Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed_effektiv %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ hp_norm_power_heat | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }})
+            {% endif %}
             {{ varmepumpe_skrivgrenser_debug }}
             {%- if (iclimate_varme_styrt | string) not in ['', 'None', 'none'] %}
 
@@ -1107,8 +1135,12 @@ actions:
             Varme: Av
 
             Varmepumpe (Kjøling):
+            {% if not varmepumpe_tilgjengelig and pushover_manuell_kjoring_aktiv %}
+            Varmepumpe er utilgjengelig
+            {% else %}
             Settpunkt: {{ iclimate_varmepumpe_rt_spk }}°C{% if qx_varmepumpe_spk_update_needed_effektiv %} → {{ qnum_varmepumpe_req_spk }}°C{% endif %}
             Pådrag: {{ varmepumpe_output_power | round(0) | int }}% (0-100={{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_maks) | round(1) }}-{{ (iclimate_varme_rt_max_spk_spcomfort + inum_offset_min) | round(1) }})
+            {% endif %}
             {{ varmepumpe_skrivgrenser_debug }}
             {%- endif %}
             {%- if skal_oppdatere_vifte %}

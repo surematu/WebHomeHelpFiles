@@ -115,6 +115,7 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Aktiver debug-varsling | false | Aktiver Pushover-varsler ved endringer |
+| Send varsling ved manuell kjøring | false | Sender alltid Pushover ved manuell kjøring når aktivert, også uten vanlige endringer |
 | Pushover destination | pushover | Mottakergruppe |
 | Pushover prioritet | −1 | Prioritet for debug-varsler |
 | Pushover TTL (sekunder) | 21600 | Levetid for debug-varsler |
@@ -135,7 +136,7 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 6. Begrenser med effektive skrivegrenser (strammeste kombinasjon av rapportert `min_temp/max_temp` og eventuelle manuelle overstyringer)
 7. Begrenser endringen til maks ±`maks_endring_per_kjoring` fra nåværende settpunkt (ramp)
 8. Runder av til heltall eller halvt grad
-9. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres, og kun når varmepumpe-vender står i AUTO. **Ved bytte mellom varme og kjøling skrives settpunktet ikke samme kjøring – modus får sette seg først.**
+9. Oppdaterer varmepumpa kun hvis settpunkt eller modus faktisk endres, og kun når varmepumpe-vender står i AUTO. Hvis varmepumpa er `unknown` eller `unavailable`, hoppes all skriving til varmepumpa og tilhørende debug-varsel over, men en valgfri manuell kjøring kan fortsatt sende eget Pushover-varsel som sier at varmepumpa er utilgjengelig. **Ved bytte mellom varme og kjøling skrives settpunktet ikke samme kjøring – modus får sette seg først.**
 10. Styrer panelovnen (climate og/eller switch) proporsjonalt basert på temperaturunderskudd og pådrag (hvis konfigurert), og kun når varme-vender står i AUTO
 11. Justerer viftehastighet (hvis aktivert og varmepumpe-vender står i AUTO)
 12. Hvis sekundær varmepumpe-entitet er satt, sjekkes den 30 sekunder etterpå og manglende modus/settpunkt/vifte skrives dit også
@@ -157,8 +158,8 @@ Eksempel: Hvis rommet er mye kaldere enn ønsket og pådraget blir 80 %, økes v
 
 ## 7. Resultat
 
-- **Varmepumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov når varmepumpe-vender er `AUTO`. Ved bytte mellom varme og kjøling skrives **kun modus** – settpunktet holdes til neste kjøring.
-- **Varmepumpe-climate sekundær** (valgfri): sjekkes 30 sekunder etter primær og får manglende modus/settpunkt/vifte skrevet ved behov
+- **Varmepumpe-climate** (varmepumpe): settpunkt og modus (heat/cool) oppdateres ved behov når varmepumpe-vender er `AUTO` og entiteten er tilgjengelig. Ved bytte mellom varme og kjøling skrives **kun modus** – settpunktet holdes til neste kjøring.
+- **Varmepumpe-climate sekundær** (valgfri): sjekkes 30 sekunder etter primær og får manglende modus/settpunkt/vifte skrevet ved behov når sekundær entitet er tilgjengelig, også hvis primær er utilgjengelig
 - **Varme-climate** (panelovn): settpunkt oppdateres proporsjonalt når varme-vender er `AUTO`
 - **Utgang - Varme utgang digital (switch)**: styres i fast 30-min trinnsyklus når varme-vender er `AUTO`
 - **Utgang - Varme pådrag panelovn** (`input_number`, valgfri): oppdateres med panelovn-pådrag 0–100 % når varme-vender er `AUTO`
@@ -167,6 +168,8 @@ Eksempel: Hvis rommet er mye kaldere enn ønsket og pådraget blir 80 %, økes v
 ## 8. Varsling
 
 Debug-varsler er **av** som standard (`ix_pushover_varsling = false`). Aktiveres manuelt i innstillingene.
+
+Hvis `Send varsling ved manuell kjøring` er aktivert, sendes det alltid Pushover når automasjonen startes manuelt. Hvis varmepumpa da er `unknown` eller `unavailable`, beskriver meldingen tydelig at varmepumpa er utilgjengelig i stedet for å vise en misvisende settpunkt-endring.
 
 **Tittel:** `🌡️ <navn fra varmepumpe-climate> – <status/settpunkt>`
 
