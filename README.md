@@ -44,15 +44,15 @@ When an automation blueprint is adjusted, check whether its related README/docum
 Each automation has a section for "Varsling".
 
 "Varsling (Valgfri)" section should include:
--Title: **Pushover destination (valgfri)**
+1. Title: **Pushover destination (valgfri)**
 Description: Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres slik at den blir sendt ulikt.
--Title: **Pushover priority**
+2. Title: **Pushover priority**
 Description: −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd), 1 (Høy prioritet, rødt varsel, omgår stilleperiode), 2 (nødvarsel som gjentas til det bekreftes).
--Title: **Levetid varsel (timer)**
+3. Title: **Levetid varsel (timer)**
 Description: Hvor lenge skal varslet være synlig før det forsvinner?
 Extra info, for documentation, only visible here in readme: The value in the pushover packet is in seconds, so it needs to be recalculated from hours to secounds in the automation.
--**Other** - Other relevant notification settings can be added here, such as; Send notification upon change or simelar relevant for that automation, acording to the documentation for each induidual notification.
--Title: **Send varsel ved manuell kjøring**
+4. **Other** - Other relevant notification settings can be added here, such as; Send notification upon change or simelar relevant for that automation, acording to the documentation for each induidual notification.
+5. Title: **Send varsel ved manuell kjøring**
 Description: Sett til true for å sende varsel når automasjonen kjøres manuelt. Sett til false for å ikke sende varsel ved manuell kjøring.
 
 ---
