@@ -6,7 +6,7 @@ blueprint:
       - goes above limit 2 for 60 minutes
       - goes 'unknown' for 15 minutes
 
-    Blueprint versjon: 2026.07.00
+    Blueprint versjon: 2026.08.01
     2026.07.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/temperature_sensor_alarm.yaml
@@ -48,15 +48,16 @@ blueprint:
           step: 1
           mode: box
 
-    pushover_ttl:
-      name: Pushover TTL (sekunder)
-      description: Levetid for varselet (f.eks. 86400 = 1 døgn)
-      default: 604800
+    pushover_ttl_hours:
+      name: Levetid varsel (timer)
+      description: Hvor lenge skal varslet være synlig før det forsvinner?
+      default: 168
       selector:
         number:
           min: 0
-          max: 604800
-          step: 60
+          max: 168
+          step: 1
+          unit_of_measurement: h
           mode: box
 
     alarm_1_threshold:
@@ -114,7 +115,8 @@ actions:
         {% endif %}
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
-      pushover_ttl: !input pushover_ttl
+      pushover_ttl_hours: !input pushover_ttl_hours
+      pushover_ttl_seconds: "{{ (pushover_ttl_hours | float(168)) * 3600 | int }}"
       alarm_1_threshold: !input alarm_1_threshold
       alarm_2_threshold: !input alarm_2_threshold
 
@@ -131,4 +133,4 @@ actions:
         {% endif %}
       destination: "{{ pushover_destination }}"
       priority: "{{ pushover_priority | int(0) }}"
-      ttl: "{{ pushover_ttl | int(604800) }}"
+      ttl: "{{ pushover_ttl_seconds }}"

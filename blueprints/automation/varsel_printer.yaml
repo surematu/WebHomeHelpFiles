@@ -10,7 +10,7 @@ blueprint:
       - Wake-up: Valgte entities går fra unavailable/unknown -> tilgjengelig,
         og vi venter X minutter før vi sjekker (stabil drift / oppdaterte nivåer).
 
-    Blueprint versjon: 2026.07.02
+    Blueprint versjon: 2026.08.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_printer.yaml
   author: WebHome
@@ -36,15 +36,16 @@ blueprint:
           step: 1
           mode: box
 
-    pushover_ttl:
-      name: Pushover TTL (sekunder)
-      description: Levetid for varselet (f.eks. 86400 = 1 døgn)
-      default: 604800
+    pushover_ttl_hours:
+      name: Levetid varsel (timer)
+      description: Hvor lenge skal varslet være synlig før det forsvinner?
+      default: 168
       selector:
         number:
           min: 0
-          max: 604800
-          step: 60
+          max: 168
+          step: 1
+          unit_of_measurement: h
           mode: box
 
     ink_threshold_percent:
@@ -142,7 +143,8 @@ action:
       debug_on: !input include_debug_details
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
-      pushover_ttl: !input pushover_ttl
+      pushover_ttl_hours: !input pushover_ttl_hours
+      pushover_ttl_seconds: "{{ (pushover_ttl_hours | float(168)) * 3600 | int }}"
 
   - alias: "Steg 2 - Wake-up: vent på stabil drift"
     if:
@@ -434,4 +436,4 @@ action:
       message: "{{ final_message }}"
       destination: "{{ pushover_destination }}"
       priority: "{{ pushover_priority | int(0) }}"
-      ttl: "{{ pushover_ttl | int(604800) }}"
+      ttl: "{{ pushover_ttl_seconds }}"
