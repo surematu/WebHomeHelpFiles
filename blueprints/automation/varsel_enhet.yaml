@@ -33,7 +33,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.08.00
+    Blueprint versjon: 2026.08.01
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -204,7 +204,7 @@ blueprint:
               step: 1
               mode: box
 
-        pushover_ttl:
+        pushover_ttl_hours:
           name: Levetid varsel (timer)
           description: Hvor lenge skal varslet være synlig før det forsvinner?
           default: 168
@@ -269,8 +269,8 @@ action:
       pushover_priority: !input pushover_priority
       pushover_priority_urgent_offline: !input pushover_priority_urgent_offline
       pushover_priority_urgent_other: !input pushover_priority_urgent_other
-      pushover_ttl: !input pushover_ttl
-      pushover_ttl_seconds: "{{ (pushover_ttl | float(168)) * 3600 | int }}"
+      pushover_ttl_hours: !input pushover_ttl_hours
+      pushover_ttl_seconds: "{{ (pushover_ttl_hours | float(168)) * 3600 | int }}"
       urgent_sensors_input: !input urgent_sensors
 
       # Del 2 – langsomt signal: terskel i sekunder og label

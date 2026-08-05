@@ -138,7 +138,7 @@ pushover_priority:
       step: 1
       mode: box
 
-pushover_ttl:
+pushover_ttl_hours:
   name: Levetid varsel (timer)
   description: Hvor lenge skal varslet være synlig før det forsvinner?
   default: 168
@@ -173,8 +173,8 @@ Feltet plasseres i `avansert`-seksjonen (collapsed som standard), sammen med and
 ```yaml
 pushover_destination: !input pushover_destination
 pushover_priority: !input pushover_priority
-pushover_ttl: !input pushover_ttl
-pushover_ttl_seconds: "{{ (pushover_ttl | float(168)) * 3600 | int }}"
+pushover_ttl_hours: !input pushover_ttl_hours
+pushover_ttl_seconds: "{{ (pushover_ttl_hours | float(168)) * 3600 | int }}"
 io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
 is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'state'] }}"
 ```
@@ -216,7 +216,7 @@ Varselet legges som siste steg i automasjonen, etter all logikk er utført. På 
 |---|---|
 | Input-navn | `varsel_ved_manuell_kjoring` |
 | Intern variabel | `io_varsel_ved_manuell_kjoring` |
-| TTL-input | `pushover_ttl` (timer) |
+| TTL-input | `pushover_ttl_hours` (timer) |
 | TTL til sending | `pushover_ttl_seconds` (omregnet til sekunder) |
 | Manuell kjøring | `is_manual_run: "{{ trigger is none or trigger.platform not in ['...'] }}"` |
 | Betingelse for varsel | `is_manual_run and io_varsel_ved_manuell_kjoring and pushover_destination != ''` |

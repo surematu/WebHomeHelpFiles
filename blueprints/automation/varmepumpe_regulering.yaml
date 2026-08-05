@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.08.01
+    Blueprint versjon: 2026.08.02
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -400,7 +400,7 @@ blueprint:
               step: 1
               mode: box
 
-        pushover_ttl:
+        pushover_ttl_hours:
           name: Levetid varsel (timer)
           description: Hvor lenge skal varslet være synlig før det forsvinner?
           default: 6
@@ -456,8 +456,8 @@ actions:
       io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
-      pushover_ttl: !input pushover_ttl
-      pushover_ttl_seconds: "{{ (pushover_ttl | float(6)) * 3600 | int }}"
+      pushover_ttl_hours: !input pushover_ttl_hours
+      pushover_ttl_seconds: "{{ (pushover_ttl_hours | float(6)) * 3600 | int }}"
 
   - variables:
       varmepumpe_sekundar_configured: "{{ (iclimate_varmepumpe_sekundar | string) not in ['', 'None', 'none'] }}"

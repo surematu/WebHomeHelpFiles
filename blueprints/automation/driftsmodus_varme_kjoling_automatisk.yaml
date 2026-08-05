@@ -21,7 +21,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.08.00
+    Blueprint versjon: 2026.08.01
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -206,7 +206,7 @@ blueprint:
               step: 1
               mode: box
 
-        pushover_ttl:
+        pushover_ttl_hours:
           name: Levetid varsel (timer)
           description: Hvor lenge skal varslet være synlig før det forsvinner?
           default: 168
@@ -269,8 +269,8 @@ actions:
 
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
-      pushover_ttl: !input pushover_ttl
-      pushover_ttl_seconds: "{{ (pushover_ttl | float(168)) * 3600 | int }}"
+      pushover_ttl_hours: !input pushover_ttl_hours
+      pushover_ttl_seconds: "{{ (pushover_ttl_hours | float(168)) * 3600 | int }}"
       io_auto_kjor_kveld: !input auto_kjor_kveld
       io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
       inkluder_begrunnelse: !input inkluder_begrunnelse
