@@ -500,7 +500,7 @@ action:
                 message: "{{ uptime_combined_message }}"
                 destination: "{{ pushover_destination }}"
                 priority: "{{ effective_priority | int(0) }}"
-                ttl: "{{ pushover_ttl_seconds }}"
+                ttl_hours: "{{ pushover_ttl_hours }}"
 
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1675,4 +1675,4 @@ action:
               message: "{{ merged_message }}"
               destination: "{{ pushover_destination }}"
               priority: "{{ effective_priority | int(0) }}"
-              ttl: "{{ pushover_ttl_seconds }}"
+              ttl_hours: "{{ pushover_ttl_hours }}"
