@@ -115,7 +115,7 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Aktiver debug-varsling | false | Aktiver Pushover-varsler ved endringer |
-| Send varsling ved manuell kjøring | false | Sender alltid Pushover ved manuell kjøring når aktivert, også uten vanlige endringer |
+| Send varsling ved manuell kjøring | true | Sender alltid Pushover ved manuell kjøring når aktivert, også uten vanlige endringer |
 | Pushover destination | pushover | Mottakergruppe |
 | Pushover prioritet | −1 | Prioritet for debug-varsler |
 | Pushover TTL (sekunder) | 21600 | Levetid for debug-varsler |
