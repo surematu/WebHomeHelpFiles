@@ -4,9 +4,9 @@
 
 When editing files in `blueprints/automation`:
 
-- `2026.7` (or `2026.07`) under represent current month and year. Replace with current date details.
-- If the automation is not already on `2026.7.x` / `2026.07.x`, set `Blueprint versjon` to `2026.07.00`.
-- If it is already on `2026.7.x` (or `2026.07.x`), increase `x` by `1`.
+- `year.month.version` represent current month and year. Replace with current date details. (Example `2026.08`)
+- If version is not already on current month, set version to `00`. (Example adjust from `2026.07.32` to `2026.08.00`)
+- If version is on current month increase by 1. (Example if before `2026.08.00`, increase to `2026.08.01`)
 
 ---
 
