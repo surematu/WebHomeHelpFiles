@@ -21,7 +21,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.07.22
+    Blueprint versjon: 2026.08.00
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -207,13 +207,15 @@ blueprint:
               mode: box
 
         pushover_ttl:
-          name: Pushover TTL (sekunder)
-          default: 604800
+          name: Levetid varsel (timer)
+          description: Hvor lenge skal varslet være synlig før det forsvinner?
+          default: 168
           selector:
             number:
               min: 0
-              max: 604800
-              step: 60
+              max: 168
+              step: 1
+              unit_of_measurement: h
               mode: box
 
     avansert:
@@ -268,6 +270,7 @@ actions:
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
       pushover_ttl: !input pushover_ttl
+      pushover_ttl_seconds: "{{ pushover_ttl | float(168) * 3600 | int }}"
       io_auto_kjor_kveld: !input auto_kjor_kveld
       io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
       inkluder_begrunnelse: !input inkluder_begrunnelse
@@ -323,7 +326,7 @@ actions:
                 Automasjonen avbrytes – ingen modus er beregnet.
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(0) }}"
-              ttl: "{{ pushover_ttl | int(604800) }}"
+              ttl: "{{ pushover_ttl_seconds }}"
 
   - alias: Steg 0e - Avbryt hvis driftsmodus er ugyldig
     condition: template
@@ -816,7 +819,7 @@ actions:
                 {% endif %}
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(0) }}"
-              ttl: "{{ pushover_ttl | int(604800) }}"
+              ttl: "{{ pushover_ttl_seconds }}"
 
   - alias: Steg 24 - Varsel ved vesentlig datamangel uten modusendring
     choose:
@@ -838,4 +841,4 @@ actions:
                 {{ missing_data_text }}
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(0) }}"
-              ttl: "{{ pushover_ttl | int(604800) }}"
+              ttl: "{{ pushover_ttl_seconds }}"

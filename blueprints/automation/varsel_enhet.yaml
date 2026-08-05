@@ -33,7 +33,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.07.12
+    Blueprint versjon: 2026.08.00
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -205,14 +205,15 @@ blueprint:
               mode: box
 
         pushover_ttl:
-          name: Pushover TTL (sekunder)
-          description: Levetid for varselet (f.eks. 86400 = 1 døgn)
-          default: 604800
+          name: Levetid varsel (timer)
+          description: Hvor lenge skal varslet være synlig før det forsvinner?
+          default: 168
           selector:
             number:
               min: 0
-              max: 604800
-              step: 60
+              max: 168
+              step: 1
+              unit_of_measurement: h
               mode: box
 
     avansert:
@@ -269,6 +270,7 @@ action:
       pushover_priority_urgent_offline: !input pushover_priority_urgent_offline
       pushover_priority_urgent_other: !input pushover_priority_urgent_other
       pushover_ttl: !input pushover_ttl
+      pushover_ttl_seconds: "{{ pushover_ttl | float(168) * 3600 | int }}"
       urgent_sensors_input: !input urgent_sensors
 
       # Del 2 – langsomt signal: terskel i sekunder og label
@@ -500,7 +502,7 @@ action:
                 message: "{{ uptime_combined_message }}"
                 destination: "{{ pushover_destination }}"
                 priority: "{{ effective_priority | int(0) }}"
-                ttl: "{{ pushover_ttl | int(604800) }}"
+                ttl: "{{ pushover_ttl_seconds }}"
 
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1675,4 +1677,4 @@ action:
               message: "{{ merged_message }}"
               destination: "{{ pushover_destination }}"
               priority: "{{ effective_priority | int(0) }}"
-              ttl: "{{ pushover_ttl | int(604800) }}"
+              ttl: "{{ pushover_ttl_seconds }}"
