@@ -33,7 +33,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.08.01
+    Blueprint versjon: 2026.08.02
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -161,8 +161,10 @@ blueprint:
                   device_class: enum
 
     varsling:
-      name: "Varsling (Pushover)"
+      name: "Varsling (Valgfri)"
       description: "Innstillinger for Pushover-varsler. Gjelder alle sjekkene."
+      icon: mdi:bell-outline
+      collapsed: true
       input:
         pushover_destination:
           name: Pushover destination
@@ -216,10 +218,6 @@ blueprint:
               unit_of_measurement: h
               mode: box
 
-    avansert:
-      name: "Avansert"
-      collapsed: true
-      input:
         include_debug_details:
           name: Legg til debug-detaljer i varselet
           description: Legger til ekstra informasjon om trigger, terskler og intervaller i alle varsler.

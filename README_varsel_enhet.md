@@ -79,7 +79,7 @@ Sensorer du velger som kritiske vil trigge umiddelbart varsel – uten å vente 
 |---|---:|---|
 | Kritiske status-sensorer | (tomt) | Sensorer som trigger umiddelbart varsel |
 
-**Varsling:**
+**Varsling (Valgfri):**
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
@@ -88,7 +88,7 @@ Sensorer du velger som kritiske vil trigge umiddelbart varsel – uten å vente 
 | Pushover prioritet – kritisk offline | 1 | Prioritet når kritisk Uptime-sensor går offline |
 | Pushover prioritet – kritisk online | −1 | Prioritet når kritisk Uptime-sensor er online igjen |
 | Pushover TTL (sekunder) | 604800 | Levetid for varselet (604800 = 7 dager) |
-| Debug-detaljer | false | Legg til ekstra sporingsinformasjon i meldingen |
+| Legg til debug-detaljer | false | Legg til ekstra sporingsinformasjon i meldingen |
 
 ## 6. Funksjonsbeskrivelse
 
@@ -181,7 +181,7 @@ Ingen YAML-eksempler for denne automasjonen.
 
 ### 10.6 Varsling og debug info
 
-- Sett «Debug-detaljer» til `true` for ekstra sporingsinformasjon i varselet
+- Sett «Legg til debug-detaljer i varselet» til `true` (i Varsling-seksjonen) for ekstra sporingsinformasjon i varselet
 - Separate Pushover-prioriteter for: vanlig varsel, kritisk offline, kritisk online/annen endring
 
 ## 11. Dokumentasjon
