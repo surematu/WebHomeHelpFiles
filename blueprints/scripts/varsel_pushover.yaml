@@ -5,7 +5,7 @@ blueprint:
     Basert på eksisterende automasjonslogikk, som script blueprint med runtime fields ved script-kall.
 
     Blueprint versjon:
-    2026.07.05
+    2026.08.00
   domain: script
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/scripts/varsel_pushover.yaml
   input:
@@ -43,14 +43,14 @@ fields:
         min: -2
         max: 2
         step: 1
-  ttl:
-    name: TTL
-    description: Time-to-live i sekunder.
-    default: 21600
+  ttl_hours:
+    name: TTL (timer)
+    description: Time-to-live i timer. Omregnes til sekunder internt.
+    default: 6
     selector:
       number:
-        min: 1
-        max: 1000000
+        min: 0
+        max: 8760
         step: 1
   url:
     name: URL
@@ -74,13 +74,14 @@ sequence:
       call_message: "{{ message | default('Melding', true) }}"
       call_destination: "{{ destination | default('pushover', true) | lower }}"
       call_priority: "{{ priority | default(0) | int }}"
-      call_ttl: "{{ ttl | default(21600) | int }}"
+      call_ttl_hours: "{{ ttl_hours | default(6) | float }}"
+      call_ttl_seconds: "{{ (call_ttl_hours * 3600) | int }}"
       call_url: "{{ url | default('', true) }}"
       call_url_title: "{{ url_title | default('', true) }}"
 
-      pushover_ttl: "{{ call_ttl | int }}"
+      pushover_ttl_seconds: "{{ call_ttl_seconds | int }}"
       ttl_sufix: >
-        {% set s = pushover_ttl | int %}
+        {% set s = pushover_ttl_seconds | int %}
         {% if s >= 86400 %}
           {% set n = (s / 86400) | round(0, 'floor') | int %}
           (forsvinner om {{ n }} {{ 'dag' if n == 1 else 'dager' }})
@@ -124,7 +125,7 @@ sequence:
               message: "{{ pushover_message }}"
               data:
                 priority: "{{ pushover_priority }}"
-                ttl: "{{ pushover_ttl }}"
+                ttl: "{{ pushover_ttl_seconds }}"
                 url: "{{ pushover_url }}"
                 url_title: "{{ pushover_url_title }}"
     default:
@@ -134,7 +135,7 @@ sequence:
           message: "{{ pushover_message }}"
           data:
             priority: "{{ pushover_priority }}"
-            ttl: "{{ pushover_ttl }}"
+            ttl: "{{ pushover_ttl_seconds }}"
             url: "{{ pushover_url }}"
             url_title: "{{ pushover_url_title }}"
 

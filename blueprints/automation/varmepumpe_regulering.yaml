@@ -1150,4 +1150,4 @@ actions:
             {%- endif %}
           destination: "{{ pushover_destination }}"
           priority: "{{ pushover_priority | int(-1) }}"
-          ttl: "{{ pushover_ttl_seconds }}"
+          ttl_hours: "{{ pushover_ttl_hours }}"

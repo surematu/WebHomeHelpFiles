@@ -539,7 +539,7 @@ actions:
                 {{ info_result_short }}
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(0) }}"
-              ttl: "{{ pushover_ttl_seconds }}"
+              ttl_hours: "{{ pushover_ttl_hours }}"
 
   - alias: Varsling ved manuell kjøring (valgfri)
     choose:
@@ -554,4 +554,4 @@ actions:
                 {{ info_result_short }}
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(0) }}"
-              ttl: "{{ pushover_ttl_seconds }}"
+              ttl_hours: "{{ pushover_ttl_hours }}"

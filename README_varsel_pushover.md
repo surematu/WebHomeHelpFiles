@@ -25,7 +25,7 @@ Destination avgjør hvilken mottakergruppe i Pushover som får varselet. Standar
 Ja, du kan kalle scriptet manuelt fra Home Assistant med ønsket tittel og melding. Men det er primært ment brukt av andre automasjoner.
 
 **Hva betyr TTL?**
-TTL (Time To Live) er levetiden for et varsel i sekunder. Etter denne tiden fjernes varselet fra Pushover-appen automatisk dersom det ikke er lest.
+TTL (Time To Live) er levetiden for et varsel i timer. Etter denne tiden fjernes varselet fra Pushover-appen automatisk dersom det ikke er lest. Scriptet regner om fra timer til sekunder internt.
 
 ## 4. Hva slags info trengs
 
@@ -50,7 +50,7 @@ TTL (Time To Live) er levetiden for et varsel i sekunder. Etter denne tiden fjer
 | Melding | Melding | Innholdet i meldingen |
 | Destination | pushover | `pushover` eller `pushover_diverse` |
 | Priority | 0 | Prioritet (−2 = lavest, 2 = høyest) |
-| TTL | 21600 (6 timer) | Levetid for varselet i sekunder |
+| TTL | 6 (timer) | Levetid for varselet i timer |
 | URL | (WebHome-lenke) | Valgfri lenke i meldingen |
 | URL title | (WebHome-tekst) | Tekst for lenken |
 
@@ -59,7 +59,7 @@ TTL (Time To Live) er levetiden for et varsel i sekunder. Etter denne tiden fjer
 Scriptet bygger en komplett Pushover-melding og sender den:
 
 1. **Tittel:** Bygges som `<name> - <tittel>` (f.eks. «WebHome - KWh-grense»)
-2. **TTL-suffiks:** Levetiden formateres til lesbar tekst (sekunder/minutter/timer/dager) og legges til meldingen automatisk
+2. **TTL-suffiks:** Levetiden (i timer) omregnes internt til sekunder, deretter formateres til lesbar tekst (sekunder/minutter/timer/dager) og legges til meldingen automatisk
 3. **URL/URL-title:** Brukes slik det er sendt inn. Hvis ikke sendt, brukes en fallback basert på `name`
 4. **Routing:** `destination == pushover_diverse` → sender til `notify.pushover_diverse`, ellers → `notify.pushover`
 5. **Parallell kjøring:** Scriptet kan kjøre opptil 10 samtidige instanser
@@ -98,6 +98,8 @@ Alle automasjoner i WebHome-oppsettet bruker dette scriptet for utsending av Pus
 | Variabel | Beskrivelse |
 |---|---|
 | Tittel | Bygges som `<name> - <tittel>` |
+| call_ttl_hours | Input TTL i timer |
+| call_ttl_seconds | TTL omregnet til sekunder (timer × 3600) |
 | TTL-suffiks | Levetid omregnet til lesbar tekst (sek/min/timer/dager) |
 
 ### 10.5 Feilhåndtering
@@ -151,7 +153,7 @@ pushover_ttl_hours:
       mode: box
 ```
 
-> **Merk:** TTL-verdien sendes til Pushover i sekunder. Automasjonen regner om fra timer til sekunder internt (se variabeloppsett under).
+> **Merk:** TTL-verdien sendes til scriptet i timer. Scriptet regner om fra timer til sekunder internt.
 
 #### Blueprint-input (avansert-seksjonen)
 
@@ -174,14 +176,13 @@ Feltet plasseres i `avansert`-seksjonen (collapsed som standard), sammen med and
 pushover_destination: !input pushover_destination
 pushover_priority: !input pushover_priority
 pushover_ttl_hours: !input pushover_ttl_hours
-pushover_ttl_seconds: "{{ (pushover_ttl_hours | float(168)) * 3600 | int }}"
 io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
 is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'state'] }}"
 ```
 
 > **Tilpass trigger-listen** for din automasjon – erstatt `time_pattern` og `state` med de faktiske triggerene automasjonen bruker. `trigger is none` dekker manuell kjøring fra UI.
 
-> **TTL-standardverdi i float():** Bruk automasjonens standard-timer som fallback, f.eks. `float(168)` for 168 timer (7 dager) eller `float(6)` for 6 timer.
+> **TTL-standardverdi i float():** Bruk automasjonens standard-timer som fallback, f.eks. `float(168)` for 168 timer (7 dager) eller `float(6)` for 6 timer. Konvertering til sekunder skjer nå inne i scriptet.
 
 #### Deteksjon av manuell kjøring
 
@@ -205,7 +206,7 @@ Automasjoner som normalt trigges av tid/tilstand vil alltid ha `trigger.platform
               Kjørt manuelt. Gjeldende status: ...
             destination: "{{ pushover_destination }}"
             priority: "{{ pushover_priority | int(0) }}"
-            ttl: "{{ pushover_ttl_seconds }}"
+            ttl_hours: "{{ pushover_ttl_hours }}"
 ```
 
 Varselet legges som siste steg i automasjonen, etter all logikk er utført. På denne måten reflekterer meldingen det endelige resultatet av kjøringen.
@@ -217,7 +218,7 @@ Varselet legges som siste steg i automasjonen, etter all logikk er utført. På 
 | Input-navn | `varsel_ved_manuell_kjoring` |
 | Intern variabel | `io_varsel_ved_manuell_kjoring` |
 | TTL-input | `pushover_ttl_hours` (timer) |
-| TTL til sending | `pushover_ttl_seconds` (omregnet til sekunder) |
+| TTL til sending | `ttl_hours` (timer, sendes til scriptet; scriptet konverterer til sekunder) |
 | Manuell kjøring | `is_manual_run: "{{ trigger is none or trigger.platform not in ['...'] }}"` |
 | Betingelse for varsel | `is_manual_run and io_varsel_ved_manuell_kjoring and pushover_destination != ''` |
 
