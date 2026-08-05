@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.33
+    Blueprint versjon: 2026.07.34
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -218,7 +218,7 @@ blueprint:
             true = automasjonen prøver å hjelpe varmepumpa med mer luftflyt:
             frost-preset gir high, lavt pådrag kan gi medium, og høyt pådrag gir high.
             Nyttig når varmepumpa reagerer tregt eller trenger ekstra sirkulasjon ved stort varmebehov.
-          default: false
+          default: true
           selector:
             boolean: {}
 
