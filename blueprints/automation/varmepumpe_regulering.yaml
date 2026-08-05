@@ -556,6 +556,8 @@ actions:
   - variables:
       varmepumpe_auto_aktiv: "{{ (varmepumpe_auto_manuell_raw | string | upper) != 'MANUELL' }}"
       varme_auto_aktiv: "{{ (varme_auto_manuell_raw | string | upper) != 'MANUELL' }}"
+  - variables:
+      varmepumpe_tilgjengelig: "{{ iclimate_varmepumpe_mode not in ['unknown', 'unavailable'] }}"
 
   # Steg 2: Beregn hvor mye pådrag vi har på varmekilden
   - choose:
@@ -833,10 +835,10 @@ actions:
           skal_oppdatere_vifte: false
 
   - variables:
-      qx_varmepumpe_spk_update_needed_effektiv: "{{ varmepumpe_auto_aktiv and qx_varmepumpe_spk_update_needed }}"
-      skal_oppdatere_vifte_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_vifte }}"
-      skal_oppdatere_mode_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_mode }}"
-      skal_oppdatere_overordnet_effektiv: "{{ varmepumpe_auto_aktiv and skal_oppdatere_overordnet }}"
+      qx_varmepumpe_spk_update_needed_effektiv: "{{ varmepumpe_auto_aktiv and varmepumpe_tilgjengelig and qx_varmepumpe_spk_update_needed }}"
+      skal_oppdatere_vifte_effektiv: "{{ varmepumpe_auto_aktiv and varmepumpe_tilgjengelig and skal_oppdatere_vifte }}"
+      skal_oppdatere_mode_effektiv: "{{ varmepumpe_auto_aktiv and varmepumpe_tilgjengelig and skal_oppdatere_mode }}"
+      skal_oppdatere_overordnet_effektiv: "{{ varmepumpe_auto_aktiv and varmepumpe_tilgjengelig and skal_oppdatere_overordnet }}"
       varmepumpe_manual_min_debug_text: >-
         {% if varmepumpe_manual_min_set_enabled %}
           min={{ varmepumpe_manual_min_set_value | round(1) }}
@@ -937,6 +939,7 @@ actions:
       - condition: template
         value_template: >-
           {{ varmepumpe_auto_aktiv
+             and varmepumpe_tilgjengelig
              and varmepumpe_sekundar_configured
              and (varmepumpe_primaer_endret or (onsket_vifte_target_raw | string | trim) != '') }}
     then:
