@@ -61,7 +61,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.07.33
+    Blueprint versjon: 2026.07.34
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -379,7 +379,7 @@ blueprint:
           description: >
             Hvis true sendes Pushover-varsling alltid ved manuell kjøring av automasjonen,
             også når vanlig debug-varsling ellers ikke ville blitt sendt.
-          default: false
+          default: true
           selector:
             boolean: {}
 
