@@ -41,7 +41,7 @@ When an automation blueprint is adjusted, check whether its related README/docum
 
 ## README structure for notifications
 
-Each automation has a section for "Varsling".
+Each automation has a section for "Varsling". It should be collapsed by default.
 
 "Varsling (Valgfri)" section should include:
 1. Title: **Pushover destination (valgfri)**
