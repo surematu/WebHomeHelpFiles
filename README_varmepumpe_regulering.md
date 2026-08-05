@@ -110,7 +110,7 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Utgang - Varme utgang digital (switch) | (tomt) | Valgfri switch-entitet for fast trinnstyring i stedet for eller i tillegg til climate |
 | Utgang - Varme pådrag panelovn (input_number) | (tomt) | Valgfri prosent-utgang (0–100 %) for ekstern styring med egen syklustid |
 
-### Avansert
+### Varsling (Valgfri)
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
@@ -118,7 +118,7 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Send varsel ved manuell kjøring | true | Sender varsel når automasjonen kjøres manuelt |
 | Pushover destination | pushover | Mottakergruppe |
 | Pushover prioritet | −1 | Prioritet for debug-varsler |
-| Pushover TTL (sekunder) | 21600 | Levetid for debug-varsler |
+| Levetid varsel (timer) | 6 | Levetid for varsler (6 timer = 21600 sekunder) |
 
 ## 6. Funksjonsbeskrivelse
 

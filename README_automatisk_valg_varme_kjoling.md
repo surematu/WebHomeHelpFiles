@@ -67,21 +67,21 @@ Ja, du får et Pushover-varsel når modus endres, og kan velge å få begrunnels
 | Soltillegg ved 51–75 % skydekning | 1 °C | Legges til ved mye skydekke |
 | Soltillegg ved 76–100 % skydekning | 0 °C | Ingen tillegg ved overskyet |
 
-**Valgfritt:**
+**Varsling (Valgfri):**
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Pushover destination | pushover | Mottakergruppe. La stå tomt for å deaktivere varsling |
 | Pushover prioritet | 0 | Prioritet for varselet |
 | Pushover TTL (sekunder) | 604800 | Levetid for varselet |
+| Send varsel ved manuell kjøring | true | Sett til av for å ikke varsle ved manuell kjøring |
+| Vis ekstra begrunnelse | true | Inkluder detaljert begrunnelse i varselet |
 
 **Avansert:**
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Kjør automatisk kl. 20:00 | true | Sett til av for å deaktivere automatisk kjøring |
-| Send varsel ved manuell kjøring | true | Sett til av for å ikke varsle ved manuell kjøring |
-| Vis ekstra begrunnelse | true | Inkluder detaljert begrunnelse i varselet |
 
 ## 6. Funksjonsbeskrivelse
 

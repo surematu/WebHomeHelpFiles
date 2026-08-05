@@ -112,7 +112,7 @@ blueprint:
               mode: box
 
     optional:
-      name: Valgfritt
+      name: "Varsling (Valgfri)"
       icon: mdi:bell-outline
       collapsed: true
       input:

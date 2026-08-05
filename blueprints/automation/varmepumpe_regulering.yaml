@@ -55,13 +55,13 @@ blueprint:
     Betinget på inum_max_step: heltall-steg (1, 2, 3, …) gir alltid heltalls-settpunkt;
     halvt steg (0.5, 1.5, 2.5, …) tillater halvgrads-verdier (f.eks. 22.5).
 
-    Varsling (valgfri, debug):
+    Varsling (Valgfri):
     Valgfri Pushover-notifikasjon ved endringer. Av som standard (ix_pushover_varsling=false).
 
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.08.02
+    Blueprint versjon: 2026.08.03
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -360,9 +360,9 @@ blueprint:
             entity:
               domain: input_number
 
-    avansert:
-      name: Avansert
-      icon: mdi:cog-outline
+    varsling:
+      name: "Varsling (Valgfri)"
+      icon: mdi:bell-outline
       collapsed: true
       input:
         ix_pushover_varsling:

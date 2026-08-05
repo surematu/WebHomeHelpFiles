@@ -61,7 +61,7 @@ Ja, begge booleans (`preheat_boolean` og `heat_boolean`) settes av utenfor varme
 | Buffer (timer) | 3 | Ekstra timer til beregnet oppvarmingstid (starter forvarming tidligere) |
 | Lookahead (timer) | 168 | Hvor langt frem det søkes etter hendelser (168 = 7 dager) |
 
-**Valgfritt:**
+**Varsling (Valgfri):**
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|

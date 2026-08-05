@@ -175,7 +175,7 @@ blueprint:
           selector: { number: { min: 0, max: 100, step: 0.1, mode: box } }
 
     optional:
-      name: Valgfritt
+      name: "Varsling (Valgfri)"
       icon: mdi:bell-outline
       collapsed: true
       input:

@@ -64,7 +64,7 @@ Automasjonen skriver bare lavere verdier første time første dag i måneden, sl
 | Februar | 9 |
 | Mars–Desember | 4,5 |
 
-**Valgfritt:**
+**Varsling (Valgfri):**
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
