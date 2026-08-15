@@ -21,7 +21,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.08.03
+    Blueprint versjon: 2026.08.04
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -131,7 +131,7 @@ blueprint:
 
         extreme_heat_limit:
           name: Ekstrem varme - prognosert maksimumstemperatur neste døgn
-          default: 25
+          default: 26
           selector:
             number:
               min: -20

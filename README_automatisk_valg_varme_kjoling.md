@@ -64,7 +64,7 @@ Ja, du får et Pushover-varsel når modus endres, og kan velge å få begrunnels
 | Sommergrense – snitt 72 timer | 15 °C | Snitttemperatur over denne → kan bytte til SOMMER |
 | Start kjøling – maks neste dag inkl. soltillegg | 24 °C | Skift til SOMMER når maks er over denne |
 | Stopp kjøling – maks neste dag inkl. soltillegg | 21 °C | Behold SOMMER mens maks er over denne (hysterese) |
-| Ekstrem varme – prognosert maks neste dag | 25 °C | Bytt til SOMMER uavhengig av snitttemperatur |
+| Ekstrem varme – prognosert maks neste dag | 26 °C | Bytt til SOMMER uavhengig av snitttemperatur |
 | Soltillegg ved 0–30 % skydekning | 3 °C | Legges til prognosert maks ved klart vær |
 | Soltillegg ved 31–60 % skydekning | 2 °C | Legges til ved litt skydekke |
 | Soltillegg ved 61–85 % skydekning | 1 °C | Legges til ved mye skydekke |
@@ -134,7 +134,7 @@ eller:
 > -❌ Makstemperatur inkl. soltillegg (20.3+1) er under grense (stopp 21/ start 24). Skydekke 71%.
 >
 > Begrunnelse sommer 2 ❌:
-> -❌ Varslet maksimum neste dag (20.3) overstiger grense for ekstrem varme (25).
+> -❌ Varslet maksimum neste dag (20.3) overstiger grense for ekstrem varme (26).
 >
 > Match på regel 7. Manuelt kjørt sjekk.
 
