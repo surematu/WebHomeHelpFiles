@@ -29,6 +29,9 @@ Faste perioder er sikkerhetsgrenser: november–februar er alltid VINTER, juni�
 **Hva er «soltillegg»?**
 På dager med lite skyer er sola varmere og den faktiske temperaturen høyere. Soltillegget legger til noen grader på prognosert maksimumstemperatur basert på skydekning – for å gi en mer realistisk vurdering.
 
+**Hvordan beregnes skydekket?**
+Automasjonen henter timeprognosen fra værvarsel-entiteten og leser skydekning (cloud_coverage) for timene kl. 10–18 neste dag. Gjennomsnittet av disse verdiene brukes som grunnlag for soltillegget. Er skydekning-data ikke tilgjengelig for noen timer, utelates disse. Dersom ingen timer finnes, settes soltillegget til 0 °C.
+
 **Hva er «hysterese»?**
 Hysterese er en buffer som hindrer systemet i å hoppe frem og tilbake mellom VINTER og SOMMER ved grenseverdier. Systemet forblir i SOMMER-modus selv om temperaturen faller litt under «stoppgrensen».
 
@@ -59,13 +62,13 @@ Ja, du får et Pushover-varsel når modus endres, og kan velge å få begrunnels
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Sommergrense – snitt 72 timer | 15 °C | Snitttemperatur over denne → kan bytte til SOMMER |
-| Start kjøling – maks neste dag inkl. soltillegg | 25 °C | Skift til SOMMER når maks er over denne |
-| Stopp kjøling – maks neste dag inkl. soltillegg | 22 °C | Behold SOMMER mens maks er over denne (hysterese) |
-| Ekstrem varme – prognosert maks neste dag | 28 °C | Bytt til SOMMER uavhengig av snitttemperatur |
-| Soltillegg ved 0–25 % skydekning | 3 °C | Legges til prognosert maks ved klart vær |
-| Soltillegg ved 26–50 % skydekning | 2 °C | Legges til ved litt skydekke |
-| Soltillegg ved 51–75 % skydekning | 1 °C | Legges til ved mye skydekke |
-| Soltillegg ved 76–100 % skydekning | 0 °C | Ingen tillegg ved overskyet |
+| Start kjøling – maks neste dag inkl. soltillegg | 24 °C | Skift til SOMMER når maks er over denne |
+| Stopp kjøling – maks neste dag inkl. soltillegg | 21 °C | Behold SOMMER mens maks er over denne (hysterese) |
+| Ekstrem varme – prognosert maks neste dag | 25 °C | Bytt til SOMMER uavhengig av snitttemperatur |
+| Soltillegg ved 0–30 % skydekning | 3 °C | Legges til prognosert maks ved klart vær |
+| Soltillegg ved 31–60 % skydekning | 2 °C | Legges til ved litt skydekke |
+| Soltillegg ved 61–85 % skydekning | 1 °C | Legges til ved mye skydekke |
+| Soltillegg ved 86–100 % skydekning | 0 °C | Ingen tillegg ved overskyet |
 
 **Varsling (Valgfri):**
 
@@ -128,10 +131,10 @@ eller:
 >
 > Begrunnelse sommer 1 ❌:
 > -✅ Utetemp snitt 72h (18.4) over grense (15).
-> -❌ Makstemperatur inkl. soltillegg (20.3+1) er under grense (stopp 22/ start 25). Skydekke 71%.
+> -❌ Makstemperatur inkl. soltillegg (20.3+1) er under grense (stopp 21/ start 24). Skydekke 71%.
 >
 > Begrunnelse sommer 2 ❌:
-> -❌ Varslet maksimum neste dag (20.3) overstiger grense for ekstrem varme (28).
+> -❌ Varslet maksimum neste dag (20.3) overstiger grense for ekstrem varme (25).
 >
 > Match på regel 7. Manuelt kjørt sjekk.
 
@@ -189,7 +192,7 @@ sensor:
 |---|---|
 | Gjennomsnittstemperatur 72t | Lest fra `sensor.utetemperatur_snitt_72_timer` |
 | Nåtemperatur | Lest fra `sensor.utetemperatur` (fallback hvis historikk mangler) |
-| Soltillegg | Beregnet fra skydekning kl. 10–18 neste dag |
+| Soltillegg | Beregnet fra gjennomsnittlig skydekning kl. 10–18 neste dag (timeprognose). 0–30 % → +3 °C, 31–60 % → +2 °C, 61–85 % → +1 °C, 86–100 % → 0 °C. Mangler skydata → 0 °C |
 | Maks inkl. soltillegg | Prognosert maks neste dag + soltillegg |
 | Utløsende regel | Regel 1–7 som ga det endelige modus-valget |
 

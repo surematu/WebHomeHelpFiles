@@ -21,7 +21,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_automatisk_valg_varme_kjoling.md
 
-    Blueprint versjon: 2026.08.02
+    Blueprint versjon: 2026.08.03
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/driftsmodus_varme_kjoling_automatisk.yaml
   author: WebHome
@@ -109,7 +109,7 @@ blueprint:
 
         start_cooling_limit:
           name: Start kjøling - makstemperatur neste døgn inkl. soltillegg
-          default: 25
+          default: 24
           selector:
             number:
               min: -20
@@ -120,7 +120,7 @@ blueprint:
 
         stop_cooling_limit:
           name: Stopp kjøling - makstemperatur neste døgn inkl. soltillegg
-          default: 22
+          default: 21
           selector:
             number:
               min: -20
@@ -131,7 +131,7 @@ blueprint:
 
         extreme_heat_limit:
           name: Ekstrem varme - prognosert maksimumstemperatur neste døgn
-          default: 28
+          default: 25
           selector:
             number:
               min: -20
@@ -140,8 +140,8 @@ blueprint:
               mode: box
               unit_of_measurement: "°C"
 
-        solar_add_0_25:
-          name: Soltillegg ved 0-25 % skydekning
+        solar_add_0_30:
+          name: Soltillegg ved 0-30 % skydekning
           default: 3
           selector:
             number:
@@ -151,8 +151,8 @@ blueprint:
               mode: box
               unit_of_measurement: "°C"
 
-        solar_add_26_50:
-          name: Soltillegg ved 26-50 % skydekning
+        solar_add_31_60:
+          name: Soltillegg ved 31-60 % skydekning
           default: 2
           selector:
             number:
@@ -162,8 +162,8 @@ blueprint:
               mode: box
               unit_of_measurement: "°C"
 
-        solar_add_51_75:
-          name: Soltillegg ved 51-75 % skydekning
+        solar_add_61_85:
+          name: Soltillegg ved 61-85 % skydekning
           default: 1
           selector:
             number:
@@ -173,8 +173,8 @@ blueprint:
               mode: box
               unit_of_measurement: "°C"
 
-        solar_add_76_100:
-          name: Soltillegg ved 76-100 % skydekning
+        solar_add_86_100:
+          name: Soltillegg ved 86-100 % skydekning
           default: 0
           selector:
             number:
@@ -288,10 +288,10 @@ actions:
       t_start_cooling_limit: !input start_cooling_limit
       t_stop_cooling_limit: !input stop_cooling_limit
       t_extreme_heat_limit: !input extreme_heat_limit
-      t_solar_add_0_25: !input solar_add_0_25
-      t_solar_add_26_50: !input solar_add_26_50
-      t_solar_add_51_75: !input solar_add_51_75
-      t_solar_add_76_100: !input solar_add_76_100
+      t_solar_add_0_30: !input solar_add_0_30
+      t_solar_add_31_60: !input solar_add_31_60
+      t_solar_add_61_85: !input solar_add_61_85
+      t_solar_add_86_100: !input solar_add_86_100
 
       is_manual_run: "{{ trigger is none or trigger.platform != 'time' }}"
 
@@ -479,14 +479,14 @@ actions:
       solar_addition: >-
         {% if not cloud_avg_available %}
           0
-        {% elif (cloud_avg_10_18 | float) <= 25 %}
-          {{ t_solar_add_0_25 | float }}
-        {% elif (cloud_avg_10_18 | float) <= 50 %}
-          {{ t_solar_add_26_50 | float }}
-        {% elif (cloud_avg_10_18 | float) <= 75 %}
-          {{ t_solar_add_51_75 | float }}
+        {% elif (cloud_avg_10_18 | float) <= 30 %}
+          {{ t_solar_add_0_30 | float }}
+        {% elif (cloud_avg_10_18 | float) <= 60 %}
+          {{ t_solar_add_31_60 | float }}
+        {% elif (cloud_avg_10_18 | float) <= 85 %}
+          {{ t_solar_add_61_85 | float }}
         {% else %}
-          {{ t_solar_add_76_100 | float }}
+          {{ t_solar_add_86_100 | float }}
         {% endif %}
       forecast_max_with_solar: >-
         {% if forecast_max_available %}
