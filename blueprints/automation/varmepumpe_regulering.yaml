@@ -66,7 +66,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.08.08
+    Blueprint versjon: 2026.08.09
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -632,7 +632,7 @@ actions:
             {% set setp = iclimate_varme_rt_spk | float(0) %}
             {% set grense = inum_kjoling_sommer_kaldt_grense | float(2) %}
             {% set hyst = drift_hysterese_sommer | float(0.5) %}
-            {{ (iclimate_varmepumpe_mode == 'heat') and (temp < (setp - grense) + hyst) }}
+            {{ (iclimate_overordnet_hvac_mode == 'heat') and (temp < (setp - grense) + hyst) }}
           winter_allow_cool_on: >-
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
@@ -643,7 +643,7 @@ actions:
             {% set setp = iclimate_varme_rt_spk | float(0) %}
             {% set grense = inum_kjoling_vinter_varmt_grense | float(2) %}
             {% set hyst = drift_hysterese_vinter | float(0.5) %}
-            {{ (iclimate_varmepumpe_mode == 'cool') and (temp > (setp + grense) - hyst) }}
+            {{ (iclimate_overordnet_hvac_mode == 'cool') and (temp > (setp + grense) - hyst) }}
       - variables:
           WantCool_SetpointComfOrHihger: >-
             {% set setp = iclimate_varme_rt_spk | float(0) %}

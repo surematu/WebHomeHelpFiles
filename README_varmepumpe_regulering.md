@@ -330,7 +330,7 @@ VINTER (default = heat, eco/comfort/boost):
 |---|---|
 | Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
 | Romtemp > settpunkt + `inum_kjoling_vinter_varmt_grense` | `cool` (override PÅ) |
-| Aktiv kjøle-override og romtemp > (settpunkt + grense) − hysterese | `cool` (override holdes) |
+| Overordnet climate er `cool` og romtemp > (settpunkt + grense) − hysterese | `cool` (override holdes) |
 | Ellers | `heat` (override AV) |
 
 SOMMER (default = cool, eco/comfort/boost):
@@ -339,16 +339,16 @@ SOMMER (default = cool, eco/comfort/boost):
 |---|---|
 | Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
 | Romtemp < settpunkt − `inum_kjoling_sommer_kaldt_grense` | `heat` (override PÅ) |
-| Aktiv varme-override og romtemp < (settpunkt − grense) + hysterese | `heat` (override holdes) |
+| Overordnet climate er `heat` og romtemp < (settpunkt − grense) + hysterese | `heat` (override holdes) |
 | Ellers | `cool` (override AV) |
 
 > **Eksempel VINTER** – settpunkt 22 °C, grense 3 °C, hysterese 1 °C:
 > - Kjøling slår PÅ når romtemp > **25 °C**
-> - Kjøling slår AV når romtemp faller under **24 °C**
+> - Kjøling slår AV når romtemp faller under **24 °C** (forutsatt overordnet climate er `cool`)
 
 > **Eksempel SOMMER** – settpunkt 22 °C, grense 3 °C, hysterese 1 °C:
 > - Tvungen varme slår PÅ når romtemp < **19 °C**
-> - Tvungen varme slår AV når romtemp > **20 °C**
+> - Tvungen varme slår AV når romtemp > **20 °C** (forutsatt overordnet climate er `heat`)
 
 **Panelovn-proporsjonal-styring:**
 `prop = min(1, max(0, (settpunkt − romtemp) / panelovn_delta_maks))`
