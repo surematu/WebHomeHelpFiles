@@ -66,7 +66,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.08.05
+    Blueprint versjon: 2026.08.06
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -655,9 +655,9 @@ actions:
       - variables:
           # frost eller shedding (nedstengning fra Versatile Thermostat) → alltid heat
           rom_preset_is_frost_or_shedding: "{{ rom_preset in ['frost', 'shedding'] }}"
-          # manual eller none (ingen aktiv preset = bruker har satt modus direkte) →
+          # none (ingen aktiv preset = bruker har satt modus direkte) →
           # bruker styrer hvac-modus selv, automasjonen endrer ikke modus
-          rom_preset_is_manual: "{{ rom_preset in ['manual', 'none'] }}"
+          rom_preset_is_manual: "{{ rom_preset == 'none' }}"
       - variables:
           onsket_mode: >-
             {% if rom_preset_is_frost_or_shedding %}
