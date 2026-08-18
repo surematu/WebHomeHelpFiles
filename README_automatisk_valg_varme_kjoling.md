@@ -192,7 +192,7 @@ sensor:
 |---|---|
 | Gjennomsnittstemperatur 72t | Lest fra `sensor.utetemperatur_snitt_72_timer` |
 | Nåtemperatur | Lest fra `sensor.utetemperatur` (fallback hvis historikk mangler) |
-| Soltillegg | Beregnet fra gjennomsnittlig skydekning kl. 10–18 neste dag (timeprognose). 0–30 % → +3 °C, 31–60 % → +2 °C, 61–85 % → +1 °C, 86–100 % → 0 °C. Mangler skydata → 0 °C |
+| Soltillegg | Beregnet fra gjennomsnittlig skydekning kl. 10–18 neste dag (timeprognose). |
 | Maks inkl. soltillegg | Prognosert maks neste dag + soltillegg |
 | Utløsende regel | Regel 1–7 som ga det endelige modus-valget |
 
