@@ -261,7 +261,8 @@ blueprint:
           name: SOMMER - Hysterese varme av
           description: >
             SOMMER (kjøling) modus, med tvungen varme aktiv: Endre tilbake til normal drift kjøling når temperatur i rommet er så mange grader under aktuelt settpunkt.
-            Eks: Ved settpunkt 20, tvungen varme, veksle tilbake til normaldrift når temperatur stiger til 19 grader igjen.
+            Vekslingen beregnes fra terskelen som slo tvungen varme på.
+            Eks: Ved settpunkt 20 og standard terskel 2 starter tvungen varme under 18 grader, og veksler tilbake til normaldrift når temperatur stiger til 19 grader.
             Default 1°C.
           default: 1
           selector:
@@ -291,7 +292,8 @@ blueprint:
           name: VINTER - Hysterese kjøling av
           description: >
             VINTER (varme) modus, med tvungen kjøling aktiv: Endre tilbake til normal drift varme når temperatur i rommet er så mange grader over aktuelt settpunkt.
-            Eks: Ved settpunkt 21, tvungen kjøling, veksle tilbake til normaldrift når temperatur synker til 20 grader igjen.
+            Vekslingen beregnes fra terskelen som slo tvungen kjøling på.
+            Eks: Ved settpunkt 21 og standard terskel 2 starter tvungen kjøling over 23 grader, og veksler tilbake til normaldrift når temperatur synker til 22 grader.
             Default 1°C.
           default: 1
           selector:
