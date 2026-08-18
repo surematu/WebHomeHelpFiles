@@ -66,7 +66,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.08.04
+    Blueprint versjon: 2026.08.05
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -655,8 +655,9 @@ actions:
       - variables:
           # frost eller shedding (nedstengning fra Versatile Thermostat) → alltid heat
           rom_preset_is_frost_or_shedding: "{{ rom_preset in ['frost', 'shedding'] }}"
-          # manual → bruker styrer hvac-modus selv, automasjonen endrer ikke modus
-          rom_preset_is_manual: "{{ rom_preset == 'manual' }}"
+          # manual eller none (ingen aktiv preset = bruker har satt modus direkte) →
+          # bruker styrer hvac-modus selv, automasjonen endrer ikke modus
+          rom_preset_is_manual: "{{ rom_preset in ['manual', 'none'] }}"
       - variables:
           onsket_mode: >-
             {% if rom_preset_is_frost_or_shedding %}
@@ -707,7 +708,8 @@ actions:
   - variables:
       iclimate_overordnet_hvac_mode_txt: "{{ iclimate_overordnet_hvac_mode | string | lower | trim }}"
   - variables:
-      skal_oppdatere_overordnet: "{{ onsket_overordnet_mode_sikker != iclimate_overordnet_hvac_mode_txt }}"
+      # I manuell preset (inkl. none) styrer bruker hvac-modus selv – ikke endre overordnet.
+      skal_oppdatere_overordnet: "{{ (not (rom_preset_is_manual | default(false))) and (onsket_overordnet_mode_sikker != iclimate_overordnet_hvac_mode_txt) }}"
 
   # Steg 5: normaliser pådrag for varmepumpe og panelovn
   - variables:

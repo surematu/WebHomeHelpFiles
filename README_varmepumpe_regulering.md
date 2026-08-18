@@ -149,7 +149,7 @@ Modus bestemmes basert på `preset_mode` fra overordnet climate (rom_climate):
 |--------|-------|
 | `frost` | Alltid `heat` |
 | `shedding` (Versatile Thermostat nedstengning) | Alltid `heat` |
-| `manual` | Ingen endring – bruker styrer hvac-modus selv. Unntak: er modus `off`, settes den til `heat` |
+| `manual` eller `none` (ingen aktiv preset – bruker har satt modus direkte) | Ingen endring – bruker styrer hvac-modus selv. Unntak: er modus `off`, settes den til `heat` |
 | `eco`, `comfort`, `boost` | Automatisk logikk (VINTER/SOMMER + hysterese, se nedenfor) |
 
 - **VINTER-modus (eco/comfort/boost):** kjøler normalt ikke. Nødoverkobling slår inn ved romtemp > settpunkt + terskel.
@@ -207,8 +207,8 @@ Dette sikrer at varmepumpen får tid til å «komme opp i fart» før panelovnen
 
 ### 9.2 Modus-endring
 
-Overordnet climate (rom_climate) oppdateres alltid til beregnet modus (heat/cool) – også hvis den er i «off»-modus. Den settes aldri til «off». Trenger systemet minimalt pådrag, beholder den aktiv modus mens varmepumpen reguleres ned mot frost-settpunktet.
-Dette skjer kun når `Input select - Varmepumpe AUTO/MANUELL` står i `AUTO`.
+Overordnet climate (rom_climate) oppdateres til beregnet modus (heat/cool) – også hvis den er i «off»-modus. Den settes aldri til «off». Trenger systemet minimalt pådrag, beholder den aktiv modus mens varmepumpen reguleres ned mot frost-settpunktet.
+Dette skjer kun når `Input select - Varmepumpe AUTO/MANUELL` står i `AUTO`, og **ikke** når rom-climate har preset `manual` eller `none` (ingen aktiv preset). I manuell-tilstand beholder rom-climate den hvac-modusen brukeren selv har satt.
 
 ### 9.3 Panelovn som digital utgang (switch)
 
@@ -321,7 +321,7 @@ Kjøretid og triggere:
 |---|---|
 | `frost` | Alltid `heat` |
 | `shedding` | Alltid `heat` |
-| `manual` | Beholder gjeldende modus. Er modus `off` → setter `heat` |
+| `manual` eller `none` | Beholder gjeldende modus. Er modus `off` → setter `heat` |
 | `eco`, `comfort`, `boost` | Automatisk logikk (VINTER/SOMMER nedenfor) |
 
 VINTER (default = heat, eco/comfort/boost):
