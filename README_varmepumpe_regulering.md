@@ -96,8 +96,8 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Aktiver kjøling | false | Aktiver sesongbasert bytte mellom varme og kjøling |
-| SOMMER – hysterese kjøling av (°C) | 1 | I SOMMER (kjøling), med tvungen varme aktiv: Endre tilbake til normal drift kjøling. Vekslingen beregnes fra terskelen som slo tvungen varme på (eks. settpunkt 20 og terskel 2: varme starter ved 18 eller lavere, tilbake ved 19) |
-| VINTER – hysterese kjøling av (°C) | 1 | I VINTER (varme), med tvungen kjøling aktiv: Endre tilbake til normal drift varme. Vekslingen beregnes fra terskelen som slo tvungen kjøling på (eks. settpunkt 21 og terskel 2: kjøling starter ved 23 eller høyere, tilbake ved 22) |
+| SOMMER – hysterese kjøling av (°C) | 1 | I SOMMER (kjøling), med tvungen varme aktiv: Endre tilbake til kjøling når romtemp stiger over settpunkt + hysterese (eks. settpunkt 20, hysterese 1: tilbake til kjøling ved 21) |
+| VINTER – hysterese kjøling av (°C) | 1 | I VINTER (varme), med tvungen kjøling aktiv: Endre tilbake til varme når romtemp faller under settpunkt + hysterese (eks. settpunkt 21, hysterese 0,5: tilbake til varme ved 21,5 – eller ved 21 hvis hysterese = 0) |
 | SOMMER – tvungen varme-terskel (°C) | 2 | I SOMMER-modus (kjøling): Endre til varme når temperatur i rommet er så mange grader under eller lik aktuelt settpunkt |
 | VINTER – tvungen kjøle-terskel (°C) | 2 | I VINTER-modus (varme): Endre til kjøling når temperatur i rommet er så mange grader over eller lik aktuelt settpunkt |
 
@@ -330,7 +330,7 @@ VINTER (default = heat, eco/comfort/boost):
 |---|---|
 | Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
 | Romtemp > settpunkt + `inum_kjoling_vinter_varmt_grense` | `cool` (override PÅ) |
-| Overordnet climate er `cool` og romtemp > (settpunkt + grense) − hysterese | `cool` (override holdes) |
+| Overordnet climate er `cool` og romtemp > settpunkt + hysterese | `cool` (override holdes) |
 | Ellers | `heat` (override AV) |
 
 SOMMER (default = cool, eco/comfort/boost):
@@ -339,16 +339,20 @@ SOMMER (default = cool, eco/comfort/boost):
 |---|---|
 | Settpunkt < comfort-settpunkt | `heat` (kjøling sperret) |
 | Romtemp < settpunkt − `inum_kjoling_sommer_kaldt_grense` | `heat` (override PÅ) |
-| Overordnet climate er `heat` og romtemp < (settpunkt − grense) + hysterese | `heat` (override holdes) |
+| Overordnet climate er `heat` og romtemp < settpunkt − hysterese | `heat` (override holdes) |
 | Ellers | `cool` (override AV) |
 
-> **Eksempel VINTER** – settpunkt 22 °C, grense 3 °C, hysterese 1 °C:
-> - Kjøling slår PÅ når romtemp > **25 °C**
-> - Kjøling slår AV når romtemp faller under **24 °C** (forutsatt overordnet climate er `cool`)
+> **Eksempel VINTER** – settpunkt 21 °C, grense 2 °C, hysterese 0 °C:
+> - Kjøling slår PÅ når romtemp ≥ **23 °C**
+> - Kjøling slår AV når romtemp faller til **21 °C** (= settpunkt)
 
-> **Eksempel SOMMER** – settpunkt 22 °C, grense 3 °C, hysterese 1 °C:
-> - Tvungen varme slår PÅ når romtemp < **19 °C**
-> - Tvungen varme slår AV når romtemp > **20 °C** (forutsatt overordnet climate er `heat`)
+> **Eksempel VINTER** – settpunkt 21 °C, grense 2 °C, hysterese 0,5 °C:
+> - Kjøling slår PÅ når romtemp ≥ **23 °C**
+> - Kjøling slår AV når romtemp faller til **21,5 °C** (= settpunkt + hysterese)
+
+> **Eksempel SOMMER** – settpunkt 22 °C, grense 2 °C, hysterese 0,5 °C:
+> - Tvungen varme slår PÅ når romtemp ≤ **20 °C**
+> - Tvungen varme slår AV når romtemp stiger til **21,5 °C** (= settpunkt − hysterese)
 
 **Panelovn-proporsjonal-styring:**
 `prop = min(1, max(0, (settpunkt − romtemp) / panelovn_delta_maks))`
