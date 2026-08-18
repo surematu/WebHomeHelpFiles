@@ -66,7 +66,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.08.06
+    Blueprint versjon: 2026.08.07
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -245,7 +245,7 @@ blueprint:
         inum_kjoling_sommer_kaldt_grense:
           name: SOMMER – tving varme når romtemp er så mange grader under settpunkt (°C)
           description: >
-            I SOMMER-modus: tving heat-modus når iclimate_varme_rt_pv < iclimate_varme_rt_spk − denne verdien.
+            I SOMMER-modus (kjøling): Endre til varme når temperatur i rommet er så mange grader under aktuelt settpunkt.
             Sikrer at rommet ikke blir for kaldt selv om sommermodus foretrekker kjøling.
             Default 2°C.
           default: 2
@@ -260,9 +260,8 @@ blueprint:
         inum_kjoling_av_delta_sommer:
           name: SOMMER - Hysterese varme av
           description: >
-            SOMMER: tvungen varme slås av når romtemp >= (settpunkt − inum_kjoling_sommer_kaldt_grense) + hysterese.
-            Hysteresen regnes fra terskelen som slo varmen PÅ, ikke fra settpunktet.
-            Eksempel: settpunkt=22, kaldt_grense=3, hysterese=1 → varme startet ved 22−3=19°C, slås av igjen ved 19+1=20°C.
+            SOMMER (kjøling) modus, med tvungen varme aktiv: Endre tilbake til normal drift kjøling når temperatur i rommet er så mange grader under aktuelt settpunkt.
+            Eks: Ved settpunkt 20, tvungen varme, veksle tilbake til normaldrift når temperatur stiger til 19 grader igjen.
             Default 1°C.
           default: 1
           selector:
@@ -276,7 +275,7 @@ blueprint:
         inum_kjoling_vinter_varmt_grense:
           name: VINTER – tillat kjøling når romtemp er så mange grader over settpunkt (°C)
           description: >
-            I VINTER-modus: tillat cool-modus som nødoverkobling når iclimate_varme_rt_pv >= iclimate_varme_rt_spk + denne verdien.
+            I VINTER-modus (varme): Endre til kjøling når temperatur i rommet er så mange grader over aktuelt settpunkt.
             Sikrer at rommet ikke blir for varmt selv om vintermodus foretrekker varme.
             Default 2°C.
           default: 2
@@ -291,9 +290,8 @@ blueprint:
         inum_kjoling_av_delta_vinter:
           name: VINTER - Hysterese kjøling av
           description: >
-            VINTER: tvungen kjøling slås av når romtemp <= (settpunkt + inum_kjoling_vinter_varmt_grense) − hysterese.
-            Hysteresen regnes fra terskelen som slo kjølingen PÅ, ikke fra settpunktet.
-            Eksempel: settpunkt=22, varmt_grense=3, hysterese=1 → kjøling startet ved 22+3=25°C, slås av igjen ved 25−1=24°C.
+            VINTER (varme) modus, med tvungen kjøling aktiv: Endre tilbake til normal drift varme når temperatur i rommet er så mange grader over aktuelt settpunkt.
+            Eks: Ved settpunkt 21, tvungen kjøling, veksle tilbake til normaldrift når temperatur synker til 20 grader igjen.
             Default 1°C.
           default: 1
           selector:
