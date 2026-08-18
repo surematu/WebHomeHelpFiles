@@ -18,7 +18,7 @@ Automasjonen skal **kun** velge tillatt driftsmodus. Den regulerer ikke temperat
 ## 3. FAQ – Ofte stilte spørsmål
 
 **Kan jeg bytte modus manuelt?**
-Ja, du kan manuelt endre `input_select.driftsmodus_vinter_sommer` i Home Assistant. Men neste kveld kl. 20:00 vil automasjonen overskrive dette hvis beregnet modus er annerledes.
+Ja, du kan manuelt endre modus med velgeren. Velg mellom sommer og vinter. Skru av robotknappen om du ikke ønsker at automatikken neste kveld kl. 20:00 skal overskrive valget hvis beregnet modus er annerledes.
 
 **Hva skjer om temperaturdata mangler?**
 Automasjonen har fallback-logikk: bruker nåværende utetemperatur hvis historikk mangler, og kalenderperiode (faste datoer) som siste utvei. Du vil motta varsel hvis data mangler.
