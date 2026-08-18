@@ -66,7 +66,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.08.07
+    Blueprint versjon: 2026.08.08
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -245,7 +245,7 @@ blueprint:
         inum_kjoling_sommer_kaldt_grense:
           name: SOMMER – tving varme når romtemp er så mange grader under settpunkt (°C)
           description: >
-            I SOMMER-modus (kjøling): Endre til varme når temperatur i rommet er så mange grader under aktuelt settpunkt.
+            I SOMMER-modus (kjøling): Endre til varme når temperatur i rommet er så mange grader under eller lik aktuelt settpunkt.
             Sikrer at rommet ikke blir for kaldt selv om sommermodus foretrekker kjøling.
             Default 2°C.
           default: 2
@@ -262,7 +262,7 @@ blueprint:
           description: >
             SOMMER (kjøling) modus, med tvungen varme aktiv: Endre tilbake til normal drift kjøling når temperatur i rommet er så mange grader under aktuelt settpunkt.
             Vekslingen beregnes fra terskelen som slo tvungen varme på.
-            Eks: Ved settpunkt 20 og standard terskel 2 starter tvungen varme under 18 grader, og veksler tilbake til normaldrift når temperatur stiger til 19 grader.
+            Eks: Ved settpunkt 20 og standard terskel 2 starter tvungen varme ved 18 grader eller lavere, og veksler tilbake til normaldrift når temperatur stiger til 19 grader.
             Default 1°C.
           default: 1
           selector:
@@ -276,7 +276,7 @@ blueprint:
         inum_kjoling_vinter_varmt_grense:
           name: VINTER – tillat kjøling når romtemp er så mange grader over settpunkt (°C)
           description: >
-            I VINTER-modus (varme): Endre til kjøling når temperatur i rommet er så mange grader over aktuelt settpunkt.
+            I VINTER-modus (varme): Endre til kjøling når temperatur i rommet er så mange grader over eller lik aktuelt settpunkt.
             Sikrer at rommet ikke blir for varmt selv om vintermodus foretrekker varme.
             Default 2°C.
           default: 2
@@ -293,7 +293,7 @@ blueprint:
           description: >
             VINTER (varme) modus, med tvungen kjøling aktiv: Endre tilbake til normal drift varme når temperatur i rommet er så mange grader over aktuelt settpunkt.
             Vekslingen beregnes fra terskelen som slo tvungen kjøling på.
-            Eks: Ved settpunkt 21 og standard terskel 2 starter tvungen kjøling over 23 grader, og veksler tilbake til normaldrift når temperatur synker til 22 grader.
+            Eks: Ved settpunkt 21 og standard terskel 2 starter tvungen kjøling ved 23 grader eller høyere, og veksler tilbake til normaldrift når temperatur synker til 22 grader.
             Default 1°C.
           default: 1
           selector:
@@ -626,7 +626,7 @@ actions:
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
             {% set grense = inum_kjoling_sommer_kaldt_grense | float(2) %}
-            {{ temp < (setp - grense) }}
+            {{ temp <= (setp - grense) }}
           summer_force_heat_keep: >-
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
@@ -637,7 +637,7 @@ actions:
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
             {% set grense = inum_kjoling_vinter_varmt_grense | float(2) %}
-            {{ temp > (setp + grense) }}
+            {{ temp >= (setp + grense) }}
           winter_allow_cool_keep: >-
             {% set temp = iclimate_varme_rt_pv | float(0) %}
             {% set setp = iclimate_varme_rt_spk | float(0) %}
