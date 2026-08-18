@@ -142,8 +142,18 @@ Automasjonen kjøres hvert 10. minutt og ved endringer i settpunkt eller driftsm
 12. Hvis sekundær varmepumpe-entitet er satt, sjekkes den 30 sekunder etterpå og manglende modus/settpunkt/vifte skrives dit også
 
 **Kjølelogikk (krever driftsmodus-automasjonen):**
-- VINTER-modus: kjøler normalt ikke. Nødoverkobling slår inn ved romtemp > settpunkt + terskel.
-- SOMMER-modus: kjøler normalt. Tvungen varme slår inn ved romtemp < settpunkt − terskel.
+
+Modus bestemmes basert på `preset_mode` fra overordnet climate (rom_climate):
+
+| Preset | Modus |
+|--------|-------|
+| `frost` | Alltid `heat` |
+| `shedding` (Versatile Thermostat nedstengning) | Alltid `heat` |
+| `manual` | Ingen endring – bruker styrer hvac-modus selv. Unntak: er modus `off`, settes den til `heat` |
+| `eco`, `comfort`, `boost` | Automatisk logikk (VINTER/SOMMER + hysterese, se nedenfor) |
+
+- **VINTER-modus (eco/comfort/boost):** kjøler normalt ikke. Nødoverkobling slår inn ved romtemp > settpunkt + terskel.
+- **SOMMER-modus (eco/comfort/boost):** kjøler normalt. Tvungen varme slår inn ved romtemp < settpunkt − terskel.
 
 ### 6.1 Vifte boost
 
@@ -305,7 +315,16 @@ Kjøretid og triggere:
 
 **Kjølelogikk – oversikt:**
 
-VINTER (default = heat):
+**Preset-basert forvalg (sjekkes alltid først):**
+
+| Preset (rom_climate) | Resultat |
+|---|---|
+| `frost` | Alltid `heat` |
+| `shedding` | Alltid `heat` |
+| `manual` | Beholder gjeldende modus. Er modus `off` → setter `heat` |
+| `eco`, `comfort`, `boost` | Automatisk logikk (VINTER/SOMMER nedenfor) |
+
+VINTER (default = heat, eco/comfort/boost):
 
 | Tilstand | Resultat |
 |---|---|
@@ -314,7 +333,7 @@ VINTER (default = heat):
 | Aktiv kjøle-override og romtemp > (settpunkt + grense) − hysterese | `cool` (override holdes) |
 | Ellers | `heat` (override AV) |
 
-SOMMER (default = cool):
+SOMMER (default = cool, eco/comfort/boost):
 
 | Tilstand | Resultat |
 |---|---|

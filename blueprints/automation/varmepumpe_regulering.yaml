@@ -38,7 +38,12 @@ blueprint:
 
     Kjøling (valgfri):
     Aktiver kjøling for å la varmepumpa automatisk bytte mellom heat og cool.
-      - Ved gyldig driftsmodus styrer VINTER/SOMMER default-modus.
+      - Preset-basert modus-styring (rom_climate preset_mode):
+          - frost / shedding: alltid heat (uansett årstid/temperaturer).
+          - eco / comfort / boost: automatisk logikk (VINTER/SOMMER + hysterese).
+          - manual: automasjonen endrer ikke modus; bruker styrer selv.
+            Unntak: er modus «off», settes den til heat.
+      - Ved gyldig driftsmodus styrer VINTER/SOMMER default-modus (eco/comfort/boost).
       - Override aktiveres kun ved for kaldt/for varmt avvik fra settpunkt.
       - Hysterese brukes for å skru override AV igjen, for å unngå modus-flapping.
       - Ugyldig driftsmodus: varmepumpa holdes i heat-modus.
@@ -61,7 +66,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_varmepumpe_regulering.md
 
-    Blueprint versjon: 2026.08.03
+    Blueprint versjon: 2026.08.04
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varmepumpe_regulering.yaml
   author: WebHome
@@ -645,8 +650,25 @@ actions:
             {% set comfort = iclimate_varme_rt_sp_comfort_spkifnocomfort | float(setp) %}
             {{ setp >= comfort }}
       - variables:
+          # Preset-klassifisering for overordnet climate (rom_climate)
+          rom_preset: "{{ iclimate_varme_presetmode | string | lower | trim }}"
+      - variables:
+          # frost eller shedding (nedstengning fra Versatile Thermostat) → alltid heat
+          rom_preset_is_frost_or_shedding: "{{ rom_preset in ['frost', 'shedding'] }}"
+          # manual → bruker styrer hvac-modus selv, automasjonen endrer ikke modus
+          rom_preset_is_manual: "{{ rom_preset == 'manual' }}"
+      - variables:
           onsket_mode: >-
-            {% if not drift_available %}
+            {% if rom_preset_is_frost_or_shedding %}
+              heat
+            {% elif rom_preset_is_manual %}
+              {# Manuell: behold eksisterende modus. Off er ikke en gyldig kjøre-modus → fall tilbake til heat. #}
+              {% if iclimate_varmepumpe_mode in ['heat', 'cool'] %}
+                {{ iclimate_varmepumpe_mode }}
+              {% else %}
+                heat
+              {% endif %}
+            {% elif not drift_available %}
               heat
             {% elif drift_is_sommer %}
               {% if not WantCool_SetpointComfOrHihger %}
