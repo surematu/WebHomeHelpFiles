@@ -96,10 +96,10 @@ Nei, debug-varsler (Pushover) er av som standard. Aktiver med innstillingen «Ak
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Aktiver kjøling | false | Aktiver sesongbasert bytte mellom varme og kjøling |
-| SOMMER – hysterese kjøling av (°C) | 1 | Romtemp-stigning over ON-terskel før tvungen varme avsluttes |
-| VINTER – hysterese kjøling av (°C) | 1 | Romtemp-fall over ON-terskel før tvungen kjøling avsluttes |
-| SOMMER – tvungen varme-terskel (°C) | 2 | Tving varme når romtemp er mer enn X under settpunktet |
-| VINTER – tvungen kjøle-terskel (°C) | 2 | Tillat kjøling som nødoverkobling når romtemp er X over settpunktet |
+| SOMMER – hysterese kjøling av (°C) | 1 | I SOMMER (kjøling), med tvungen varme aktiv: Endre tilbake til normal drift kjøling. Vekslingen beregnes fra terskelen som slo tvungen varme på (eks. settpunkt 20 og terskel 2: varme starter under 18, tilbake ved 19) |
+| VINTER – hysterese kjøling av (°C) | 1 | I VINTER (varme), med tvungen kjøling aktiv: Endre tilbake til normal drift varme. Vekslingen beregnes fra terskelen som slo tvungen kjøling på (eks. settpunkt 21 og terskel 2: kjøling starter over 23, tilbake ved 22) |
+| SOMMER – tvungen varme-terskel (°C) | 2 | I SOMMER-modus (kjøling): Endre til varme når temperatur i rommet er så mange grader under aktuelt settpunkt |
+| VINTER – tvungen kjøle-terskel (°C) | 2 | I VINTER-modus (varme): Endre til kjøling når temperatur i rommet er så mange grader over aktuelt settpunkt |
 
 ### Panelovn
 
