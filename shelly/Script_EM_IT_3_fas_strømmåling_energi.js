@@ -1,7 +1,9 @@
-// Tittel: IT 3 fas energikalkulering målt 2 faser - V1
+// Tittel: IT 3 fas energikalkulering målt 2 faser - V2
 // Shelly Pro 3EM - beregnet effekt og energi for 230 V IT-nett
 // Virtuelle komponenter opprettes automatisk dersom de mangler.
 // Komponentene finnes og brukes etter navn.
+// Changelog:
+// V2 - 02.09.2026 - Endret fra kw til w på effekt
 
 let EM_ID = 0;
 
@@ -47,8 +49,8 @@ let VIRTUAL_COMPONENTS = [
       meta: {
         ui: {
           view: "label",
-          unit: "kW",
-          step: 0.1,
+          unit: "W",
+          step: 1,
           icon: "power"
         }
       }
@@ -95,9 +97,9 @@ function validVoltage(value) {
     value <= MAX_VALID_VOLTAGE;
 }
 
-// Effekt vises med én desimal.
+// Effekt vises i hele watt.
 function roundPower(value) {
-  return Math.round(value * 10) / 10;
+  return Math.round(value * 1000);
 }
 
 // Energi vises uten desimaler.

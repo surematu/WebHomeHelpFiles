@@ -1,4 +1,4 @@
-// Tittel: IT 3 fas energikalkulering målt 1 fas, 2ch - V2.1
+// Tittel: IT 3 fas energikalkulering målt 1 fas, 2ch - V3
 // Shelly Pro EM-50
 // Two separate, balanced three-phase loads on a 230 V IT network.
 //
@@ -9,8 +9,9 @@
 // The current is assumed equal in all three conductors.
 //
 // P = sqrt(3) × U × I × power factor
-// Endringslogg:
-// V2: Changed how we display the names in virtual components.
+// Changelog:
+// V2 - 02.09.2026: Changed how we display the names in virtual components.
+// V3 - 02.09.2026 - Endret fra kw til w på effekt
 
 // Type the desired name for each measured load here. Example "VVB K2" in NAME_B will create "VVB K2 - Effekt kalkulert (.2)"
 let NAME_A = "VVB K1";
@@ -64,8 +65,8 @@ let VIRTUAL_COMPONENTS = [
       meta: {
         ui: {
           view: "label",
-          unit: "kW",
-          step: 0.1,
+          unit: "W",
+          step: 1,
           icon: "power"
         }
       }
@@ -104,8 +105,8 @@ let VIRTUAL_COMPONENTS = [
       meta: {
         ui: {
           view: "label",
-          unit: "kW",
-          step: 0.1,
+          unit: "W",
+          step: 1,
           icon: "power"
         }
       }
@@ -149,9 +150,9 @@ function validCurrent(value) {
     value >= 0;
 }
 
-// Power is displayed with one decimal.
+// Power is displayed in whole watts.
 function roundPower(value) {
-  return Math.round(value * 10) / 10;
+  return Math.round(value * 1000);
 }
 
 // Energy is displayed without decimals.
