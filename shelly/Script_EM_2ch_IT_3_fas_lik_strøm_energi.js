@@ -64,8 +64,8 @@ let VIRTUAL_COMPONENTS = [
       meta: {
         ui: {
           view: "label",
-          unit: "kW",
-          step: 0.1,
+          unit: "W",
+          step: 1,
           icon: "power"
         }
       }
@@ -104,8 +104,8 @@ let VIRTUAL_COMPONENTS = [
       meta: {
         ui: {
           view: "label",
-          unit: "kW",
-          step: 0.1,
+          unit: "W",
+          step: 1,
           icon: "power"
         }
       }
@@ -149,9 +149,9 @@ function validCurrent(value) {
     value >= 0;
 }
 
-// Power is displayed with one decimal.
+// Power is displayed in whole watts.
 function roundPower(value) {
-  return Math.round(value * 10) / 10;
+  return Math.round(value * 1000);
 }
 
 // Energy is displayed without decimals.

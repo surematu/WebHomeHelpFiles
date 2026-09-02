@@ -47,8 +47,8 @@ let VIRTUAL_COMPONENTS = [
       meta: {
         ui: {
           view: "label",
-          unit: "kW",
-          step: 0.1,
+          unit: "W",
+          step: 1,
           icon: "power"
         }
       }
@@ -95,9 +95,9 @@ function validVoltage(value) {
     value <= MAX_VALID_VOLTAGE;
 }
 
-// Effekt vises med én desimal.
+// Effekt vises i hele watt.
 function roundPower(value) {
-  return Math.round(value * 10) / 10;
+  return Math.round(value * 1000);
 }
 
 // Energi vises uten desimaler.
