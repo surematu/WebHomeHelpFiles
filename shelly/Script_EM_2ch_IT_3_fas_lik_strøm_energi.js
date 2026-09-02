@@ -1,4 +1,4 @@
-// Tittel: IT 3 fas energikalkulering målt 1 fas, 2ch - V2
+// Tittel: IT 3 fas energikalkulering målt 1 fas, 2ch - V2.1
 // Shelly Pro EM-50
 // Two separate, balanced three-phase loads on a 230 V IT network.
 //
@@ -10,14 +10,11 @@
 //
 // P = sqrt(3) × U × I × power factor
 // Endringslogg:
-// V2: Changed how
+// V2: Changed how we display the names in virtual components.
 
-let CHANNEL_A_ID = 0;
-let CHANNEL_B_ID = 1;
-
-// Type the desired name for each measured load here.
-let NAME_A = "Snø Q1-2";
-let NAME_B = "Snø Q3-4";
+// Type the desired name for each measured load here. Example "VVB K2" in NAME_B will create "VVB K2 - Effekt kalkulert (.2)"
+let NAME_A = "VVB K1";
+let NAME_B = "VVB K2";
 
 // Resistive loads normally have a power factor close to 1.
 let ASSUMED_POWER_FACTOR_A = 1.00;
@@ -353,16 +350,18 @@ function sample() {
 
   lastSampleMs = nowMs;
 
+  // Always use the default EM-50 channels:
+  // em1:0 for channel .1 and em1:1 for channel .2.
   let channelA =
     Shelly.getComponentStatus(
       "em1",
-      CHANNEL_A_ID
+      0
     );
 
   let channelB =
     Shelly.getComponentStatus(
       "em1",
-      CHANNEL_B_ID
+      1
     );
 
   if (
