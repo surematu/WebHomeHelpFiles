@@ -1,3 +1,4 @@
+// Erstattet av https://github.com/surematu/WebHomeHelpFiles/blob/main/shelly/Script_EM_2ch_IT.js
 // Tittel: IT 3 fas energikalkulering målt 1 fas, 2ch - V3
 // Shelly Pro EM-50
 // Two separate, balanced three-phase loads on a 230 V IT network.
