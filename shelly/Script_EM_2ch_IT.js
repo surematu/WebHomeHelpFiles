@@ -94,7 +94,7 @@ let VIRTUAL_COMPONENTS = [
         ui: {
           view: "label",
           unit: "kWh",
-          step: 1,
+          step: 0.001,
           icon: "power"
         }
       }
@@ -134,7 +134,7 @@ let VIRTUAL_COMPONENTS = [
         ui: {
           view: "label",
           unit: "kWh",
-          step: 1,
+          step: 0.001,
           icon: "power"
         }
       }
@@ -165,7 +165,7 @@ function validPhaseMode(value) {
 
 function validConfiguredCosPhi(value) {
   return value === -1 ||
-    (isNumber(value) && value >= -1 && value <= 1);
+    (isNumber(value) && value >= 0 && value <= 1);
 }
 
 function validMeasuredCosPhi(value) {
@@ -174,12 +174,12 @@ function validMeasuredCosPhi(value) {
     value <= 1;
 }
 
-function roundPower(value) {
+function roundPowerW(value) {
   return Math.round(value * 1000);
 }
 
-function roundEnergy(value) {
-  return Math.round(value);
+function roundEnergyKwh(value) {
+  return Math.round(value * 1000) / 1000;
 }
 
 function validName(value) {
@@ -204,7 +204,7 @@ function validateSettings() {
   }
 
   if (!validConfiguredCosPhi(COS_PHI_A) || !validConfiguredCosPhi(COS_PHI_B)) {
-    print("ERROR: COS_PHI_A and COS_PHI_B must be -1 or a number between -1 and 1");
+    print("ERROR: COS_PHI_A and COS_PHI_B must be -1 or a number between 0 and 1");
     return false;
   }
 
@@ -358,7 +358,7 @@ function sample() {
       energyAKwh += powerAKw * elapsedHours;
     }
 
-    powerVcA.setValue(roundPower(powerAKw));
+    powerVcA.setValue(roundPowerW(powerAKw));
   }
 
   if (powerBKw !== null) {
@@ -366,12 +366,12 @@ function sample() {
       energyBKwh += powerBKw * elapsedHours;
     }
 
-    powerVcB.setValue(roundPower(powerBKw));
+    powerVcB.setValue(roundPowerW(powerBKw));
   }
 
   if (nowMs - lastDisplayMs >= ENERGY_DISPLAY_INTERVAL_MS) {
-    energyVcA.setValue(roundEnergy(energyAKwh));
-    energyVcB.setValue(roundEnergy(energyBKwh));
+    energyVcA.setValue(roundEnergyKwh(energyAKwh));
+    energyVcB.setValue(roundEnergyKwh(energyBKwh));
     lastDisplayMs = nowMs;
   }
 
@@ -397,8 +397,8 @@ function startCalculation() {
   lastDisplayMs = lastSampleMs;
   lastSaveMs = lastSampleMs;
 
-  energyVcA.setValue(roundEnergy(energyAKwh));
-  energyVcB.setValue(roundEnergy(energyBKwh));
+  energyVcA.setValue(roundEnergyKwh(energyAKwh));
+  energyVcB.setValue(roundEnergyKwh(energyBKwh));
 
   sample();
   Timer.set(SAMPLE_INTERVAL_MS, true, sample);
