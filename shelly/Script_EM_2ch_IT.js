@@ -388,6 +388,8 @@ function sample() {
     }
 
     powerVcA.setValue(convertPowerKwToW(powerAKw));
+  } else {
+    powerVcA.setValue(0);
   }
 
   if (powerBKw !== null) {
@@ -396,6 +398,8 @@ function sample() {
     }
 
     powerVcB.setValue(convertPowerKwToW(powerBKw));
+  } else {
+    powerVcB.setValue(0);
   }
 
   if (nowMs - lastDisplayMs >= ENERGY_DISPLAY_INTERVAL_MS) {
