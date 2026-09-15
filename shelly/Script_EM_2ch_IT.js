@@ -8,13 +8,14 @@ let PHASE_MODE_B = 3;
 
 // -1 = use measured cos phi.
 // Example 1.00 = use assumed cos phi.
-let COS_PHI_A = 1.00;
-let COS_PHI_B = 1.00;
+let COS_PHI_A = 0.90;
+let COS_PHI_B = 0.90;
 
-let CALIBRATION_FACTOR_A = 1.00;
-let CALIBRATION_FACTOR_B = 1.00;
+let CALIBRATION_FACTOR_A = 0.95;
+let CALIBRATION_FACTOR_B = 0.95;
 
 // Tittel: IT 2ch energikalk (2-fas/3-fas per kanal) - V1
+// Link: https://github.com/surematu/WebHomeHelpFiles/edit/main/shelly/Script_EM_2ch_IT.js
 // Shelly Pro EM-50
 //
 // Two separate loads on a 230 V IT network.
