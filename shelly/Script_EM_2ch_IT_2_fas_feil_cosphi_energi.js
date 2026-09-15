@@ -1,12 +1,8 @@
 // Tittel: IT 3 fas energikalkulering målt 1 fas, 2ch - V3
 // Shelly Pro EM-50
-// Two separate, balanced three-phase loads on a 230 V IT network.
-//
-// Clamp A: em1:0
-// Clamp B: em1:1
+// Two separate, balanced one-phase loads on a 230 V IT network. Not correct or same voltage reference so it has to assume cosphi, and calculate energy and power.
 //
 // One conductor is measured for each load.
-// The current is assumed equal in all three conductors.
 //
 // P = sqrt(3) × U × I × power factor
 // Changelog:
