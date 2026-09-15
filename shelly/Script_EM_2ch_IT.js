@@ -171,12 +171,12 @@ function validConfiguredCosPhi(value) {
 
 function validMeasuredCosPhi(value) {
   return isNumber(value) &&
-    value >= -1 &&
+    value >= 0 &&
     value <= 1;
 }
 
-function roundPowerW(value) {
-  return Math.round(value * 1000);
+function convertPowerKwToW(value) {
+  return value * 1000;
 }
 
 function roundEnergyKwh(value) {
@@ -206,6 +206,26 @@ function validateSettings() {
 
   if (!validConfiguredCosPhi(COS_PHI_A) || !validConfiguredCosPhi(COS_PHI_B)) {
     print("ERROR: COS_PHI_A and COS_PHI_B must be -1 or a number between 0 and 1");
+    return false;
+  }
+
+  if (
+    !isNumber(CALIBRATION_FACTOR_A) ||
+    !isNumber(CALIBRATION_FACTOR_B) ||
+    CALIBRATION_FACTOR_A < 0 ||
+    CALIBRATION_FACTOR_B < 0
+  ) {
+    print("ERROR: CALIBRATION_FACTOR_A and CALIBRATION_FACTOR_B must be numbers >= 0");
+    return false;
+  }
+
+  if (
+    !isNumber(INITIAL_ENERGY_A_KWH) ||
+    !isNumber(INITIAL_ENERGY_B_KWH) ||
+    INITIAL_ENERGY_A_KWH < 0 ||
+    INITIAL_ENERGY_B_KWH < 0
+  ) {
+    print("ERROR: INITIAL_ENERGY_A_KWH and INITIAL_ENERGY_B_KWH must be numbers >= 0");
     return false;
   }
 
@@ -367,7 +387,7 @@ function sample() {
       energyAKwh += powerAKw * elapsedHours;
     }
 
-    powerVcA.setValue(roundPowerW(powerAKw));
+    powerVcA.setValue(convertPowerKwToW(powerAKw));
   }
 
   if (powerBKw !== null) {
@@ -375,7 +395,7 @@ function sample() {
       energyBKwh += powerBKw * elapsedHours;
     }
 
-    powerVcB.setValue(roundPowerW(powerBKw));
+    powerVcB.setValue(convertPowerKwToW(powerBKw));
   }
 
   if (nowMs - lastDisplayMs >= ENERGY_DISPLAY_INTERVAL_MS) {
