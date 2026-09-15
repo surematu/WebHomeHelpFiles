@@ -16,7 +16,6 @@ let NAME_B = "VVB K2";
 // Resistive loads normally have a power factor close to 1.
 let ASSUMED_POWER_FACTOR_A = 1.00;
 let ASSUMED_POWER_FACTOR_B = 1.00;
-let ASSUMED_VOLTAGE = 230;
 
 // Adjust individually if comparison with another meter shows deviation.
 let CALIBRATION_FACTOR_A = 1.00;
@@ -28,6 +27,8 @@ let INITIAL_ENERGY_B_KWH = 0.0;
 let SAMPLE_INTERVAL_MS = 1000;
 let ENERGY_DISPLAY_INTERVAL_MS = 10000;
 let ENERGY_SAVE_INTERVAL_MS = 60000;
+let MIN_VALID_VOLTAGE = 100;
+let MAX_VALID_VOLTAGE = 280;
 
 let powerVcA = null;
 let energyVcA = null;
@@ -134,6 +135,12 @@ function isNumber(value) {
 function validCurrent(value) {
   return isNumber(value) &&
     value >= 0;
+}
+
+function validVoltage(value) {
+  return isNumber(value) &&
+    value >= MIN_VALID_VOLTAGE &&
+    value <= MAX_VALID_VOLTAGE;
 }
 
 // Power is displayed in whole watts.
@@ -284,14 +291,12 @@ function saveEnergy() {
 }
 
 function calculatePowerKw(
+  voltage,
   current,
   powerFactor,
   calibrationFactor
 ) {
-  if (
-    !isNumber(ASSUMED_VOLTAGE) ||
-    ASSUMED_VOLTAGE <= 0
-  ) {
+  if (!validVoltage(voltage)) {
     return null;
   }
 
@@ -299,7 +304,7 @@ function calculatePowerKw(
     return null;
   }
 
-  return ASSUMED_VOLTAGE *
+  return voltage *
     current *
     powerFactor *
     calibrationFactor /
@@ -345,6 +350,7 @@ function sample() {
 
   if (channelA !== null) {
     powerAKw = calculatePowerKw(
+      channelA.voltage,
       channelA.current,
       ASSUMED_POWER_FACTOR_A,
       CALIBRATION_FACTOR_A
@@ -353,6 +359,7 @@ function sample() {
 
   if (channelB !== null) {
     powerBKw = calculatePowerKw(
+      channelB.voltage,
       channelB.current,
       ASSUMED_POWER_FACTOR_B,
       CALIBRATION_FACTOR_B
