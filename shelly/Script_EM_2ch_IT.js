@@ -77,8 +77,9 @@ let VIRTUAL_COMPONENTS = [
           view: "label",
           unit: "W",
           step: 1,
-          icon: "power"
-        }
+          webIcon: "power"
+        },
+        cloud: ["measurement", "log"]
       }
     }
   },
@@ -97,8 +98,9 @@ let VIRTUAL_COMPONENTS = [
           view: "label",
           unit: "kWh",
           step: 0.001,
-          icon: "power"
-        }
+          webIcon: "power"
+        },
+        cloud: ["measurement", "log"]
       }
     }
   },
@@ -117,8 +119,9 @@ let VIRTUAL_COMPONENTS = [
           view: "label",
           unit: "W",
           step: 1,
-          icon: "power"
-        }
+          webIcon: "power"
+        },
+        cloud: ["measurement", "log"]
       }
     }
   },
@@ -137,8 +140,9 @@ let VIRTUAL_COMPONENTS = [
           view: "label",
           unit: "kWh",
           step: 0.001,
-          icon: "power"
-        }
+          webIcon: "power"
+        },
+        cloud: ["measurement", "log"]
       }
     }
   }
