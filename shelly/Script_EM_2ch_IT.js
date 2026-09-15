@@ -3,6 +3,7 @@
 //
 // Two separate loads on a 230 V IT network.
 // One conductor is measured for each load.
+// Example: NAME_B = "VVB K2" creates "VVB K2 - Effekt kalkulert (ch2)".
 //
 // Per channel you can choose:
 // - 2-phase estimate: P = U × I × cos phi
@@ -62,10 +63,10 @@ let warnedCosPhiB = false;
 let VIRTUAL_COMPONENTS = [
   {
     role: "power_a",
-    name: NAME_A + " - Effekt kalkulert (.1)",
+    name: NAME_A + " - Effekt kalkulert (ch1)",
     type: "number",
     config: {
-      name: NAME_A + " - Effekt kalkulert (.1)",
+      name: NAME_A + " - Effekt kalkulert (ch1)",
       min: 0,
       max: 100000,
       default_value: 0,
@@ -82,10 +83,10 @@ let VIRTUAL_COMPONENTS = [
   },
   {
     role: "energy_a",
-    name: NAME_A + " - Energi kalkulert (.1)",
+    name: NAME_A + " - Energi kalkulert (ch1)",
     type: "number",
     config: {
-      name: NAME_A + " - Energi kalkulert (.1)",
+      name: NAME_A + " - Energi kalkulert (ch1)",
       min: 0,
       max: 1000000000,
       default_value: 0,
@@ -102,10 +103,10 @@ let VIRTUAL_COMPONENTS = [
   },
   {
     role: "power_b",
-    name: NAME_B + " - Effekt kalkulert (.2)",
+    name: NAME_B + " - Effekt kalkulert (ch2)",
     type: "number",
     config: {
-      name: NAME_B + " - Effekt kalkulert (.2)",
+      name: NAME_B + " - Effekt kalkulert (ch2)",
       min: 0,
       max: 100000,
       default_value: 0,
@@ -122,10 +123,10 @@ let VIRTUAL_COMPONENTS = [
   },
   {
     role: "energy_b",
-    name: NAME_B + " - Energi kalkulert (.2)",
+    name: NAME_B + " - Energi kalkulert (ch2)",
     type: "number",
     config: {
-      name: NAME_B + " - Energi kalkulert (.2)",
+      name: NAME_B + " - Energi kalkulert (ch2)",
       min: 0,
       max: 1000000000,
       default_value: 0,
@@ -272,6 +273,14 @@ function resolveCosPhi(channel, configuredCosPhi, channelLabel) {
   }
 
   if (channel !== null && validMeasuredCosPhi(channel.cosphi)) {
+    if (channelLabel === "A") {
+      warnedCosPhiA = false;
+    }
+
+    if (channelLabel === "B") {
+      warnedCosPhiB = false;
+    }
+
     return channel.cosphi;
   }
 
