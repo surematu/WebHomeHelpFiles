@@ -20,7 +20,7 @@ let CALIBRATION_FACTOR_B = 0.95;
 //
 // Two separate loads on a 230 V IT network.
 // One conductor is measured for each load.
-// Example: NAME_B = "VVB K2" creates "VVB K2 - Effekt kalkulert (ch2)".
+// Example: NAME_B = "VVB K2" creates "VVB K2 - Effekt kalkulert".
 //
 // Per channel you can choose:
 // - 2-phase estimate: P = U × I × cos phi
@@ -64,10 +64,10 @@ let warnedCosPhiB = false;
 let VIRTUAL_COMPONENTS = [
   {
     role: "power_a",
-    name: NAME_A + " - Effekt kalkulert (ch1)",
+    name: NAME_A + " - Effekt kalkulert",
     type: "number",
     config: {
-      name: NAME_A + " - Effekt kalkulert (ch1)",
+      name: NAME_A + " - Effekt kalkulert",
       min: 0,
       max: 100000,
       default_value: 0,
@@ -84,10 +84,10 @@ let VIRTUAL_COMPONENTS = [
   },
   {
     role: "energy_a",
-    name: NAME_A + " - Energi kalkulert (ch1)",
+    name: NAME_A + " - Energi kalkulert",
     type: "number",
     config: {
-      name: NAME_A + " - Energi kalkulert (ch1)",
+      name: NAME_A + " - Energi kalkulert",
       min: 0,
       max: 1000000000,
       default_value: 0,
@@ -104,10 +104,10 @@ let VIRTUAL_COMPONENTS = [
   },
   {
     role: "power_b",
-    name: NAME_B + " - Effekt kalkulert (ch2)",
+    name: NAME_B + " - Effekt kalkulert",
     type: "number",
     config: {
-      name: NAME_B + " - Effekt kalkulert (ch2)",
+      name: NAME_B + " - Effekt kalkulert",
       min: 0,
       max: 100000,
       default_value: 0,
@@ -124,10 +124,10 @@ let VIRTUAL_COMPONENTS = [
   },
   {
     role: "energy_b",
-    name: NAME_B + " - Energi kalkulert (ch2)",
+    name: NAME_B + " - Energi kalkulert",
     type: "number",
     config: {
-      name: NAME_B + " - Energi kalkulert (ch2)",
+      name: NAME_B + " - Energi kalkulert",
       min: 0,
       max: 1000000000,
       default_value: 0,
