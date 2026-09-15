@@ -4,7 +4,7 @@
 //
 // One conductor is measured for each load.
 //
-// P = sqrt(3) × U × I × power factor
+// P = U × I × power factor
 // Changelog:
 // V2 - 02.09.2026: Changed how we display the names in virtual components.
 // V3 - 02.09.2026 - Endret fra kw til w på effekt
@@ -16,6 +16,7 @@ let NAME_B = "VVB K2";
 // Resistive loads normally have a power factor close to 1.
 let ASSUMED_POWER_FACTOR_A = 1.00;
 let ASSUMED_POWER_FACTOR_B = 1.00;
+let ASSUMED_VOLTAGE = 230;
 
 // Adjust individually if comparison with another meter shows deviation.
 let CALIBRATION_FACTOR_A = 1.00;
@@ -27,11 +28,6 @@ let INITIAL_ENERGY_B_KWH = 0.0;
 let SAMPLE_INTERVAL_MS = 1000;
 let ENERGY_DISPLAY_INTERVAL_MS = 10000;
 let ENERGY_SAVE_INTERVAL_MS = 60000;
-
-let MIN_VALID_VOLTAGE = 100;
-let MAX_VALID_VOLTAGE = 280;
-
-let SQRT_3 = 1.7320508075688772;
 
 let powerVcA = null;
 let energyVcA = null;
@@ -133,12 +129,6 @@ let VIRTUAL_COMPONENTS = [
 function isNumber(value) {
   return typeof value === "number" &&
     value === value;
-}
-
-function validVoltage(value) {
-  return isNumber(value) &&
-    value >= MIN_VALID_VOLTAGE &&
-    value <= MAX_VALID_VOLTAGE;
 }
 
 function validCurrent(value) {
@@ -293,36 +283,15 @@ function saveEnergy() {
   lastSaveMs = Shelly.getUptimeMs();
 }
 
-function selectVoltage(
-  channelA,
-  channelB
-) {
-  // Prefer voltage from channel A.
-  if (
-    channelA !== null &&
-    validVoltage(channelA.voltage)
-  ) {
-    return channelA.voltage;
-  }
-
-  // Use voltage from channel B if A is unavailable.
-  if (
-    channelB !== null &&
-    validVoltage(channelB.voltage)
-  ) {
-    return channelB.voltage;
-  }
-
-  return null;
-}
-
 function calculatePowerKw(
-  voltage,
   current,
   powerFactor,
   calibrationFactor
 ) {
-  if (!validVoltage(voltage)) {
+  if (
+    !isNumber(ASSUMED_VOLTAGE) ||
+    ASSUMED_VOLTAGE <= 0
+  ) {
     return null;
   }
 
@@ -330,8 +299,7 @@ function calculatePowerKw(
     return null;
   }
 
-  return SQRT_3 *
-    voltage *
+  return ASSUMED_VOLTAGE *
     current *
     powerFactor *
     calibrationFactor /
@@ -372,28 +340,11 @@ function sample() {
     return;
   }
 
-  // Both loads are assumed to have the same
-  // phase-to-phase voltage.
-  let commonVoltage =
-    selectVoltage(
-      channelA,
-      channelB
-    );
-
-  if (commonVoltage === null) {
-    print(
-      "ERROR: No valid voltage is available"
-    );
-
-    return;
-  }
-
   let powerAKw = null;
   let powerBKw = null;
 
   if (channelA !== null) {
     powerAKw = calculatePowerKw(
-      commonVoltage,
       channelA.current,
       ASSUMED_POWER_FACTOR_A,
       CALIBRATION_FACTOR_A
@@ -402,7 +353,6 @@ function sample() {
 
   if (channelB !== null) {
     powerBKw = calculatePowerKw(
-      commonVoltage,
       channelB.current,
       ASSUMED_POWER_FACTOR_B,
       CALIBRATION_FACTOR_B
@@ -514,7 +464,7 @@ function startCalculation() {
   );
 
   print(
-    "EM-50 three-phase IT calculation started"
+    "EM-50 one-phase IT calculation started"
   );
 }
 
