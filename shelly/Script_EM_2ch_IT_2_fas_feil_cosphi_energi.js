@@ -1,3 +1,5 @@
+// Erstattet av https://github.com/surematu/WebHomeHelpFiles/blob/main/shelly/Script_EM_2ch_IT.js
+
 // Tittel: IT 1 fas energikalk med feil cosphi, 2ch - V1
 // Shelly Pro EM-50
 // Two separate, balanced one-phase loads on a 230 V IT network. Not correct or same voltage reference so it has to assume cosphi, and calculate energy and power.
