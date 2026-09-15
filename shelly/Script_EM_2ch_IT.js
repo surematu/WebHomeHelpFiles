@@ -1,3 +1,19 @@
+// Setup variables
+let NAME_A = "VVB K1";
+let NAME_B = "VVB K2";
+
+// Select 2 or 3 for each channel.
+let PHASE_MODE_A = 3;
+let PHASE_MODE_B = 3;
+
+// -1 = use measured cos phi.
+// Example 1.00 = use assumed cos phi.
+let COS_PHI_A = 1.00;
+let COS_PHI_B = 1.00;
+
+let CALIBRATION_FACTOR_A = 1.00;
+let CALIBRATION_FACTOR_B = 1.00;
+
 // Tittel: IT 2ch energikalk (2-fas/3-fas per kanal) - V1
 // Shelly Pro EM-50
 //
@@ -17,22 +33,6 @@
 // If you use a fixed cos phi value, cos phi is assumed/estimated, not measured.
 // Changelog:
 // V1 - 15.09.2026: Opprettet
-
-let NAME_A = "VVB K1";
-let NAME_B = "VVB K2";
-
-// Select 2 or 3 for each channel.
-let PHASE_MODE_A = 3;
-let PHASE_MODE_B = 3;
-
-// -1 = use measured cos phi.
-// Example 1.00 = use assumed cos phi.
-let COS_PHI_A = 1.00;
-let COS_PHI_B = 1.00;
-
-let CALIBRATION_FACTOR_A = 1.00;
-let CALIBRATION_FACTOR_B = 1.00;
-
 let INITIAL_ENERGY_A_KWH = 0.0;
 let INITIAL_ENERGY_B_KWH = 0.0;
 
