@@ -175,6 +175,11 @@ function validMeasuredCosPhi(value) {
     value <= 1;
 }
 
+function validPositiveIntervalMs(value) {
+  return isNumber(value) &&
+    value > 0;
+}
+
 function convertPowerKwToW(value) {
   return value * 1000;
 }
@@ -229,13 +234,25 @@ function validateSettings() {
     return false;
   }
 
+  if (
+    !validPositiveIntervalMs(SAMPLE_INTERVAL_MS) ||
+    !validPositiveIntervalMs(ENERGY_DISPLAY_INTERVAL_MS) ||
+    !validPositiveIntervalMs(ENERGY_SAVE_INTERVAL_MS)
+  ) {
+    print("ERROR: SAMPLE_INTERVAL_MS, ENERGY_DISPLAY_INTERVAL_MS and ENERGY_SAVE_INTERVAL_MS must be > 0");
+    return false;
+  }
+
   return true;
 }
 
 function restoreStoredNumber(storageKey, fallbackValue) {
   let stored = Script.storage.getItem(storageKey);
 
-  if (stored === null) {
+  if (
+    stored === null ||
+    stored === undefined
+  ) {
     return fallbackValue;
   }
 
