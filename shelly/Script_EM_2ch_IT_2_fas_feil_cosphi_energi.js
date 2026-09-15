@@ -1,4 +1,4 @@
-// Tittel: IT 3 fas energikalkulering målt 1 fas, 2ch - V3
+// Tittel: IT 1 fas energikalkulering med feil cosphi, 2ch - V1
 // Shelly Pro EM-50
 // Two separate, balanced one-phase loads on a 230 V IT network. Not correct or same voltage reference so it has to assume cosphi, and calculate energy and power.
 //
@@ -6,8 +6,7 @@
 //
 // P = U × I × power factor
 // Changelog:
-// V2 - 02.09.2026: Changed how we display the names in virtual components.
-// V3 - 02.09.2026 - Endret fra kw til w på effekt
+// V1 - 15.09.2026: Opprettet
 
 // Type the desired name for each measured load here. Example "VVB K2" in NAME_B will create "VVB K2 - Effekt kalkulert (.2)"
 let NAME_A = "VVB K1";
