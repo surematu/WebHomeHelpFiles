@@ -9,6 +9,7 @@ let CALIBRATION_FACTOR = 1.00;
 // Virtuelle komponenter opprettes automatisk dersom de mangler.
 // Komponentene finnes og brukes etter navn.
 // Changelog:
+// V2 - 02.09.2026 - Endret fra kw til w på effekt
 // V2.1 - 16.09.2026 - Flyttet oppsettvariabler og gjorde EM/navn statiske uten fallback for målt power factor
 
 // Startverdi dersom ingen energi er lagret tidligere.
@@ -20,7 +21,7 @@ let ENERGY_SAVE_INTERVAL_MS = 60000;
 
 let MIN_VALID_VOLTAGE = 100;
 let MAX_VALID_VOLTAGE = 280;
-let MIN_VALID_COS_PHI = 0;
+let MIN_VALID_COS_PHI = 0.8;
 let MAX_VALID_COS_PHI = 1;
 let SQRT_3 = 1.7320508075688772;
 
