@@ -43,6 +43,9 @@ let ENERGY_SAVE_INTERVAL_MS = 60000;
 
 let MIN_VALID_VOLTAGE = 100;
 let MAX_VALID_VOLTAGE = 280;
+// Used only for measured cos phi values.
+let MIN_VALID_MEASURED_COS_PHI = 0;
+let MAX_VALID_MEASURED_COS_PHI = 1;
 let SQRT_3 = 1.7320508075688772;
 
 let powerVcA = null;
@@ -176,8 +179,8 @@ function validConfiguredCosPhi(value) {
 
 function validMeasuredCosPhi(value) {
   return isNumber(value) &&
-    value >= 0 &&
-    value <= 1;
+    value >= MIN_VALID_MEASURED_COS_PHI &&
+    value <= MAX_VALID_MEASURED_COS_PHI;
 }
 
 function validPositiveIntervalMs(value) {
