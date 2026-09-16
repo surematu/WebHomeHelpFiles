@@ -1,7 +1,4 @@
 // Setup variables
-let POWER_VC_NAME = "Effekt kalkulert";
-let ENERGY_VC_NAME = "Energi kalkulert";
-
 // -1 = use measured cos phi.
 // Example 1.00 = use assumed power factor.
 let ASSUMED_POWER_FACTOR = 1.00;
@@ -12,7 +9,7 @@ let CALIBRATION_FACTOR = 1.00;
 // Virtuelle komponenter opprettes automatisk dersom de mangler.
 // Komponentene finnes og brukes etter navn.
 // Changelog:
-// V2.1 - 16.09.2026 - Flyttet oppsettvariabler og fjernet fallback for målt power factor
+// V2.1 - 16.09.2026 - Flyttet oppsettvariabler og gjorde EM/navn statiske uten fallback for målt power factor
 
 // Startverdi dersom ingen energi er lagret tidligere.
 let INITIAL_ENERGY_KWH = 0.0;
@@ -39,10 +36,10 @@ let warnedPowerFactor = false;
 let VIRTUAL_COMPONENTS = [
   {
     role: "power",
-    name: POWER_VC_NAME,
+    name: "Effekt kalkulert",
     type: "number",
     config: {
-      name: POWER_VC_NAME,
+      name: "Effekt kalkulert",
       min: 0,
       max: 100000,
       default_value: 0,
@@ -60,10 +57,10 @@ let VIRTUAL_COMPONENTS = [
   },
   {
     role: "energy",
-    name: ENERGY_VC_NAME,
+    name: "Energi kalkulert",
     type: "number",
     config: {
-      name: ENERGY_VC_NAME,
+      name: "Energi kalkulert",
       min: 0,
       max: 1000000000,
       default_value: 0,
@@ -118,11 +115,6 @@ function validPositiveIntervalMs(value) {
     value > 0;
 }
 
-function validName(value) {
-  return typeof value === "string" &&
-    value.length > 0;
-}
-
 // Effekt vises i hele watt.
 function roundPower(value) {
   return Math.round(value * 1000);
@@ -134,12 +126,6 @@ function roundEnergy(value) {
 }
 
 function validateSettings() {
-  if (!validName(POWER_VC_NAME) ||
-    !validName(ENERGY_VC_NAME)) {
-    print("FEIL: navn på virtuelle komponenter må være satt");
-    return false;
-  }
-
   if (!validPowerFactorSetting(ASSUMED_POWER_FACTOR)) {
     print("FEIL: ASSUMED_POWER_FACTOR må være -1 eller et tall større enn 0 og maks 1");
     return false;
