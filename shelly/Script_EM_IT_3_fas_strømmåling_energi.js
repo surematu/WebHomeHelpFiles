@@ -119,7 +119,7 @@ function validAssumedPowerFactor(value) {
 
 function validMeasuredPowerFactor(value) {
   return isNumber(value) &&
-    value >= -1 &&
+    value > -1 &&
     value <= 1;
 }
 
