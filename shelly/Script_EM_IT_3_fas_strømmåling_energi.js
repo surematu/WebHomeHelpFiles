@@ -119,7 +119,8 @@ function validAssumedPowerFactor(value) {
 
 function validMeasuredPowerFactor(value) {
   return isNumber(value) &&
-    Math.abs(value) <= 1;
+    value >= -1 &&
+    value <= 1;
 }
 
 function validPositiveIntervalMs(value) {
@@ -257,7 +258,7 @@ function addMeasuredPowerFactor(
   return {
     weightedPowerFactor:
       weightedPowerFactor +
-      current * Math.abs(powerFactor),
+      current * powerFactor,
     validPowerFactorCurrent:
       validPowerFactorCurrent +
       current
@@ -806,6 +807,12 @@ function findOrCreateVirtualComponents() {
   );
 }
 
-if (validateSettings()) {
+function initializeScript() {
+  if (!validateSettings()) {
+    return;
+  }
+
   findOrCreateVirtualComponents();
 }
+
+initializeScript();
