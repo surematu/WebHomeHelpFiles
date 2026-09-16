@@ -1,22 +1,20 @@
-// Tittel: IT 3 fas energikalkulering målt 2 faser - V2.1
-// Shelly Pro 3EM - beregnet effekt og energi for 230 V IT-nett
-// Virtuelle komponenter opprettes automatisk dersom de mangler.
-// Komponentene finnes og brukes etter navn.
-// -1 = bruk målt power factor.
-// Eksempel 1.00 = bruk antatt power factor.
-// Changelog:
-// V2.1 - 16.09.2026 - Justert power factor-oppsett, variabelnavn og struktur for bedre samsvar med Script_EM_2ch_IT.js
-
+// Setup variables
 let EM_ID = 0;
 
 let POWER_VC_NAME = "Effekt kalkulert";
 let ENERGY_VC_NAME = "Energi kalkulert";
 
-// Juster ved behov etter sammenligning med AMS/Elvia.
-let POWER_FACTOR = 1.00;
-// Brukes bare når POWER_FACTOR = -1 og målt verdi mangler.
-let FALLBACK_POWER_FACTOR = 1.00;
+// -1 = use measured cos phi.
+// Example 1.00 = use assumed power factor.
+let ASSUMED_POWER_FACTOR = 1.00;
 let CALIBRATION_FACTOR = 1.00;
+
+// Tittel: IT 3 fas energikalkulering målt 2 faser - V2.1
+// Shelly Pro 3EM - beregnet effekt og energi for 230 V IT-nett
+// Virtuelle komponenter opprettes automatisk dersom de mangler.
+// Komponentene finnes og brukes etter navn.
+// Changelog:
+// V2.1 - 16.09.2026 - Flyttet oppsettvariabler og fjernet fallback for målt power factor
 
 // Startverdi dersom ingen energi er lagret tidligere.
 let INITIAL_ENERGY_KWH = 0.0;
@@ -111,16 +109,9 @@ function validPowerFactorSetting(value) {
       value <= 1);
 }
 
-function validAssumedPowerFactor(value) {
-  return isNumber(value) &&
-    value > 0 &&
-    value <= 1;
-}
-
 function validMeasuredPowerFactor(value) {
   return isNumber(value) &&
-    value > -1 &&
-    value !== 0 &&
+    value >= 0 &&
     value <= 1;
 }
 
@@ -156,13 +147,8 @@ function validateSettings() {
     return false;
   }
 
-  if (!validPowerFactorSetting(POWER_FACTOR)) {
-    print("FEIL: POWER_FACTOR må være -1 eller et tall større enn 0 og maks 1");
-    return false;
-  }
-
-  if (!validAssumedPowerFactor(FALLBACK_POWER_FACTOR)) {
-    print("FEIL: FALLBACK_POWER_FACTOR må være et tall større enn 0 og maks 1");
+  if (!validPowerFactorSetting(ASSUMED_POWER_FACTOR)) {
+    print("FEIL: ASSUMED_POWER_FACTOR må være -1 eller et tall større enn 0 og maks 1");
     return false;
   }
 
@@ -267,28 +253,13 @@ function addMeasuredPowerFactor(
 }
 
 function resolvePowerFactor(em) {
-  if (POWER_FACTOR !== -1) {
-    return {
-      value: POWER_FACTOR,
-      mode: "fixed"
-    };
+  if (ASSUMED_POWER_FACTOR !== -1) {
+    return ASSUMED_POWER_FACTOR;
   }
 
   let weightedPowerFactor = 0;
   let validPowerFactorCurrent = 0;
-  let measuredCurrent =
-    numberOrZero(em.a_current) +
-    numberOrZero(em.b_current) +
-    numberOrZero(em.c_current);
   let phasePowerFactor;
-
-  if (measuredCurrent <= 0) {
-    warnedPowerFactor = false;
-    return {
-      value: 0,
-      mode: "measured"
-    };
-  }
 
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
@@ -325,24 +296,17 @@ function resolvePowerFactor(em) {
 
   if (validPowerFactorCurrent <= 0) {
     if (!warnedPowerFactor) {
-      print("Målt power factor mangler eller er ugyldig, bruker fallback");
+      print("Målt power factor mangler eller er ugyldig");
       warnedPowerFactor = true;
     }
 
-    return {
-      value: FALLBACK_POWER_FACTOR,
-      mode: "fallback"
-    };
+    return null;
   }
 
   warnedPowerFactor = false;
 
-  return {
-    value:
-      weightedPowerFactor /
-      validPowerFactorCurrent,
-    mode: "measured"
-  };
+  return weightedPowerFactor /
+    validPowerFactorCurrent;
 }
 
 function calculatePowerKw(em) {
@@ -434,25 +398,25 @@ function calculatePowerKw(em) {
     SQRT_3 /
     1000;
 
-  let powerFactorInfo =
+  let powerFactor =
     resolvePowerFactor(em);
 
-  if (powerFactorInfo.mode === "measured") {
+  if (powerFactor === null) {
+    setMode("Ingen gyldig power factor");
+    return null;
+  }
+
+  if (ASSUMED_POWER_FACTOR === -1) {
     setMode("Estimat med målt PF");
-  } else if (powerFactorInfo.mode === "fallback") {
-    setMode(
-      "Estimat med fallback PF " +
-      FALLBACK_POWER_FACTOR
-    );
   } else {
     setMode(
       "Estimat med PF " +
-      POWER_FACTOR
+      ASSUMED_POWER_FACTOR
     );
   }
 
   return apparentPowerKva *
-    powerFactorInfo.value *
+    powerFactor *
     CALIBRATION_FACTOR;
 }
 
