@@ -1,6 +1,4 @@
 // Setup variables
-let EM_ID = 0;
-
 let POWER_VC_NAME = "Effekt kalkulert";
 let ENERGY_VC_NAME = "Energi kalkulert";
 
@@ -136,11 +134,6 @@ function roundEnergy(value) {
 }
 
 function validateSettings() {
-  if (!isNumber(EM_ID) || EM_ID < 0) {
-    print("FEIL: EM_ID må være et tall >= 0");
-    return false;
-  }
-
   if (!validName(POWER_VC_NAME) ||
     !validName(ENERGY_VC_NAME)) {
     print("FEIL: navn på virtuelle komponenter må være satt");
@@ -431,13 +424,12 @@ function sample() {
 
   let em = Shelly.getComponentStatus(
     "em",
-    EM_ID
+    0
   );
 
   if (em === null) {
     setMode(
-      "Finner ikke em:" +
-      EM_ID
+      "Finner ikke em:0"
     );
 
     return;
