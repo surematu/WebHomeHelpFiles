@@ -14,6 +14,8 @@ let ENERGY_VC_NAME = "Energi kalkulert";
 
 // Juster ved behov etter sammenligning med AMS/Elvia.
 let POWER_FACTOR = 1.00;
+// Brukes bare når POWER_FACTOR = -1 og målt verdi mangler.
+let FALLBACK_POWER_FACTOR = 1.00;
 let CALIBRATION_FACTOR = 1.00;
 
 // Startverdi dersom ingen energi er lagret tidligere.
@@ -105,8 +107,14 @@ function validVoltage(value) {
 function validPowerFactorSetting(value) {
   return value === -1 ||
     (isNumber(value) &&
-      value >= 0 &&
+      value > 0 &&
       value <= 1);
+}
+
+function validAssumedPowerFactor(value) {
+  return isNumber(value) &&
+    value > 0 &&
+    value <= 1;
 }
 
 function validMeasuredPowerFactor(value) {
@@ -147,7 +155,12 @@ function validateSettings() {
   }
 
   if (!validPowerFactorSetting(POWER_FACTOR)) {
-    print("FEIL: POWER_FACTOR må være -1 eller et tall mellom 0 og 1");
+    print("FEIL: POWER_FACTOR må være -1 eller et tall større enn 0 og maks 1");
+    return false;
+  }
+
+  if (!validAssumedPowerFactor(FALLBACK_POWER_FACTOR)) {
+    print("FEIL: FALLBACK_POWER_FACTOR må være et tall større enn 0 og maks 1");
     return false;
   }
 
@@ -253,7 +266,10 @@ function addMeasuredPowerFactor(
 
 function resolvePowerFactor(em) {
   if (POWER_FACTOR !== -1) {
-    return POWER_FACTOR;
+    return {
+      value: POWER_FACTOR,
+      mode: "fixed"
+    };
   }
 
   let weightedPowerFactor = 0;
@@ -266,7 +282,10 @@ function resolvePowerFactor(em) {
 
   if (measuredCurrent <= 0) {
     warnedPowerFactor = false;
-    return 0;
+    return {
+      value: 0,
+      mode: "measured"
+    };
   }
 
   phasePowerFactor = addMeasuredPowerFactor(
@@ -304,17 +323,24 @@ function resolvePowerFactor(em) {
 
   if (validPowerFactorCurrent <= 0) {
     if (!warnedPowerFactor) {
-      print("Målt power factor mangler eller er ugyldig");
+      print("Målt power factor mangler eller er ugyldig, bruker fallback");
       warnedPowerFactor = true;
     }
 
-    return null;
+    return {
+      value: FALLBACK_POWER_FACTOR,
+      mode: "fallback"
+    };
   }
 
   warnedPowerFactor = false;
 
-  return weightedPowerFactor /
-    validPowerFactorCurrent;
+  return {
+    value:
+      weightedPowerFactor /
+      validPowerFactorCurrent,
+    mode: "measured"
+  };
 }
 
 function calculatePowerKw(em) {
@@ -406,16 +432,16 @@ function calculatePowerKw(em) {
     SQRT_3 /
     1000;
 
-  let powerFactor =
+  let powerFactorInfo =
     resolvePowerFactor(em);
 
-  if (powerFactor === null) {
-    setMode("Ingen gyldig power factor");
-    return null;
-  }
-
-  if (POWER_FACTOR === -1) {
+  if (powerFactorInfo.mode === "measured") {
     setMode("Estimat med målt PF");
+  } else if (powerFactorInfo.mode === "fallback") {
+    setMode(
+      "Estimat med fallback PF " +
+      FALLBACK_POWER_FACTOR
+    );
   } else {
     setMode(
       "Estimat med PF " +
@@ -424,7 +450,7 @@ function calculatePowerKw(em) {
   }
 
   return apparentPowerKva *
-    powerFactor *
+    powerFactorInfo.value *
     CALIBRATION_FACTOR;
 }
 
