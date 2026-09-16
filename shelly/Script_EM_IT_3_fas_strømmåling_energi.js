@@ -114,6 +114,13 @@ function validMeasuredPowerFactor(value) {
     value <= MAX_VALID_MEASURED_COS_PHI;
 }
 
+function measuredPowerFactorFallback() {
+  return (
+    MIN_VALID_MEASURED_COS_PHI +
+    MAX_VALID_MEASURED_COS_PHI
+  ) / 2;
+}
+
 function validPositiveIntervalMs(value) {
   return isNumber(value) &&
     value > 0;
@@ -279,11 +286,11 @@ function resolvePowerFactor(em) {
 
   if (validPowerFactorCurrent <= 0) {
     if (!warnedPowerFactor) {
-      print("Målt power factor mangler eller er ugyldig");
+      print("Målt power factor mangler eller er ugyldig, bruker gjennomsnitt av min/max");
       warnedPowerFactor = true;
     }
 
-    return null;
+    return measuredPowerFactorFallback();
   }
 
   warnedPowerFactor = false;

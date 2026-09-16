@@ -183,6 +183,13 @@ function validMeasuredCosPhi(value) {
     value <= MAX_VALID_MEASURED_COS_PHI;
 }
 
+function measuredCosPhiFallback() {
+  return (
+    MIN_VALID_MEASURED_COS_PHI +
+    MAX_VALID_MEASURED_COS_PHI
+  ) / 2;
+}
+
 function validPositiveIntervalMs(value) {
   return isNumber(value) &&
     value > 0;
@@ -330,16 +337,16 @@ function resolveCosPhi(channel, configuredCosPhi, channelLabel) {
   }
 
   if (channelLabel === "A" && !warnedCosPhiA) {
-    print("WARNING: Channel A measured cos phi is invalid/missing");
+    print("WARNING: Channel A measured cos phi is invalid/missing, using average of min/max");
     warnedCosPhiA = true;
   }
 
   if (channelLabel === "B" && !warnedCosPhiB) {
-    print("WARNING: Channel B measured cos phi is invalid/missing");
+    print("WARNING: Channel B measured cos phi is invalid/missing, using average of min/max");
     warnedCosPhiB = true;
   }
 
-  return null;
+  return measuredCosPhiFallback();
 }
 
 function calculatePowerKw(phaseMode, voltage, current, cosPhi, calibrationFactor) {
