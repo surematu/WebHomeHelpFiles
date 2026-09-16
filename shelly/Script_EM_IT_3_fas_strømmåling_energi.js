@@ -228,7 +228,7 @@ function saveEnergy() {
 
 function addMeasuredPowerFactor(
   weightedPowerFactor,
-  totalCurrent,
+  validPowerFactorCurrent,
   current,
   powerFactor
 ) {
@@ -236,7 +236,8 @@ function addMeasuredPowerFactor(
     !validMeasuredPowerFactor(powerFactor)) {
     return {
       weightedPowerFactor: weightedPowerFactor,
-      totalCurrent: totalCurrent
+      validPowerFactorCurrent:
+        validPowerFactorCurrent
     };
   }
 
@@ -244,8 +245,9 @@ function addMeasuredPowerFactor(
     weightedPowerFactor:
       weightedPowerFactor +
       current * Math.abs(powerFactor),
-    totalCurrent:
-      totalCurrent + current
+    validPowerFactorCurrent:
+      validPowerFactorCurrent +
+      current
   };
 }
 
@@ -255,43 +257,52 @@ function resolvePowerFactor(em) {
   }
 
   let weightedPowerFactor = 0;
-  let totalCurrent = 0;
+  let validPowerFactorCurrent = 0;
+  let measuredCurrent =
+    numberOrZero(em.a_current) +
+    numberOrZero(em.b_current) +
+    numberOrZero(em.c_current);
   let phasePowerFactor;
+
+  if (measuredCurrent <= 0) {
+    warnedPowerFactor = false;
+    return 0;
+  }
 
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
-    totalCurrent,
+    validPowerFactorCurrent,
     numberOrZero(em.a_current),
     em.a_pf
   );
   weightedPowerFactor =
     phasePowerFactor.weightedPowerFactor;
-  totalCurrent =
-    phasePowerFactor.totalCurrent;
+  validPowerFactorCurrent =
+    phasePowerFactor.validPowerFactorCurrent;
 
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
-    totalCurrent,
+    validPowerFactorCurrent,
     numberOrZero(em.b_current),
     em.b_pf
   );
   weightedPowerFactor =
     phasePowerFactor.weightedPowerFactor;
-  totalCurrent =
-    phasePowerFactor.totalCurrent;
+  validPowerFactorCurrent =
+    phasePowerFactor.validPowerFactorCurrent;
 
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
-    totalCurrent,
+    validPowerFactorCurrent,
     numberOrZero(em.c_current),
     em.c_pf
   );
   weightedPowerFactor =
     phasePowerFactor.weightedPowerFactor;
-  totalCurrent =
-    phasePowerFactor.totalCurrent;
+  validPowerFactorCurrent =
+    phasePowerFactor.validPowerFactorCurrent;
 
-  if (totalCurrent <= 0) {
+  if (validPowerFactorCurrent <= 0) {
     if (!warnedPowerFactor) {
       print("Målt power factor mangler eller er ugyldig");
       warnedPowerFactor = true;
@@ -303,7 +314,7 @@ function resolvePowerFactor(em) {
   warnedPowerFactor = false;
 
   return weightedPowerFactor /
-    totalCurrent;
+    validPowerFactorCurrent;
 }
 
 function calculatePowerKw(em) {
