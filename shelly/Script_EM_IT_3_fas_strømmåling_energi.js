@@ -20,6 +20,8 @@ let ENERGY_SAVE_INTERVAL_MS = 60000;
 
 let MIN_VALID_VOLTAGE = 100;
 let MAX_VALID_VOLTAGE = 280;
+let MIN_VALID_COS_PHI = 0;
+let MAX_VALID_COS_PHI = 1;
 let SQRT_3 = 1.7320508075688772;
 
 let powerVc = null;
@@ -100,14 +102,14 @@ function validVoltage(value) {
 function validPowerFactorSetting(value) {
   return value === -1 ||
     (isNumber(value) &&
-      value > 0 &&
-      value <= 1);
+      value > MIN_VALID_COS_PHI &&
+      value <= MAX_VALID_COS_PHI);
 }
 
 function validMeasuredPowerFactor(value) {
   return isNumber(value) &&
-    value >= 0 &&
-    value <= 1;
+    value >= MIN_VALID_COS_PHI &&
+    value <= MAX_VALID_COS_PHI;
 }
 
 function validPositiveIntervalMs(value) {
