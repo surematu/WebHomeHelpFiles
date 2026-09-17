@@ -1,18 +1,16 @@
-// Tittel: IT 3 fas energikalkulering målt 2 faser - V2
+// Setup variables
+// -1 = use measured cos phi.
+// Example 1.00 = use assumed power factor.
+let ASSUMED_POWER_FACTOR = 1.00;
+let CALIBRATION_FACTOR = 1.00;
+
+// Tittel: IT 3 fas energikalkulering målt 2 faser - V2.1
 // Shelly Pro 3EM - beregnet effekt og energi for 230 V IT-nett
 // Virtuelle komponenter opprettes automatisk dersom de mangler.
 // Komponentene finnes og brukes etter navn.
 // Changelog:
 // V2 - 02.09.2026 - Endret fra kw til w på effekt
-
-let EM_ID = 0;
-
-let POWER_VC_NAME = "Effekt kalkulert";
-let ENERGY_VC_NAME = "Energi kalkulert";
-
-// Juster ved behov etter sammenligning med AMS/Elvia.
-let ASSUMED_POWER_FACTOR = 1.00;
-let CALIBRATION_FACTOR = 1.00;
+// V2.1 - 16.09.2026 - Flyttet oppsettvariabler og gjorde EM/navn statiske uten fallback for målt power factor
 
 // Startverdi dersom ingen energi er lagret tidligere.
 let INITIAL_ENERGY_KWH = 0.0;
@@ -23,6 +21,9 @@ let ENERGY_SAVE_INTERVAL_MS = 60000;
 
 let MIN_VALID_VOLTAGE = 100;
 let MAX_VALID_VOLTAGE = 280;
+// Brukes bare for målte cos phi-verdier.
+let MIN_VALID_MEASURED_COS_PHI = 0.8;
+let MAX_VALID_MEASURED_COS_PHI = 1;
 let SQRT_3 = 1.7320508075688772;
 
 let powerVc = null;
@@ -34,14 +35,15 @@ let lastDisplayMs = 0;
 let lastSaveMs = 0;
 let lastMode = "";
 let calculationStarted = false;
+let warnedPowerFactor = false;
 
 let VIRTUAL_COMPONENTS = [
   {
     role: "power",
-    name: POWER_VC_NAME,
+    name: "Effekt kalkulert",
     type: "number",
     config: {
-      name: POWER_VC_NAME,
+      name: "Effekt kalkulert",
       min: 0,
       max: 100000,
       default_value: 0,
@@ -51,17 +53,18 @@ let VIRTUAL_COMPONENTS = [
           view: "label",
           unit: "W",
           step: 1,
-          icon: "power"
-        }
+          webIcon: "power"
+        },
+        cloud: ["measurement", "log"]
       }
     }
   },
   {
     role: "energy",
-    name: ENERGY_VC_NAME,
+    name: "Energi kalkulert",
     type: "number",
     config: {
-      name: ENERGY_VC_NAME,
+      name: "Energi kalkulert",
       min: 0,
       max: 1000000000,
       default_value: 0,
@@ -71,8 +74,9 @@ let VIRTUAL_COMPONENTS = [
           view: "label",
           unit: "kWh",
           step: 1,
-          icon: "power"
-        }
+          webIcon: "power"
+        },
+        cloud: ["measurement", "log"]
       }
     }
   }
@@ -97,6 +101,31 @@ function validVoltage(value) {
     value <= MAX_VALID_VOLTAGE;
 }
 
+function validPowerFactorSetting(value) {
+  return value === -1 ||
+    (isNumber(value) &&
+      value > 0 &&
+      value <= 1);
+}
+
+function validMeasuredPowerFactor(value) {
+  return isNumber(value) &&
+    value >= MIN_VALID_MEASURED_COS_PHI &&
+    value <= MAX_VALID_MEASURED_COS_PHI;
+}
+
+function measuredPowerFactorFallback() {
+  return (
+    MIN_VALID_MEASURED_COS_PHI +
+    MAX_VALID_MEASURED_COS_PHI
+  ) / 2;
+}
+
+function validPositiveIntervalMs(value) {
+  return isNumber(value) &&
+    value > 0;
+}
+
 // Effekt vises i hele watt.
 function roundPower(value) {
   return Math.round(value * 1000);
@@ -105,6 +134,34 @@ function roundPower(value) {
 // Energi vises uten desimaler.
 function roundEnergy(value) {
   return Math.round(value);
+}
+
+function validateSettings() {
+  if (!validPowerFactorSetting(ASSUMED_POWER_FACTOR)) {
+    print("FEIL: ASSUMED_POWER_FACTOR må være -1 eller et tall større enn 0 og maks 1");
+    return false;
+  }
+
+  if (!isNumber(CALIBRATION_FACTOR) ||
+    CALIBRATION_FACTOR < 0) {
+    print("FEIL: CALIBRATION_FACTOR må være et tall >= 0");
+    return false;
+  }
+
+  if (!isNumber(INITIAL_ENERGY_KWH) ||
+    INITIAL_ENERGY_KWH < 0) {
+    print("FEIL: INITIAL_ENERGY_KWH må være et tall >= 0");
+    return false;
+  }
+
+  if (!validPositiveIntervalMs(SAMPLE_INTERVAL_MS) ||
+    !validPositiveIntervalMs(ENERGY_DISPLAY_INTERVAL_MS) ||
+    !validPositiveIntervalMs(ENERGY_SAVE_INTERVAL_MS)) {
+    print("FEIL: intervallene må være tall > 0");
+    return false;
+  }
+
+  return true;
 }
 
 function setMode(mode) {
@@ -158,6 +215,88 @@ function saveEnergy() {
   );
 
   lastSaveMs = Shelly.getUptimeMs();
+}
+
+function addMeasuredPowerFactor(
+  weightedPowerFactor,
+  validPowerFactorCurrent,
+  current,
+  powerFactor
+) {
+  if (current <= 0 ||
+    !validMeasuredPowerFactor(powerFactor)) {
+    return {
+      weightedPowerFactor: weightedPowerFactor,
+      validPowerFactorCurrent:
+        validPowerFactorCurrent
+    };
+  }
+
+  return {
+    weightedPowerFactor:
+      weightedPowerFactor +
+      current * powerFactor,
+    validPowerFactorCurrent:
+      validPowerFactorCurrent +
+      current
+  };
+}
+
+function resolvePowerFactor(em) {
+  if (ASSUMED_POWER_FACTOR !== -1) {
+    return ASSUMED_POWER_FACTOR;
+  }
+
+  let weightedPowerFactor = 0;
+  let validPowerFactorCurrent = 0;
+  let phasePowerFactor;
+
+  phasePowerFactor = addMeasuredPowerFactor(
+    weightedPowerFactor,
+    validPowerFactorCurrent,
+    numberOrZero(em.a_current),
+    em.a_pf
+  );
+  weightedPowerFactor =
+    phasePowerFactor.weightedPowerFactor;
+  validPowerFactorCurrent =
+    phasePowerFactor.validPowerFactorCurrent;
+
+  phasePowerFactor = addMeasuredPowerFactor(
+    weightedPowerFactor,
+    validPowerFactorCurrent,
+    numberOrZero(em.b_current),
+    em.b_pf
+  );
+  weightedPowerFactor =
+    phasePowerFactor.weightedPowerFactor;
+  validPowerFactorCurrent =
+    phasePowerFactor.validPowerFactorCurrent;
+
+  phasePowerFactor = addMeasuredPowerFactor(
+    weightedPowerFactor,
+    validPowerFactorCurrent,
+    numberOrZero(em.c_current),
+    em.c_pf
+  );
+  weightedPowerFactor =
+    phasePowerFactor.weightedPowerFactor;
+  validPowerFactorCurrent =
+    phasePowerFactor.validPowerFactorCurrent;
+
+  if (validPowerFactorCurrent <= 0) {
+    if (!warnedPowerFactor) {
+      print("Målt power factor mangler eller er ugyldig, bruker gjennomsnitt av min/max");
+      warnedPowerFactor = true;
+    }
+
+    return measuredPowerFactorFallback();
+  }
+
+  warnedPowerFactor = false;
+
+  return weightedPowerFactor /
+    validPowerFactorCurrent;
 }
 
 function calculatePowerKw(em) {
@@ -249,13 +388,25 @@ function calculatePowerKw(em) {
     SQRT_3 /
     1000;
 
-  setMode(
-    "Estimat med PF " +
-    ASSUMED_POWER_FACTOR
-  );
+  let powerFactor =
+    resolvePowerFactor(em);
+
+  if (powerFactor === null) {
+    setMode("Ingen gyldig power factor");
+    return null;
+  }
+
+  if (ASSUMED_POWER_FACTOR === -1) {
+    setMode("Estimat med målt PF");
+  } else {
+    setMode(
+      "Estimat med PF " +
+      ASSUMED_POWER_FACTOR
+    );
+  }
 
   return apparentPowerKva *
-    ASSUMED_POWER_FACTOR *
+    powerFactor *
     CALIBRATION_FACTOR;
 }
 
@@ -270,13 +421,12 @@ function sample() {
 
   let em = Shelly.getComponentStatus(
     "em",
-    EM_ID
+    0
   );
 
   if (em === null) {
     setMode(
-      "Finner ikke em:" +
-      EM_ID
+      "Finner ikke em:0"
     );
 
     return;
@@ -611,4 +761,12 @@ function findOrCreateVirtualComponents() {
   );
 }
 
-findOrCreateVirtualComponents();
+function initializeScript() {
+  if (!validateSettings()) {
+    return;
+  }
+
+  findOrCreateVirtualComponents();
+}
+
+initializeScript();
