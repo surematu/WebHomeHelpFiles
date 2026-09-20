@@ -1,4 +1,6 @@
 // Setup variables
+
+// Names for each channel
 let NAME_A = "VVB K1";
 let NAME_B = "VVB K2";
 
