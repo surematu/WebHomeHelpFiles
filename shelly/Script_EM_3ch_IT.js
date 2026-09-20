@@ -332,9 +332,12 @@ function calculatePowerKw(em) {
     validVoltageCount += 1;
   }
 
-  // Dersom to eller tre spenninger er tilgjengelige,
-  // brukes Shellys målte aktive effekt.
-  if (validVoltageCount >= 2) {
+  // Med målt PF (-1) og to/tre spenninger brukes
+  // Shellys målte aktive effekt.
+  if (
+    ASSUMED_POWER_FACTOR === -1 &&
+    validVoltageCount >= 2
+  ) {
     let activePowerW = 0;
 
     if (aVoltageValid) {
@@ -367,24 +370,28 @@ function calculatePowerKw(em) {
   //
   // P = U × (IA + IB + IC) / sqrt(3) × antatt PF
 
-  let lineVoltage = 0;
+  let lineVoltageSum = 0;
 
   if (aVoltageValid) {
-    lineVoltage = em.a_voltage;
+    lineVoltageSum += em.a_voltage;
   }
 
   if (bVoltageValid) {
-    lineVoltage = em.b_voltage;
+    lineVoltageSum += em.b_voltage;
   }
 
   if (cVoltageValid) {
-    lineVoltage = em.c_voltage;
+    lineVoltageSum += em.c_voltage;
   }
 
-  if (lineVoltage === 0) {
+  if (validVoltageCount <= 0) {
     setMode("Ingen gyldig spenning");
     return null;
   }
+
+  let lineVoltage =
+    lineVoltageSum /
+    validVoltageCount;
 
   let totalCurrent =
     magnitudeOrZero(em.a_current) +
