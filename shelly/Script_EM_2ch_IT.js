@@ -10,12 +10,12 @@ let PHASE_MODE_B = 3;
 
 // -1 = use measured cos phi.
 // Example 0.90 = use assumed cos phi of 0.9.
-let COS_PHI_A = 0.90;
-let COS_PHI_B = 0.90;
+let COS_PHI_A = 0.85;
+let COS_PHI_B = 0.85;
 
 // Power/energy is multiplied with this factor
-let CALIBRATION_FACTOR_A = 0.90;
-let CALIBRATION_FACTOR_B = 0.90;
+let CALIBRATION_FACTOR_A = 0.85;
+let CALIBRATION_FACTOR_B = 0.85;
 
 // Tittel: IT 2ch energikalk (2-fas/3-fas per kanal) - V1.2
 // Link: https://github.com/surematu/WebHomeHelpFiles/blob/main/shelly/Script_EM_2ch_IT.js
