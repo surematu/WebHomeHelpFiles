@@ -263,7 +263,7 @@ function resolvePowerFactor(em) {
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
     validPowerFactorCurrent,
-    magnitudeOrZero(em.a_current),
+    numberOrZero(em.a_current),
     em.a_pf
   );
   weightedPowerFactor =
@@ -274,7 +274,7 @@ function resolvePowerFactor(em) {
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
     validPowerFactorCurrent,
-    magnitudeOrZero(em.b_current),
+    numberOrZero(em.b_current),
     em.b_pf
   );
   weightedPowerFactor =
@@ -285,7 +285,7 @@ function resolvePowerFactor(em) {
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
     validPowerFactorCurrent,
-    magnitudeOrZero(em.c_current),
+    numberOrZero(em.c_current),
     em.c_pf
   );
   weightedPowerFactor =
