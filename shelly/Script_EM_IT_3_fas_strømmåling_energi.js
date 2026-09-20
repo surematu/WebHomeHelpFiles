@@ -1,16 +1,19 @@
 // Setup variables
+
 // -1 = use measured cos phi.
 // Example 1.00 = use assumed power factor.
-let ASSUMED_POWER_FACTOR = 1.00;
-let CALIBRATION_FACTOR = 1.00;
+let ASSUMED_POWER_FACTOR = 0.90;
 
-// Tittel: IT 3 fas energikalkulering målt 2 faser - V2.1
+let CALIBRATION_FACTOR = 0.95;
+
+// Tittel: IT 3 fas energikalkulering målt 2 faser - V2.2
 // Shelly Pro 3EM - beregnet effekt og energi for 230 V IT-nett
 // Virtuelle komponenter opprettes automatisk dersom de mangler.
 // Komponentene finnes og brukes etter navn.
 // Changelog:
-// V2 - 02.09.2026 - Endret fra kw til w på effekt
-// V2.1 - 16.09.2026 - Flyttet oppsettvariabler og gjorde EM/navn statiske uten fallback for målt power factor
+// V2 - 02.09.2026: Endret fra kw til w på effekt
+// V2.1 - 16.09.2026: Flyttet oppsettvariabler og gjorde EM/navn statiske.
+// V2.2 - 20.09.2026: Cosphi min, max valid added.
 
 // Startverdi dersom ingen energi er lagret tidligere.
 let INITIAL_ENERGY_KWH = 0.0;
