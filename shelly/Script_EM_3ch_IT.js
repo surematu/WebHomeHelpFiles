@@ -16,6 +16,7 @@ let CALIBRATION_FACTOR = 0.9;
 // V2 - 02.09.2026: Endret fra kw til w på effekt
 // V2.1 - 16.09.2026: Flyttet oppsettvariabler og gjorde EM/navn statiske.
 // V2.2 - 20.09.2026: Cosphi min, max valid added.
+// V3.0 - 20.09.2026: Utbedret kalkulering ved estimert cos phi. Må kalkuleres basert på amp og ikke power, da power allerede tar hensyn til cos phi.
 
 // Startverdi dersom ingen energi er lagret tidligere.
 let INITIAL_ENERGY_KWH = 0.0;
@@ -98,6 +99,10 @@ function numberOrZero(value) {
   }
 
   return 0;
+}
+
+function magnitudeOrZero(value) {
+  return Math.abs(numberOrZero(value));
 }
 
 function validVoltage(value) {
@@ -328,24 +333,27 @@ function calculatePowerKw(em) {
     validVoltageCount += 1;
   }
 
-  // Dersom to eller tre spenninger er tilgjengelige,
-  // brukes Shellys målte aktive effekt.
-  if (validVoltageCount >= 2) {
+  // Med målt PF (-1) og to/tre spenninger brukes
+  // Shellys målte aktive effekt.
+  if (
+    ASSUMED_POWER_FACTOR === -1 &&
+    validVoltageCount >= 2
+  ) {
     let activePowerW = 0;
 
     if (aVoltageValid) {
       activePowerW +=
-        numberOrZero(em.a_act_power);
+        magnitudeOrZero(em.a_act_power);
     }
 
     if (bVoltageValid) {
       activePowerW +=
-        numberOrZero(em.b_act_power);
+        magnitudeOrZero(em.b_act_power);
     }
 
     if (cVoltageValid) {
       activePowerW +=
-        numberOrZero(em.c_act_power);
+        magnitudeOrZero(em.c_act_power);
     }
 
     if (validVoltageCount === 2) {
@@ -363,29 +371,33 @@ function calculatePowerKw(em) {
   //
   // P = U × (IA + IB + IC) / sqrt(3) × antatt PF
 
-  let lineVoltage = 0;
+  let lineVoltageSum = 0;
 
   if (aVoltageValid) {
-    lineVoltage = em.a_voltage;
+    lineVoltageSum += em.a_voltage;
   }
 
   if (bVoltageValid) {
-    lineVoltage = em.b_voltage;
+    lineVoltageSum += em.b_voltage;
   }
 
   if (cVoltageValid) {
-    lineVoltage = em.c_voltage;
+    lineVoltageSum += em.c_voltage;
   }
 
-  if (lineVoltage === 0) {
+  if (validVoltageCount <= 0) {
     setMode("Ingen gyldig spenning");
     return null;
   }
 
+  let lineVoltage =
+    lineVoltageSum /
+    validVoltageCount;
+
   let totalCurrent =
-    numberOrZero(em.a_current) +
-    numberOrZero(em.b_current) +
-    numberOrZero(em.c_current);
+    magnitudeOrZero(em.a_current) +
+    magnitudeOrZero(em.b_current) +
+    magnitudeOrZero(em.c_current);
 
   let apparentPowerKva =
     lineVoltage *
