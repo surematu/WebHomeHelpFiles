@@ -7,14 +7,14 @@ let PHASE_MODE_A = 3;
 let PHASE_MODE_B = 3;
 
 // -1 = use measured cos phi.
-// Example 1.00 = use assumed cos phi.
+// Example 0.90 = use assumed cos phi of 0.9.
 let COS_PHI_A = 0.90;
 let COS_PHI_B = 0.90;
 
 let CALIBRATION_FACTOR_A = 0.95;
 let CALIBRATION_FACTOR_B = 0.95;
 
-// Tittel: IT 2ch energikalk (2-fas/3-fas per kanal) - V1
+// Tittel: IT 2ch energikalk (2-fas/3-fas per kanal) - V1.2
 // Link: https://github.com/surematu/WebHomeHelpFiles/edit/main/shelly/Script_EM_2ch_IT.js
 // Shelly Pro EM-50
 //
@@ -34,6 +34,8 @@ let CALIBRATION_FACTOR_B = 0.95;
 // If you use a fixed cos phi value, cos phi is assumed/estimated, not measured.
 // Changelog:
 // V1 - 15.09.2026: Opprettet
+// V1.2 - 20.09.2026: Cosphi min, max valid added.
+
 let INITIAL_ENERGY_A_KWH = 0.0;
 let INITIAL_ENERGY_B_KWH = 0.0;
 
@@ -44,7 +46,7 @@ let ENERGY_SAVE_INTERVAL_MS = 60000;
 let MIN_VALID_VOLTAGE = 100;
 let MAX_VALID_VOLTAGE = 280;
 // Used only for measured cos phi values.
-let MIN_VALID_MEASURED_COS_PHI = 0;
+let MIN_VALID_MEASURED_COS_PHI = 0.8;
 let MAX_VALID_MEASURED_COS_PHI = 1;
 let SQRT_3 = 1.7320508075688772;
 
