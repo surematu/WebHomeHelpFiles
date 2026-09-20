@@ -7,7 +7,7 @@ let ASSUMED_POWER_FACTOR = 0.90;
 let CALIBRATION_FACTOR = 0.90;
 
 // Tittel: IT 3 fas energikalkulering målt 2 faser - V2.2
-// Link: https://github.com/surematu/WebHomeHelpFiles/edit/main/shelly/Script_EM_IT_3_fas_strømmåling_energi.js
+// Link: https://github.com/surematu/WebHomeHelpFiles/blob/main/shelly/Script_EM_IT_3_fas_str%C3%B8mm%C3%A5ling_energi.js
 // Shelly Pro 3EM - beregnet effekt og energi for 230 V IT-nett
 // Virtuelle komponenter opprettes automatisk dersom de mangler.
 // Komponentene finnes og brukes etter navn.
