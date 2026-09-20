@@ -13,6 +13,7 @@ let PHASE_MODE_B = 3;
 let COS_PHI_A = 0.90;
 let COS_PHI_B = 0.90;
 
+// Power/energy is multiplied with this factor
 let CALIBRATION_FACTOR_A = 0.95;
 let CALIBRATION_FACTOR_B = 0.95;
 
