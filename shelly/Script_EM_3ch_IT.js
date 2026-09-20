@@ -4,6 +4,7 @@
 // Example 1.00 = use assumed power factor.
 let ASSUMED_POWER_FACTOR = 0.85;
 
+// Power/energy is multiplied with this factor
 let CALIBRATION_FACTOR = 0.85;
 
 // Tittel: IT 3 fas energikalkulering målt 2 faser - V2.2
