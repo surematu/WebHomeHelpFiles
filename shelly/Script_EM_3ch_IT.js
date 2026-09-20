@@ -100,6 +100,10 @@ function numberOrZero(value) {
   return 0;
 }
 
+function magnitudeOrZero(value) {
+  return Math.abs(numberOrZero(value));
+}
+
 function validVoltage(value) {
   return isNumber(value) &&
     value >= MIN_VALID_VOLTAGE &&
@@ -259,7 +263,7 @@ function resolvePowerFactor(em) {
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
     validPowerFactorCurrent,
-    numberOrZero(em.a_current),
+    magnitudeOrZero(em.a_current),
     em.a_pf
   );
   weightedPowerFactor =
@@ -270,7 +274,7 @@ function resolvePowerFactor(em) {
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
     validPowerFactorCurrent,
-    numberOrZero(em.b_current),
+    magnitudeOrZero(em.b_current),
     em.b_pf
   );
   weightedPowerFactor =
@@ -281,7 +285,7 @@ function resolvePowerFactor(em) {
   phasePowerFactor = addMeasuredPowerFactor(
     weightedPowerFactor,
     validPowerFactorCurrent,
-    numberOrZero(em.c_current),
+    magnitudeOrZero(em.c_current),
     em.c_pf
   );
   weightedPowerFactor =
@@ -335,17 +339,17 @@ function calculatePowerKw(em) {
 
     if (aVoltageValid) {
       activePowerW +=
-        numberOrZero(em.a_act_power);
+        magnitudeOrZero(em.a_act_power);
     }
 
     if (bVoltageValid) {
       activePowerW +=
-        numberOrZero(em.b_act_power);
+        magnitudeOrZero(em.b_act_power);
     }
 
     if (cVoltageValid) {
       activePowerW +=
-        numberOrZero(em.c_act_power);
+        magnitudeOrZero(em.c_act_power);
     }
 
     if (validVoltageCount === 2) {
@@ -383,9 +387,9 @@ function calculatePowerKw(em) {
   }
 
   let totalCurrent =
-    numberOrZero(em.a_current) +
-    numberOrZero(em.b_current) +
-    numberOrZero(em.c_current);
+    magnitudeOrZero(em.a_current) +
+    magnitudeOrZero(em.b_current) +
+    magnitudeOrZero(em.c_current);
 
   let apparentPowerKva =
     lineVoltage *
