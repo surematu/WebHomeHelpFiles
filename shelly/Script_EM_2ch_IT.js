@@ -18,7 +18,7 @@ let CALIBRATION_FACTOR_A = 0.90;
 let CALIBRATION_FACTOR_B = 0.90;
 
 // Tittel: IT 2ch energikalk (2-fas/3-fas per kanal) - V1.2
-// Link: https://github.com/surematu/WebHomeHelpFiles/edit/main/shelly/Script_EM_2ch_IT.js
+// Link: https://github.com/surematu/WebHomeHelpFiles/blob/main/shelly/Script_EM_2ch_IT.js
 // Shelly Pro EM-50
 //
 // Two separate loads on a 230 V IT network.
