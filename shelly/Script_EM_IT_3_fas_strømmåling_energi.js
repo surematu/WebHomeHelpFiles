@@ -4,7 +4,7 @@
 // Example 1.00 = use assumed power factor.
 let ASSUMED_POWER_FACTOR = 0.90;
 
-let CALIBRATION_FACTOR = 0.95;
+let CALIBRATION_FACTOR = 0.90;
 
 // Tittel: IT 3 fas energikalkulering målt 2 faser - V2.2
 // Link: https://github.com/surematu/WebHomeHelpFiles/edit/main/shelly/Script_EM_IT_3_fas_strømmåling_energi.js
