@@ -16,6 +16,7 @@ let CALIBRATION_FACTOR = 0.9;
 // V2 - 02.09.2026: Endret fra kw til w på effekt
 // V2.1 - 16.09.2026: Flyttet oppsettvariabler og gjorde EM/navn statiske.
 // V2.2 - 20.09.2026: Cosphi min, max valid added.
+// V3.0 - 20.09.2026: Utbedret kalkulering ved estimert cos phi. Må kalkuleres basert på amp og ikke power, da power allerede tar hensyn til cos phi.
 
 // Startverdi dersom ingen energi er lagret tidligere.
 let INITIAL_ENERGY_KWH = 0.0;
