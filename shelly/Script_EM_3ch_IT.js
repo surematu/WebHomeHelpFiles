@@ -123,10 +123,6 @@ function validMeasuredPowerFactor(value) {
     value <= MAX_VALID_MEASURED_COS_PHI;
 }
 
-function hasMeasuredPowerFactor(value) {
-  return isNumber(value);
-}
-
 function measuredPowerFactorFallback() {
   return (
     MIN_VALID_MEASURED_COS_PHI +
@@ -325,7 +321,7 @@ function resolvePhasePowerFactor(
     return configuredPowerFactor;
   }
 
-  if (hasMeasuredPowerFactor(measuredPowerFactor)) {
+  if (validMeasuredPowerFactor(measuredPowerFactor)) {
     return capMeasuredPowerFactor(
       measuredPowerFactor
     );
