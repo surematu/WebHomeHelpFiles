@@ -7,7 +7,7 @@ let ASSUMED_POWER_FACTOR = 0.85;
 // Power/energy is multiplied with this factor
 let CALIBRATION_FACTOR = 0.85;
 
-// Tittel: IT 3 fas energikalkulering målt 2 faser - V3.1
+// Tittel: IT 3 fas energikalkulering målt 2 faser - V4
 // Link: https://github.com/surematu/WebHomeHelpFiles/blob/main/shelly/Script_EM_3ch_IT.js
 // Shelly Pro 3EM - beregnet effekt og energi for 230 V IT-nett
 // Virtuelle komponenter opprettes automatisk dersom de mangler.
@@ -17,7 +17,7 @@ let CALIBRATION_FACTOR = 0.85;
 // V2.1 - 16.09.2026: Flyttet oppsettvariabler og gjorde EM/navn statiske.
 // V2.2 - 20.09.2026: Cosphi min, max valid added.
 // V3.0 - 20.09.2026: Utbedret kalkulering ved estimert cos phi. Må kalkuleres basert på amp og ikke power, da power allerede tar hensyn til cos phi.
-// V3.1 - 21.09.2026: Forenklet til alltid å beregne per fase med spenning × strøm × cos phi, med snitt som fallback ved manglende faseverdier.
+// V4.0 - 21.09.2026: Forenklet til alltid å beregne per fase med spenning × strøm × cos phi, med snitt som fallback ved manglende faseverdier.
 
 // Startverdi dersom ingen energi er lagret tidligere.
 let INITIAL_ENERGY_KWH = 0.0;
