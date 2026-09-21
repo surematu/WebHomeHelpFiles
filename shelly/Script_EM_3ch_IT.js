@@ -3,11 +3,14 @@
 // -1 = use measured cos phi.
 // Example 1.00 = use assumed power factor.
 let ASSUMED_POWER_FACTOR = 0.85;
+// Brukes bare for målte cos phi-verdier.
+let MIN_VALID_MEASURED_COS_PHI = 0.8;
+let MAX_VALID_MEASURED_COS_PHI = 1;
 
 // Power/energy is multiplied with this factor
 let CALIBRATION_FACTOR = 0.85;
 
-// Tittel: IT 3 fas energikalkulering målt 2 faser - V4
+// Tittel: IT 3 fas energikalkulering målt 2 faser - V4.1
 // Link: https://github.com/surematu/WebHomeHelpFiles/blob/main/shelly/Script_EM_3ch_IT.js
 // Shelly Pro 3EM - beregnet effekt og energi for 230 V IT-nett
 // Virtuelle komponenter opprettes automatisk dersom de mangler.
@@ -18,6 +21,7 @@ let CALIBRATION_FACTOR = 0.85;
 // V2.2 - 20.09.2026: Cosphi min, max valid added.
 // V3.0 - 20.09.2026: Utbedret kalkulering ved estimert cos phi. Må kalkuleres basert på amp og ikke power, da power allerede tar hensyn til cos phi.
 // V4.0 - 21.09.2026: Forenklet til alltid å beregne per fase med spenning × strøm × cos phi, med snitt som fallback ved manglende faseverdier.
+// V4.1 - 21.09.2026: Målt cos phi beregnes nå bare fra faser med gyldig spenning, etter min/max-avgrensning, flyttet cos phi max min opp
 
 // Startverdi dersom ingen energi er lagret tidligere.
 let INITIAL_ENERGY_KWH = 0.0;
@@ -28,9 +32,6 @@ let ENERGY_SAVE_INTERVAL_MS = 60000;
 
 let MIN_VALID_VOLTAGE = 100;
 let MAX_VALID_VOLTAGE = 280;
-// Brukes bare for målte cos phi-verdier.
-let MIN_VALID_MEASURED_COS_PHI = 0.8;
-let MAX_VALID_MEASURED_COS_PHI = 1;
 let powerVc = null;
 let energyVc = null;
 
@@ -115,12 +116,6 @@ function validPowerFactorSetting(value) {
     (isNumber(value) &&
       value > 0 &&
       value <= 1);
-}
-
-function validMeasuredPowerFactor(value) {
-  return isNumber(value) &&
-    value >= MIN_VALID_MEASURED_COS_PHI &&
-    value <= MAX_VALID_MEASURED_COS_PHI;
 }
 
 function measuredPowerFactorFallback() {
@@ -277,19 +272,28 @@ function getAverageValidVoltage(em) {
 function getAverageMeasuredPowerFactor(em) {
   let powerFactors = [];
 
-  if (validMeasuredPowerFactor(em.a_pf)) {
+  if (
+    validVoltage(em.a_voltage) &&
+    isNumber(em.a_pf)
+  ) {
     powerFactors.push(
       capMeasuredPowerFactor(em.a_pf)
     );
   }
 
-  if (validMeasuredPowerFactor(em.b_pf)) {
+  if (
+    validVoltage(em.b_voltage) &&
+    isNumber(em.b_pf)
+  ) {
     powerFactors.push(
       capMeasuredPowerFactor(em.b_pf)
     );
   }
 
-  if (validMeasuredPowerFactor(em.c_pf)) {
+  if (
+    validVoltage(em.c_voltage) &&
+    isNumber(em.c_pf)
+  ) {
     powerFactors.push(
       capMeasuredPowerFactor(em.c_pf)
     );
@@ -298,13 +302,13 @@ function getAverageMeasuredPowerFactor(em) {
   return averageValues(powerFactors);
 }
 
-function resolveFallbackPowerFactor(em) {
+function resolveMeasuredPowerFactor(em) {
   let averagePowerFactor =
     getAverageMeasuredPowerFactor(em);
 
   if (averagePowerFactor === null) {
     if (!warnedPowerFactor) {
-      print("Målt power factor mangler eller er ugyldig, bruker gjennomsnitt av min/max");
+      print("Målt power factor mangler eller er ugyldig på faser med spenning, bruker gjennomsnitt av min/max");
       warnedPowerFactor = true;
     }
 
@@ -316,24 +320,6 @@ function resolveFallbackPowerFactor(em) {
   return capMeasuredPowerFactor(
     averagePowerFactor
   );
-}
-
-function resolvePhasePowerFactor(
-  configuredPowerFactor,
-  measuredPowerFactor,
-  fallbackPowerFactor
-) {
-  if (configuredPowerFactor !== -1) {
-    return configuredPowerFactor;
-  }
-
-  if (validMeasuredPowerFactor(measuredPowerFactor)) {
-    return capMeasuredPowerFactor(
-      measuredPowerFactor
-    );
-  }
-
-  return fallbackPowerFactor;
 }
 
 function resolvePhaseVoltage(
@@ -383,7 +369,7 @@ function calculatePowerKw(em) {
 
   if (ASSUMED_POWER_FACTOR === -1) {
     fallbackPowerFactor =
-      resolveFallbackPowerFactor(em);
+      resolveMeasuredPowerFactor(em);
   }
 
   let powerA =
@@ -393,11 +379,7 @@ function calculatePowerKw(em) {
         fallbackVoltage
       ),
       em.a_current,
-      resolvePhasePowerFactor(
-        ASSUMED_POWER_FACTOR,
-        em.a_pf,
-        fallbackPowerFactor
-      )
+      fallbackPowerFactor
     );
 
   let powerB =
@@ -407,11 +389,7 @@ function calculatePowerKw(em) {
         fallbackVoltage
       ),
       em.b_current,
-      resolvePhasePowerFactor(
-        ASSUMED_POWER_FACTOR,
-        em.b_pf,
-        fallbackPowerFactor
-      )
+      fallbackPowerFactor
     );
 
   let powerC =
@@ -421,11 +399,7 @@ function calculatePowerKw(em) {
         fallbackVoltage
       ),
       em.c_current,
-      resolvePhasePowerFactor(
-        ASSUMED_POWER_FACTOR,
-        em.c_pf,
-        fallbackPowerFactor
-      )
+      fallbackPowerFactor
     );
 
   if (ASSUMED_POWER_FACTOR === -1) {
