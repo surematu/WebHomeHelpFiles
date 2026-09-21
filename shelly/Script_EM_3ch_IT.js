@@ -7,7 +7,7 @@ let ASSUMED_POWER_FACTOR = 0.85;
 // Power/energy is multiplied with this factor
 let CALIBRATION_FACTOR = 0.85;
 
-// Tittel: IT 3 fas energikalkulering målt 2 faser - V3.0
+// Tittel: IT 3 fas energikalkulering målt 2 faser - V4
 // Link: https://github.com/surematu/WebHomeHelpFiles/blob/main/shelly/Script_EM_3ch_IT.js
 // Shelly Pro 3EM - beregnet effekt og energi for 230 V IT-nett
 // Virtuelle komponenter opprettes automatisk dersom de mangler.
@@ -17,6 +17,7 @@ let CALIBRATION_FACTOR = 0.85;
 // V2.1 - 16.09.2026: Flyttet oppsettvariabler og gjorde EM/navn statiske.
 // V2.2 - 20.09.2026: Cosphi min, max valid added.
 // V3.0 - 20.09.2026: Utbedret kalkulering ved estimert cos phi. Må kalkuleres basert på amp og ikke power, da power allerede tar hensyn til cos phi.
+// V4.0 - 21.09.2026: Forenklet til alltid å beregne per fase med spenning × strøm × cos phi, med snitt som fallback ved manglende faseverdier.
 
 // Startverdi dersom ingen energi er lagret tidligere.
 let INITIAL_ENERGY_KWH = 0.0;
@@ -30,8 +31,6 @@ let MAX_VALID_VOLTAGE = 280;
 // Brukes bare for målte cos phi-verdier.
 let MIN_VALID_MEASURED_COS_PHI = 0.8;
 let MAX_VALID_MEASURED_COS_PHI = 1;
-let SQRT_3 = 1.7320508075688772;
-
 let powerVc = null;
 let energyVc = null;
 
@@ -131,6 +130,22 @@ function measuredPowerFactorFallback() {
   ) / 2;
 }
 
+function capMeasuredPowerFactor(value) {
+  if (!isNumber(value)) {
+    return null;
+  }
+
+  if (value < MIN_VALID_MEASURED_COS_PHI) {
+    return MIN_VALID_MEASURED_COS_PHI;
+  }
+
+  if (value > MAX_VALID_MEASURED_COS_PHI) {
+    return MAX_VALID_MEASURED_COS_PHI;
+  }
+
+  return value;
+}
+
 function validPositiveIntervalMs(value) {
   return isNumber(value) &&
     value > 0;
@@ -227,74 +242,67 @@ function saveEnergy() {
   lastSaveMs = Shelly.getUptimeMs();
 }
 
-function addMeasuredPowerFactor(
-  weightedPowerFactor,
-  validPowerFactorCurrent,
-  current,
-  powerFactor
-) {
-  if (current <= 0 ||
-    !validMeasuredPowerFactor(powerFactor)) {
-    return {
-      weightedPowerFactor: weightedPowerFactor,
-      validPowerFactorCurrent:
-        validPowerFactorCurrent
-    };
+function averageValues(values) {
+  let sum = 0;
+
+  if (values.length <= 0) {
+    return null;
   }
 
-  return {
-    weightedPowerFactor:
-      weightedPowerFactor +
-      current * powerFactor,
-    validPowerFactorCurrent:
-      validPowerFactorCurrent +
-      current
-  };
+  for (let i = 0; i < values.length; i += 1) {
+    sum += values[i];
+  }
+
+  return sum / values.length;
 }
 
-function resolvePowerFactor(em) {
-  if (ASSUMED_POWER_FACTOR !== -1) {
-    return ASSUMED_POWER_FACTOR;
+function getAverageValidVoltage(em) {
+  let voltages = [];
+
+  if (validVoltage(em.a_voltage)) {
+    voltages.push(em.a_voltage);
   }
 
-  let weightedPowerFactor = 0;
-  let validPowerFactorCurrent = 0;
-  let phasePowerFactor;
+  if (validVoltage(em.b_voltage)) {
+    voltages.push(em.b_voltage);
+  }
 
-  phasePowerFactor = addMeasuredPowerFactor(
-    weightedPowerFactor,
-    validPowerFactorCurrent,
-    numberOrZero(em.a_current),
-    em.a_pf
-  );
-  weightedPowerFactor =
-    phasePowerFactor.weightedPowerFactor;
-  validPowerFactorCurrent =
-    phasePowerFactor.validPowerFactorCurrent;
+  if (validVoltage(em.c_voltage)) {
+    voltages.push(em.c_voltage);
+  }
 
-  phasePowerFactor = addMeasuredPowerFactor(
-    weightedPowerFactor,
-    validPowerFactorCurrent,
-    numberOrZero(em.b_current),
-    em.b_pf
-  );
-  weightedPowerFactor =
-    phasePowerFactor.weightedPowerFactor;
-  validPowerFactorCurrent =
-    phasePowerFactor.validPowerFactorCurrent;
+  return averageValues(voltages);
+}
 
-  phasePowerFactor = addMeasuredPowerFactor(
-    weightedPowerFactor,
-    validPowerFactorCurrent,
-    numberOrZero(em.c_current),
-    em.c_pf
-  );
-  weightedPowerFactor =
-    phasePowerFactor.weightedPowerFactor;
-  validPowerFactorCurrent =
-    phasePowerFactor.validPowerFactorCurrent;
+function getAverageMeasuredPowerFactor(em) {
+  let powerFactors = [];
 
-  if (validPowerFactorCurrent <= 0) {
+  if (validMeasuredPowerFactor(em.a_pf)) {
+    powerFactors.push(
+      capMeasuredPowerFactor(em.a_pf)
+    );
+  }
+
+  if (validMeasuredPowerFactor(em.b_pf)) {
+    powerFactors.push(
+      capMeasuredPowerFactor(em.b_pf)
+    );
+  }
+
+  if (validMeasuredPowerFactor(em.c_pf)) {
+    powerFactors.push(
+      capMeasuredPowerFactor(em.c_pf)
+    );
+  }
+
+  return averageValues(powerFactors);
+}
+
+function resolveFallbackPowerFactor(em) {
+  let averagePowerFactor =
+    getAverageMeasuredPowerFactor(em);
+
+  if (averagePowerFactor === null) {
     if (!warnedPowerFactor) {
       print("Målt power factor mangler eller er ugyldig, bruker gjennomsnitt av min/max");
       warnedPowerFactor = true;
@@ -305,126 +313,133 @@ function resolvePowerFactor(em) {
 
   warnedPowerFactor = false;
 
-  return weightedPowerFactor /
-    validPowerFactorCurrent;
+  return capMeasuredPowerFactor(
+    averagePowerFactor
+  );
+}
+
+function resolvePhasePowerFactor(
+  configuredPowerFactor,
+  measuredPowerFactor,
+  fallbackPowerFactor
+) {
+  if (configuredPowerFactor !== -1) {
+    return configuredPowerFactor;
+  }
+
+  if (validMeasuredPowerFactor(measuredPowerFactor)) {
+    return capMeasuredPowerFactor(
+      measuredPowerFactor
+    );
+  }
+
+  return fallbackPowerFactor;
+}
+
+function resolvePhaseVoltage(
+  measuredVoltage,
+  fallbackVoltage
+) {
+  if (validVoltage(measuredVoltage)) {
+    return measuredVoltage;
+  }
+
+  return fallbackVoltage;
+}
+
+function calculatePhasePowerKw(
+  voltage,
+  current,
+  powerFactor
+) {
+  let phaseCurrent = magnitudeOrZero(current);
+
+  if (
+    !validVoltage(voltage) ||
+    phaseCurrent <= 0 ||
+    !isNumber(powerFactor)
+  ) {
+    return 0;
+  }
+
+  return voltage *
+    phaseCurrent *
+    powerFactor *
+    CALIBRATION_FACTOR /
+    1000;
 }
 
 function calculatePowerKw(em) {
-  let aVoltageValid =
-    validVoltage(em.a_voltage);
+  let fallbackVoltage =
+    getAverageValidVoltage(em);
 
-  let bVoltageValid =
-    validVoltage(em.b_voltage);
-
-  let cVoltageValid =
-    validVoltage(em.c_voltage);
-
-  let validVoltageCount = 0;
-
-  if (aVoltageValid) {
-    validVoltageCount += 1;
-  }
-
-  if (bVoltageValid) {
-    validVoltageCount += 1;
-  }
-
-  if (cVoltageValid) {
-    validVoltageCount += 1;
-  }
-
-  // Med målt PF (-1) og to/tre spenninger brukes
-  // Shellys målte aktive effekt.
-  if (
-    ASSUMED_POWER_FACTOR === -1 &&
-    validVoltageCount >= 2
-  ) {
-    let activePowerW = 0;
-
-    if (aVoltageValid) {
-      activePowerW +=
-        magnitudeOrZero(em.a_act_power);
-    }
-
-    if (bVoltageValid) {
-      activePowerW +=
-        magnitudeOrZero(em.b_act_power);
-    }
-
-    if (cVoltageValid) {
-      activePowerW +=
-        magnitudeOrZero(em.c_act_power);
-    }
-
-    if (validVoltageCount === 2) {
-      setMode("To-wattmetermetoden");
-    } else {
-      setMode("Tre spenningskanaler");
-    }
-
-    return activePowerW *
-      CALIBRATION_FACTOR /
-      1000;
-  }
-
-  // Med én tilgjengelig linjespenning brukes:
-  //
-  // P = U × (IA + IB + IC) / sqrt(3) × antatt PF
-
-  let lineVoltageSum = 0;
-
-  if (aVoltageValid) {
-    lineVoltageSum += em.a_voltage;
-  }
-
-  if (bVoltageValid) {
-    lineVoltageSum += em.b_voltage;
-  }
-
-  if (cVoltageValid) {
-    lineVoltageSum += em.c_voltage;
-  }
-
-  if (validVoltageCount <= 0) {
+  if (!validVoltage(fallbackVoltage)) {
     setMode("Ingen gyldig spenning");
     return null;
   }
 
-  let lineVoltage =
-    lineVoltageSum /
-    validVoltageCount;
-
-  let totalCurrent =
-    magnitudeOrZero(em.a_current) +
-    magnitudeOrZero(em.b_current) +
-    magnitudeOrZero(em.c_current);
-
-  let apparentPowerKva =
-    lineVoltage *
-    totalCurrent /
-    SQRT_3 /
-    1000;
-
-  let powerFactor =
-    resolvePowerFactor(em);
-
-  if (powerFactor === null) {
-    setMode("Ingen gyldig power factor");
-    return null;
-  }
+  let fallbackPowerFactor =
+    ASSUMED_POWER_FACTOR;
 
   if (ASSUMED_POWER_FACTOR === -1) {
-    setMode("Estimat med målt PF");
+    fallbackPowerFactor =
+      resolveFallbackPowerFactor(em);
+  }
+
+  let powerA =
+    calculatePhasePowerKw(
+      resolvePhaseVoltage(
+        em.a_voltage,
+        fallbackVoltage
+      ),
+      em.a_current,
+      resolvePhasePowerFactor(
+        ASSUMED_POWER_FACTOR,
+        em.a_pf,
+        fallbackPowerFactor
+      )
+    );
+
+  let powerB =
+    calculatePhasePowerKw(
+      resolvePhaseVoltage(
+        em.b_voltage,
+        fallbackVoltage
+      ),
+      em.b_current,
+      resolvePhasePowerFactor(
+        ASSUMED_POWER_FACTOR,
+        em.b_pf,
+        fallbackPowerFactor
+      )
+    );
+
+  let powerC =
+    calculatePhasePowerKw(
+      resolvePhaseVoltage(
+        em.c_voltage,
+        fallbackVoltage
+      ),
+      em.c_current,
+      resolvePhasePowerFactor(
+        ASSUMED_POWER_FACTOR,
+        em.c_pf,
+        fallbackPowerFactor
+      )
+    );
+
+  if (ASSUMED_POWER_FACTOR === -1) {
+    setMode("Per fase med målt PF");
   } else {
     setMode(
-      "Estimat med PF " +
+      "Per fase med PF " +
       ASSUMED_POWER_FACTOR
     );
   }
 
-  return apparentPowerKva *
-    powerFactor *
-    CALIBRATION_FACTOR;
+  return powerA +
+    powerB +
+    powerC;
 }
 
 function sample() {
