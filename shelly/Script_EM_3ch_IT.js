@@ -281,22 +281,16 @@ function getAverageValidVoltage(em) {
 function getAverageMeasuredPowerFactor(em) {
   let powerFactors = [];
 
-  if (hasMeasuredPowerFactor(em.a_pf)) {
-    powerFactors.push(
-      capMeasuredPowerFactor(em.a_pf)
-    );
+  if (validMeasuredPowerFactor(em.a_pf)) {
+    powerFactors.push(em.a_pf);
   }
 
-  if (hasMeasuredPowerFactor(em.b_pf)) {
-    powerFactors.push(
-      capMeasuredPowerFactor(em.b_pf)
-    );
+  if (validMeasuredPowerFactor(em.b_pf)) {
+    powerFactors.push(em.b_pf);
   }
 
-  if (hasMeasuredPowerFactor(em.c_pf)) {
-    powerFactors.push(
-      capMeasuredPowerFactor(em.c_pf)
-    );
+  if (validMeasuredPowerFactor(em.c_pf)) {
+    powerFactors.push(em.c_pf);
   }
 
   return averageValues(powerFactors);
