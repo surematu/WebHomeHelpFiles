@@ -32,7 +32,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.02
+    Blueprint versjon: 2026.11.03
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -129,7 +129,8 @@ blueprint:
 
         hours_afterrun_warm:
           name: Etterdrift – varmt (timer)
-          default: 3
+          description: Hvor lenge behovet holdes etter siste kjøring med snø (eller etter at rimfare slo inn) når det er varmt.
+          default: 4
           selector:
             number:
               min: 0
@@ -140,7 +141,8 @@ blueprint:
 
         hours_afterrun_cold:
           name: Etterdrift – kaldt (timer)
-          default: 6
+          description: Hvor lenge behovet holdes etter siste kjøring med snø (eller etter at rimfare slo inn) når det er kaldt.
+          default: 7
           selector:
             number:
               min: 0
@@ -344,7 +346,7 @@ actions:
       min_temp_cold_window: "{{ (temp_list_cold | min) if (temp_list_cold | length > 0) else 0 }}"
       is_cold_mode: "{{ (temp_list_cold | length > 0) and (min_temp_cold_window | float(0)) <= (sp_temp_cold_mode | float(-5)) }}"
       hours_to_check: "{{ (sp_hours_check_cold if is_cold_mode else sp_hours_check_warm) | int(3) }}"
-      afterrun_hours: "{{ (sp_hours_afterrun_cold if is_cold_mode else sp_hours_afterrun_warm) | float(3) }}"
+      afterrun_hours: "{{ (sp_hours_afterrun_cold if is_cold_mode else sp_hours_afterrun_warm) | float(4) }}"
       mode_text: "{{ '(Kaldt, sjekk de neste ' ~ hours_to_check ~ ' timene.)' if is_cold_mode else '(Varmt, sjekk de neste ' ~ hours_to_check ~ ' timene.)' }}"
 
   - alias: Steg 7 – Lag lister for valgt vindu

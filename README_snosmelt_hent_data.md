@@ -14,7 +14,7 @@ Det er −2 °C og meldt 0,6 mm nedbør de neste 3 timene. «Snø detektert» og
 
 ### 2.2 Etterdrift
 
-Snøfallet er over. «Snø detektert» slås AV, men «Snøsmelt behov» holdes PÅ i 3 timer (6 timer når det er kaldt) for å smelte det som ligger igjen.
+Snøfallet er over. «Snø detektert» slås AV, men «Snøsmelt behov» holdes PÅ i 4 timer (7 timer når det er kaldt) for å smelte det som ligger igjen.
 
 ### 2.3 Manuell kjøring
 
@@ -29,7 +29,7 @@ Nei. Den bestemmer bare om det er behov. Selve utgangene styres av «Snøsmelt -
 Én gang i timen (minutt 30), ved omstart av Home Assistant, og med en gang manuell kjøring slås av eller på.
 
 **Hva er forskjellen på «varmt» og «kaldt»?**
-Når laveste temperatur de neste timene er −5 °C eller lavere, regnes det som kaldt. Da ser automasjonen lenger frem (6 timer i stedet for 3) og kjører lengre etterdrift (6 timer i stedet for 3).
+Når laveste temperatur de neste timene er −5 °C eller lavere, regnes det som kaldt. Da ser automasjonen lenger frem (6 timer i stedet for 3) og kjører lengre etterdrift (7 timer i stedet for 4).
 
 **Hva er rimfare?**
 Når lufttemperaturen er nær duggpunktet og under +2 °C, kan det danne seg rim eller is selv uten nedbør.
@@ -69,8 +69,8 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 | Nedbørsgrense | 0,1 mm | Sum meldt nedbør i vinduet som gir behov |
 | Timer å sjekke – varmt | 3 t | Hvor langt frem det sjekkes når det er varmt |
 | Timer å sjekke – kaldt | 6 t | Hvor langt frem det sjekkes når det er kaldt |
-| Etterdrift – varmt | 3 t | Etterdrift når det er varmt |
-| Etterdrift – kaldt | 6 t | Etterdrift når det er kaldt |
+| Etterdrift – varmt | 4 t | Etterdrift når det er varmt, regnet fra siste kjøring med snø |
+| Etterdrift – kaldt | 7 t | Etterdrift når det er kaldt, regnet fra siste kjøring med snø |
 | Rimfare – avstand til duggpunkt | 1,5 °C | Rimfare når temperatur − duggpunkt er mindre enn dette |
 | Manuell kjøring – varighet | 6 t | Hvor lenge ett trykk på knappen kjører anlegget |
 
@@ -229,7 +229,7 @@ Ingen egne debug-varsler. Alle mellomverdier er synlige i sporloggen (Trace) til
 
 - Resultatet skrives til hjelpere i stedet for til YAML-definerte template-sensorer.
 - Manuell kjøring styres av en input_button i stedet for et eget script, og utløpet treffes på tidspunktet (ikke først ved neste time).
-- Tidspunkter lagres med minutt-presisjon, og etterdrift regnes nøyaktig fra tidspunktet (uten en ekstra time).
+- Tidspunkter lagres med minutt-presisjon, og etterdrift regnes nøyaktig fra tidspunktet. Den opprinnelige automasjonen rundet ned til hel time og la på én time, slik at «3 og 6 timer» i praksis ga 4 og 7 timer. Standard er derfor 4 og 7 timer her, som gir samme gangtid.
 - Hendelsen heter `webhome_snosmelt_update` (tidligere `metno_next6h_update`).
 
 ## 11. Dokumentasjon
