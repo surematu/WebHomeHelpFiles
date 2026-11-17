@@ -46,7 +46,7 @@ Nei. Hjelperne er hardkodet, så det kan bare være én «Snøsmelt - Hent data�
 ## 4. Hva slags info trengs
 
 - En weather-entitet med timevarsel (f.eks. Met.no).
-- Åtte hjelpere (én valgfri i tillegg) med faste entitets-ID-er, se §10.1. De er hardkodet i blueprintet og må finnes i Home Assistant. Opprett dem samlet med `packages/snosmelt_hjelpere.yaml`.
+- Åtte hjelpere (to valgfrie i tillegg) med faste entitets-ID-er, se §10.1. De er hardkodet i blueprintet og må finnes i Home Assistant. Opprett dem samlet med `packages/snosmelt_hjelpere.yaml`.
 - Scriptet `script.varsel_pushover_send_melding_webhome` hvis varsling skal brukes.
 
 ## 5. Innstillinger
@@ -99,7 +99,7 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 9. **Etterdrift:** aktiv så lenge det er kortere enn etterdriftstiden siden det siste av de to tidspunktene.
 10. **Manuell kjøring:** aktiv så lenge «Manuell kjøring til» er i fremtiden.
 11. **Samlet behov** = snø ELLER rim ELLER etterdrift ELLER manuell. Skrives til «Snøsmelt behov» kun ved endring.
-12. **Årsak og detaljer** skrives til tekst-hjelperne, og hendelsen `webhome_snosmelt_update` sendes med alle verdier.
+12. **Årsak, forklaring og detaljer** skrives til tekst-hjelperne, og hendelsen `webhome_snosmelt_update` sendes med alle verdier.
 
 ## 7. Resultat
 
@@ -108,7 +108,8 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 | Snøsmelt behov | PÅ/AV – samlet behov |
 | Snø detektert | PÅ/AV |
 | Rim/is detektert | PÅ/AV |
-| Årsak for driftsmodus | Tekst, f.eks. «Stopp. Lite/ingen nedbør. (Varmt, sjekk de neste 3 timene.)» |
+| Årsak for driftsmodus | Kort status i fast form, f.eks. «Stopp. Lite/ingen nedbør. (Varmt, sjekk de neste 3 timene.)» |
+| Forklaring (valgfri) | Forklaring i klarspråk med tall, f.eks. «Det er meldt 0,6 mm nedbør de neste 3 timene, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø.» |
 | Detaljer (valgfri) | Tekst, f.eks. «Nedbør 0.4 mm · Temp -2.5 til -1.0 °C · Fukt maks 87 % · Duggpunkt -4.2 °C» |
 | Snø sist aktiv | Tidspunkt for siste kjøring med snø detektert |
 | Rim sist aktivert | Tidspunkt da rimfare sist slo inn |
@@ -134,7 +135,24 @@ Begge kan slås av i innstillingene.
 
 Hjelperne kan vises direkte: «Snøsmelt behov» som hovedknapp, «Snø detektert» og «Rim/is detektert» som underknapper, «Årsak» og «Detaljer» som tekst, og «Snøsmelt manuell kjøring» som trykknapp.
 
-### 9.2 Kjøring sammen med en eldre løsning
+### 9.2 Årsak og forklaring
+
+Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på to måter:
+
+| Situasjon | Årsak (kort status) | Forklaring (klarspråk) |
+|---|---|---|
+| Snø | Start snøsmelt, nedbør detektert. | Det er meldt 0,6 mm nedbør de neste 3 timene, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
+| Rim/is | Start snøsmelt, rim/frost detektert. | Det er −1,0 °C og fuktig luft, bare 0,4 °C over duggpunktet. Da kan det danne seg rim eller is, så anlegget går for å holde bakken tørr. |
+| Etterdrift | Etterdrift for 4 timer aktiv. Timer igjen; 2. | Snøfallet er over. Anlegget går i 2 timer til for å smelte og tørke opp det som ligger igjen. |
+| Manuell | Manuell aktivering 6t igjen. - … | Anlegget er startet manuelt og går til kl. 05:58. |
+| For varmt | Stopp. For varmt. | Det er +4,0 °C eller varmere de neste 3 timene, så snøen smelter av seg selv. |
+| For kaldt | Stopp. For kaldt. | Det er −12,0 °C eller kaldere de neste 6 timene. Anlegget starter ikke på snøfall når det er så kaldt. |
+| Ingen nedbør | Stopp. Lite/ingen nedbør. | Det er ikke meldt nedbør de neste 3 timene, og det er ingen fare for rim. |
+| Ingen værdata | Ingen gyldige værdata. | Værvarselet er ikke tilgjengelig akkurat nå. Anlegget starter ikke på vær før det er tilbake. |
+
+Årsaken er ment for feilsøking og historikk. Forklaringen er ment for brukeren.
+
+### 9.3 Kjøring sammen med en eldre løsning
 
 Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe annet. Det kan derfor kjøres side om side med en eksisterende snøsmelt-løsning mens det testes.
 
@@ -153,6 +171,7 @@ Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe a
 | Bryter (input_boolean) | Snøsmelt snø detektert | `input_boolean.snosmelt_sno_detektert` | |
 | Bryter (input_boolean) | Snøsmelt rim detektert | `input_boolean.snosmelt_rim_detektert` | |
 | Tekst (input_text) | Snøsmelt årsak | `input_text.snosmelt_arsak` | Maks lengde 255 |
+| Tekst (input_text) | Snøsmelt forklaring | `input_text.snosmelt_forklaring` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
 | Tekst (input_text) | Snøsmelt detaljer | `input_text.snosmelt_detaljer` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
 | Dato og tid (input_datetime) | Snøsmelt snø sist aktiv | `input_datetime.snosmelt_sno_sist_aktiv` | Dato og tid |
 | Dato og tid (input_datetime) | Snøsmelt rim sist aktivert | `input_datetime.snosmelt_rim_sist_aktivert` | Dato og tid |
@@ -207,6 +226,7 @@ template:
 | `manual_active`, `manual_remaining_h` | Manuell kjøring |
 | `demand` | Samlet behov |
 | `reason_combined`, `details_text` | Tekstene som skrives til hjelperne |
+| `explanation_weather`, `explanation_text` | Forklaringen i klarspråk, uten og med manuell kjøring |
 
 Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reason`, `snow_detected`, `frost_detected`, `afterrun_active`, `manual_active`, `has_data`, `is_cold_mode`, `precip_sum`, `min_temp`, `max_temp`, `max_hum`, `dew_point`, `min_temp_cold_window`.
 

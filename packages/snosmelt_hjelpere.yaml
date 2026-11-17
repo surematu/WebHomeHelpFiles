@@ -14,7 +14,7 @@
 # Alternativt kan de samme hjelperne opprettes manuelt under
 # Innstillinger → Enheter og tjenester → Hjelpere (se README_snosmelt_hent_data.md).
 #
-# Versjon: 2026.11.01
+# Versjon: 2026.11.02
 
 input_boolean:
   snosmelt_behov:
@@ -31,6 +31,10 @@ input_text:
   snosmelt_arsak:
     name: Snøsmelt årsak
     icon: mdi:information-outline
+    max: 255
+  snosmelt_forklaring:
+    name: Snøsmelt forklaring
+    icon: mdi:comment-text-outline
     max: 255
   snosmelt_detaljer:
     name: Snøsmelt detaljer
