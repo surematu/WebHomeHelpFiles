@@ -16,12 +16,23 @@ blueprint:
     - Etterdrift: behov holdes i N timer etter siste snø / siste rim-start.
     - Manuell kjøring: knapp (input_button) starter/stopper manuell kjøring i N timer.
 
-    Krever hjelpere (se README, eller bruk packages/snosmelt_hjelpere.yaml).
+    Forutsetter at disse hjelperne finnes i Home Assistant med nøyaktig disse
+    entitets-ID-ene (de er hardkodet og velges ikke i automasjonen).
+    Opprett dem med packages/snosmelt_hjelpere.yaml, eller manuelt (se README):
+    - input_boolean.snosmelt_behov              (Snøsmelt behov – hovedresultatet)
+    - input_boolean.snosmelt_sno_detektert      (Snø detektert)
+    - input_boolean.snosmelt_rim_detektert      (Rim/is detektert)
+    - input_text.snosmelt_arsak                 (Årsak, maks 255 tegn)
+    - input_text.snosmelt_detaljer              (Værdata, maks 255 tegn, valgfri)
+    - input_datetime.snosmelt_sno_sist_aktiv    (Snø sist aktiv, dato + tid)
+    - input_datetime.snosmelt_rim_sist_aktivert (Rim sist aktivert, dato + tid)
+    - input_datetime.snosmelt_manuell_til       (Manuell kjøring til, dato + tid)
+    - input_button.snosmelt_manuell_kjoring     (Knapp for manuell kjøring)
 
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.01
+    Blueprint versjon: 2026.11.02
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -40,78 +51,6 @@ blueprint:
           selector:
             entity:
               domain: weather
-
-    helpers:
-      name: Hjelpere (må opprettes på forhånd)
-      icon: mdi:database-cog
-      input:
-        helper_demand:
-          name: Snøsmelt behov (input_boolean)
-          description: >
-            Hovedresultatet. PÅ når anlegget skal gå (snø, rim, etterdrift eller manuell).
-            Denne velges som «Snøsmelt behov» i «Snøsmelt - Styr utgang».
-          selector:
-            entity:
-              domain: input_boolean
-
-        helper_reason:
-          name: Årsak for driftsmodus (input_text, maks 255 tegn)
-          description: Lesbar tekst som forklarer hvorfor anlegget går eller står.
-          selector:
-            entity:
-              domain: input_text
-
-        helper_snow_detected:
-          name: Snø detektert (input_boolean)
-          description: PÅ når værvarselet gir snøfall-behov akkurat nå.
-          selector:
-            entity:
-              domain: input_boolean
-
-        helper_frost_detected:
-          name: Rim/is detektert (input_boolean)
-          description: PÅ når det er rim- eller isfare akkurat nå.
-          selector:
-            entity:
-              domain: input_boolean
-
-        helper_snow_last:
-          name: Snø sist aktiv (input_datetime, dato + tid)
-          description: Oppdateres hver gang snø er detektert. Brukes til etterdrift.
-          selector:
-            entity:
-              domain: input_datetime
-
-        helper_frost_last:
-          name: Rim sist aktivert (input_datetime, dato + tid)
-          description: Oppdateres når rimfare går fra AV til PÅ. Brukes til etterdrift.
-          selector:
-            entity:
-              domain: input_datetime
-
-        helper_manual_until:
-          name: Manuell kjøring til (input_datetime, dato + tid)
-          description: Anlegget kjøres manuelt så lenge dette tidspunktet er i fremtiden.
-          selector:
-            entity:
-              domain: input_datetime
-
-        helper_manual_button:
-          name: Manuell kjøring knapp (input_button)
-          description: >
-            Ett trykk starter manuell kjøring i valgt antall timer.
-            Nytt trykk mens manuell kjøring er aktiv stopper den.
-          selector:
-            entity:
-              domain: input_button
-
-        helper_details:
-          name: Detaljer (input_text, maks 255 tegn) (valgfri)
-          description: Valgfri tekst med nedbør, temperatur, fukt og duggpunkt for visning.
-          default: ""
-          selector:
-            entity:
-              domain: input_text
 
     settings:
       name: Innstillinger
@@ -264,7 +203,7 @@ blueprint:
         pushover_ttl_hours:
           name: Levetid varsel (timer)
           description: Hvor lenge skal varslet være synlig før det forsvinner?
-          default: 6
+          default: 168
           selector:
             number:
               min: 0
@@ -275,8 +214,8 @@ blueprint:
 
         varsel_ved_start:
           name: Send varsel når snøsmelting starter
-          description: Sender varsel når «Snøsmelt behov» går fra AV til PÅ. Av som standard.
-          default: false
+          description: Sender varsel når «Snøsmelt behov» går fra AV til PÅ.
+          default: true
           selector:
             boolean:
 
@@ -307,7 +246,7 @@ triggers:
     id: ha_start
 
   - trigger: state
-    entity_id: !input helper_manual_button
+    entity_id: input_button.snosmelt_manuell_kjoring
     # «unknown» er tillatt som fra-tilstand: en ny knapp er «unknown» til første trykk.
     not_from:
       - unavailable
@@ -317,25 +256,26 @@ triggers:
     id: manual_button
 
   - trigger: state
-    entity_id: !input helper_manual_until
+    entity_id: input_datetime.snosmelt_manuell_til
     id: manual_changed
 
   - trigger: time
-    at: !input helper_manual_until
+    at: input_datetime.snosmelt_manuell_til
     id: manual_expired
 
 actions:
   - alias: Steg 1 – Les innstillinger fra blueprint
     variables:
       io_weather: !input weather_entity
-      io_demand: !input helper_demand
-      io_reason: !input helper_reason
-      io_snow_detected: !input helper_snow_detected
-      io_frost_detected: !input helper_frost_detected
-      io_snow_last: !input helper_snow_last
-      io_frost_last: !input helper_frost_last
-      io_manual_until: !input helper_manual_until
-      io_details: !input helper_details
+      # Hjelpere – hardkodet, må finnes i Home Assistant (se beskrivelsen øverst)
+      io_demand: input_boolean.snosmelt_behov
+      io_reason: input_text.snosmelt_arsak
+      io_snow_detected: input_boolean.snosmelt_sno_detektert
+      io_frost_detected: input_boolean.snosmelt_rim_detektert
+      io_snow_last: input_datetime.snosmelt_sno_sist_aktiv
+      io_frost_last: input_datetime.snosmelt_rim_sist_aktivert
+      io_manual_until: input_datetime.snosmelt_manuell_til
+      io_details: input_text.snosmelt_detaljer
       sp_temp_stop_warm: !input temp_stop_warm
       sp_temp_stop_cold: !input temp_stop_cold
       sp_temp_cold_mode: !input temp_cold_mode
@@ -542,7 +482,7 @@ actions:
           value: "{{ (reason_combined | trim)[:255] }}"
       - if:
           - condition: template
-            value_template: "{{ io_details is string and (io_details | trim) != '' }}"
+            value_template: "{{ io_details in (states.input_text | map(attribute='entity_id') | list) }}"
         then:
           - action: input_text.set_value
             target:

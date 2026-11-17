@@ -151,7 +151,7 @@ Ved feil slås «Feil-hjelper» PÅ (hvis valgt) og feilvarsel sendes. Ved «bek
 ### 10.1 Forutsettninger
 
 - Home Assistant 2025.11.0 eller nyere.
-- «Snøsmelt - Hent data» satt opp, med hjelperen «Snøsmelt behov».
+- «Snøsmelt - Hent data» satt opp, med hjelperen «Snøsmelt behov» (`input_boolean.snosmelt_behov`).
 - En switch-entitet for utgangen.
 - `script.varsel_pushover_send_melding_webhome` (fra `blueprints/scripts/varsel_pushover.yaml`) hvis varsling brukes.
 - Valgfritt: én input_boolean per utgang som «Feil-hjelper», f.eks. `input_boolean.snosmelt_q1_2_feil`.
