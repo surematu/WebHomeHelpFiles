@@ -1,0 +1,621 @@
+blueprint:
+  name: Snøsmelt - Hent data (WebHome Automation)
+  description: >
+    Overordnet automasjon for et snøsmelteanlegg. Henter timevarsel fra en
+    weather-entitet, avgjør om det er behov for snøsmelting (snø, rim/is,
+    etterdrift eller manuell kjøring) og skriver resultatet til hjelpere.
+
+    Resultatet («Snøsmelt behov») brukes av én eller flere
+    «Snøsmelt - Styr utgang»-automasjoner, én per kontaktor/utgang.
+
+    Logikk:
+    - Kaldt (laveste temp i «kaldt»-vinduet <= grense): sjekk flere timer frem, lengre etterdrift.
+    - Varmt: sjekk færre timer frem, kortere etterdrift.
+    - Snø: meldt nedbør i vinduet >= grense, og temperaturen er innenfor start/stopp-grensene.
+    - Rim/is: temperatur nær duggpunkt (Magnus-formel) og under «for varmt»-grensen.
+    - Etterdrift: behov holdes i N timer etter siste snø / siste rim-start.
+    - Manuell kjøring: knapp (input_button) starter/stopper manuell kjøring i N timer.
+
+    Krever hjelpere (se README, eller bruk packages/snosmelt_hjelpere.yaml).
+
+    Dokumentasjon/wiki:
+    https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
+
+    Blueprint versjon: 2026.11.00
+
+  domain: automation
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
+  author: WebHome
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    main:
+      name: Hovedinnganger
+      icon: mdi:weather-snowy-heavy
+      input:
+        weather_entity:
+          name: Værvarsel
+          description: Weather-entitet med timevarsel (f.eks. Met.no – weather.forecast_home).
+          selector:
+            entity:
+              domain: weather
+
+    helpers:
+      name: Hjelpere (må opprettes på forhånd)
+      icon: mdi:database-cog
+      input:
+        helper_demand:
+          name: Snøsmelt behov (input_boolean)
+          description: >
+            Hovedresultatet. PÅ når anlegget skal gå (snø, rim, etterdrift eller manuell).
+            Denne velges som «Snøsmelt behov» i «Snøsmelt - Styr utgang».
+          selector:
+            entity:
+              domain: input_boolean
+
+        helper_reason:
+          name: Årsak for driftsmodus (input_text, maks 255 tegn)
+          description: Lesbar tekst som forklarer hvorfor anlegget går eller står.
+          selector:
+            entity:
+              domain: input_text
+
+        helper_snow_detected:
+          name: Snø detektert (input_boolean)
+          description: PÅ når værvarselet gir snøfall-behov akkurat nå.
+          selector:
+            entity:
+              domain: input_boolean
+
+        helper_frost_detected:
+          name: Rim/is detektert (input_boolean)
+          description: PÅ når det er rim- eller isfare akkurat nå.
+          selector:
+            entity:
+              domain: input_boolean
+
+        helper_snow_last:
+          name: Snø sist aktiv (input_datetime, dato + tid)
+          description: Oppdateres hver gang snø er detektert. Brukes til etterdrift.
+          selector:
+            entity:
+              domain: input_datetime
+
+        helper_frost_last:
+          name: Rim sist aktivert (input_datetime, dato + tid)
+          description: Oppdateres når rimfare går fra AV til PÅ. Brukes til etterdrift.
+          selector:
+            entity:
+              domain: input_datetime
+
+        helper_manual_until:
+          name: Manuell kjøring til (input_datetime, dato + tid)
+          description: Anlegget kjøres manuelt så lenge dette tidspunktet er i fremtiden.
+          selector:
+            entity:
+              domain: input_datetime
+
+        helper_manual_button:
+          name: Manuell kjøring knapp (input_button)
+          description: >
+            Ett trykk starter manuell kjøring i valgt antall timer.
+            Nytt trykk mens manuell kjøring er aktiv stopper den.
+          selector:
+            entity:
+              domain: input_button
+
+        helper_details:
+          name: Detaljer (input_text, maks 255 tegn) (valgfri)
+          description: Valgfri tekst med nedbør, temperatur, fukt og duggpunkt for visning.
+          default: ""
+          selector:
+            entity:
+              domain: input_text
+
+    settings:
+      name: Innstillinger
+      icon: mdi:tune
+      collapsed: true
+      input:
+        temp_stop_warm:
+          name: Stopp – for varmt (°C)
+          description: Er laveste temperatur i vinduet over denne, startes ikke snøsmelting. Rimfare krever også temperatur under denne.
+          default: 2
+          selector:
+            number:
+              min: -10
+              max: 10
+              step: 0.5
+              unit_of_measurement: "°C"
+              mode: box
+
+        temp_stop_cold:
+          name: Stopp – for kaldt (°C)
+          description: Er høyeste temperatur i vinduet under denne, startes ikke snøsmelting på snøfall.
+          default: -10
+          selector:
+            number:
+              min: -40
+              max: 0
+              step: 0.5
+              unit_of_measurement: "°C"
+              mode: box
+
+        temp_cold_mode:
+          name: Grense kaldt/varmt (°C)
+          description: Er laveste temperatur i «kaldt»-vinduet lik eller under denne, brukes «kaldt»-innstillingene.
+          default: -5
+          selector:
+            number:
+              min: -30
+              max: 5
+              step: 0.5
+              unit_of_measurement: "°C"
+              mode: box
+
+        precip_threshold:
+          name: Nedbørsgrense (mm)
+          description: Sum meldt nedbør i vinduet som gir snøsmelt-behov.
+          default: 0.1
+          selector:
+            number:
+              min: 0
+              max: 10
+              step: 0.1
+              unit_of_measurement: mm
+              mode: box
+
+        hours_check_warm:
+          name: Timer å sjekke – varmt
+          default: 3
+          selector:
+            number:
+              min: 1
+              max: 24
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+        hours_check_cold:
+          name: Timer å sjekke – kaldt
+          default: 6
+          selector:
+            number:
+              min: 1
+              max: 24
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+        hours_afterrun_warm:
+          name: Etterdrift – varmt (timer)
+          default: 3
+          selector:
+            number:
+              min: 0
+              max: 24
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+        hours_afterrun_cold:
+          name: Etterdrift – kaldt (timer)
+          default: 6
+          selector:
+            number:
+              min: 0
+              max: 24
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+        frost_dewpoint_margin:
+          name: Rimfare – avstand til duggpunkt (°C)
+          description: Rimfare når (temperatur − duggpunkt) er mindre enn denne.
+          default: 1.5
+          selector:
+            number:
+              min: 0
+              max: 5
+              step: 0.1
+              unit_of_measurement: "°C"
+              mode: box
+
+        manual_hours:
+          name: Manuell kjøring – varighet (timer)
+          default: 6
+          selector:
+            number:
+              min: 1
+              max: 48
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+    varsling:
+      name: Varsling (Valgfri)
+      icon: mdi:bell
+      collapsed: true
+      input:
+        pushover_destination:
+          name: Pushover destination (valgfri)
+          description: >
+            Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres
+            slik at den blir sendt ulikt.
+          default: pushover
+          selector:
+            text:
+
+        pushover_priority:
+          name: Pushover priority
+          description: >
+            −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd),
+            1 (Høy prioritet, rødt varsel, omgår stilleperiode),
+            2 (nødvarsel som gjentas til det bekreftes).
+          default: 0
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_ttl_hours:
+          name: Levetid varsel (timer)
+          description: Hvor lenge skal varslet være synlig før det forsvinner?
+          default: 6
+          selector:
+            number:
+              min: 0
+              max: 168
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+        varsel_ved_start:
+          name: Send varsel når snøsmelting starter
+          description: Sender varsel når «Snøsmelt behov» går fra AV til PÅ. Av som standard.
+          default: false
+          selector:
+            boolean:
+
+    avansert:
+      name: Avansert
+      icon: mdi:cog
+      collapsed: true
+      input:
+        varsel_ved_manuell_kjoring:
+          name: Send varsel ved manuell kjøring
+          description: >
+            Sett til true for å sende varsel når automasjonen kjøres manuelt.
+            Sett til false for å ikke sende varsel ved manuell kjøring.
+          default: true
+          selector:
+            boolean:
+
+mode: restart
+
+triggers:
+  - trigger: time_pattern
+    hours: /1
+    minutes: "30"
+    id: time
+
+  - trigger: homeassistant
+    event: start
+    id: ha_start
+
+  - trigger: state
+    entity_id: !input helper_manual_button
+    not_from:
+      - unavailable
+      - unknown
+    not_to:
+      - unavailable
+      - unknown
+    id: manual_button
+
+  - trigger: state
+    entity_id: !input helper_manual_until
+    id: manual_changed
+
+  - trigger: time
+    at: !input helper_manual_until
+    id: manual_expired
+
+actions:
+  - alias: Steg 1 – Les innstillinger fra blueprint
+    variables:
+      io_weather: !input weather_entity
+      io_demand: !input helper_demand
+      io_reason: !input helper_reason
+      io_snow_detected: !input helper_snow_detected
+      io_frost_detected: !input helper_frost_detected
+      io_snow_last: !input helper_snow_last
+      io_frost_last: !input helper_frost_last
+      io_manual_until: !input helper_manual_until
+      io_details: !input helper_details
+      sp_temp_stop_warm: !input temp_stop_warm
+      sp_temp_stop_cold: !input temp_stop_cold
+      sp_temp_cold_mode: !input temp_cold_mode
+      sp_precip_threshold: !input precip_threshold
+      sp_hours_check_warm: !input hours_check_warm
+      sp_hours_check_cold: !input hours_check_cold
+      sp_hours_afterrun_warm: !input hours_afterrun_warm
+      sp_hours_afterrun_cold: !input hours_afterrun_cold
+      sp_frost_margin: !input frost_dewpoint_margin
+      sp_manual_hours: !input manual_hours
+      pushover_destination: !input pushover_destination
+      pushover_priority: !input pushover_priority
+      pushover_ttl_hours: !input pushover_ttl_hours
+      io_varsel_ved_start: !input varsel_ved_start
+      io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
+      is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'homeassistant', 'state', 'time'] }}"
+      trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
+      demand_before: "{{ is_state(io_demand, 'on') }}"
+
+  - alias: Steg 2 – Knapp for manuell kjøring (start/stopp), deretter avslutt
+    if:
+      - condition: template
+        value_template: "{{ trigger_id == 'manual_button' and trigger.from_state is not none }}"
+    then:
+      - variables:
+          manual_was_active: "{{ as_timestamp(states(io_manual_until), 0) > now().timestamp() }}"
+          manual_new_until: >-
+            {% if manual_was_active %}
+              {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+            {% else %}
+              {{ (now() + timedelta(hours=(sp_manual_hours | float(6)))).strftime('%Y-%m-%d %H:%M:%S') }}
+            {% endif %}
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "{{ io_manual_until }}"
+        data:
+          datetime: "{{ manual_new_until | trim }}"
+      # Endringen i hjelperen trigger automasjonen på nytt (manual_changed), som gjør selve beregningen.
+      - stop: Manuell kjøring er slått av/på. Ny beregning startes av endringen i hjelperen.
+
+  - alias: Steg 3 – Forsinket start etter omstart av Home Assistant
+    if:
+      - condition: template
+        value_template: "{{ trigger_id == 'ha_start' }}"
+    then:
+      - delay:
+          minutes: 3
+
+  - alias: Steg 4 – Hent timevarsel
+    action: weather.get_forecasts
+    target:
+      entity_id: "{{ io_weather }}"
+    data:
+      type: hourly
+    response_variable: wf
+    continue_on_error: true
+
+  - alias: Steg 5 – Hent ut varsellisten
+    variables:
+      fc_list: "{{ wf[io_weather].forecast if (wf is defined and wf is mapping and io_weather in wf) else [] }}"
+
+  - alias: Steg 6 – Avgjør kaldt/varmt ut fra laveste temperatur i «kaldt»-vinduet
+    variables:
+      fc_window_cold: "{{ fc_list[:(sp_hours_check_cold | int(6))] }}"
+      temp_list_cold: "{{ fc_window_cold | map(attribute='temperature') | select('number') | list }}"
+      min_temp_cold_window: "{{ (temp_list_cold | min) if (temp_list_cold | length > 0) else 0 }}"
+      is_cold_mode: "{{ (temp_list_cold | length > 0) and (min_temp_cold_window | float(0)) <= (sp_temp_cold_mode | float(-5)) }}"
+      hours_to_check: "{{ (sp_hours_check_cold if is_cold_mode else sp_hours_check_warm) | int(3) }}"
+      afterrun_hours: "{{ (sp_hours_afterrun_cold if is_cold_mode else sp_hours_afterrun_warm) | float(3) }}"
+      mode_text: "{{ '(Kaldt, sjekk de neste ' ~ hours_to_check ~ ' timene.)' if is_cold_mode else '(Varmt, sjekk de neste ' ~ hours_to_check ~ ' timene.)' }}"
+
+  - alias: Steg 7 – Lag lister for valgt vindu
+    variables:
+      fc_window: "{{ fc_list[:(hours_to_check | int(3))] }}"
+      prec_list: "{{ fc_window | map(attribute='precipitation') | select('number') | list }}"
+      temp_list: "{{ fc_window | map(attribute='temperature') | select('number') | list }}"
+      hum_list: "{{ fc_window | map(attribute='humidity') | select('number') | list }}"
+      has_data: "{{ (prec_list | length > 0) and (temp_list | length > 0) and (hum_list | length > 0) }}"
+
+  - alias: Steg 8 – Beregn nøkkelverdier for vinduet
+    variables:
+      precip_sum: "{{ (prec_list | sum | float(0) | round(2)) if has_data else 0 }}"
+      min_temp: "{{ (temp_list | min | float(0)) if has_data else 0 }}"
+      max_temp: "{{ (temp_list | max | float(0)) if has_data else 0 }}"
+      max_hum: "{{ (hum_list | max | float(0)) if has_data else 0 }}"
+      temp_now: "{{ (temp_list[0] | float(0)) if has_data else 0 }}"
+      hum_now: "{{ (hum_list[0] | float(0)) if has_data else 0 }}"
+
+  - alias: Steg 9 – Duggpunkt nå (Magnus-formel)
+    variables:
+      dew_point: >-
+        {% if has_data and (hum_now | float(0)) > 0 %}
+          {% set a = 17.625 %}
+          {% set b = 243.04 %}
+          {% set t = temp_now | float(0) %}
+          {% set alpha = ((a * t) / (b + t)) + log((hum_now | float(1)) / 100) %}
+          {{ ((b * alpha) / (a - alpha)) | round(1) }}
+        {% else %}
+          0
+        {% endif %}
+
+  - alias: Steg 10 – Avgjør snø og rim
+    variables:
+      too_warm: "{{ has_data and (min_temp | float(0)) > (sp_temp_stop_warm | float(2)) }}"
+      too_cold: "{{ has_data and (max_temp | float(0)) < (sp_temp_stop_cold | float(-10)) }}"
+      precip_expected: "{{ has_data and (precip_sum | float(0)) >= (sp_precip_threshold | float(0.1)) }}"
+      snow_detected: "{{ has_data and not too_warm and not too_cold and precip_expected }}"
+      frost_detected: >-
+        {{ has_data and (hum_now | float(0)) > 0
+           and ((temp_now | float(0)) - (dew_point | float(0))) < (sp_frost_margin | float(1.5))
+           and (temp_now | float(0)) < (sp_temp_stop_warm | float(2)) }}
+      frost_was_detected: "{{ is_state(io_frost_detected, 'on') }}"
+
+  - alias: Steg 11 – Lagre «snø sist aktiv» når snø er detektert
+    if:
+      - condition: template
+        value_template: "{{ snow_detected }}"
+    then:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "{{ io_snow_last }}"
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  - alias: Steg 12 – Lagre «rim sist aktivert» bare når rimfare går fra AV til PÅ
+    if:
+      - condition: template
+        value_template: "{{ frost_detected and not frost_was_detected }}"
+    then:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "{{ io_frost_last }}"
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  - alias: Steg 13 – Skriv snø/rim detektert til hjelpere
+    sequence:
+      - action: "input_boolean.turn_{{ 'on' if snow_detected else 'off' }}"
+        target:
+          entity_id: "{{ io_snow_detected }}"
+      - action: "input_boolean.turn_{{ 'on' if frost_detected else 'off' }}"
+        target:
+          entity_id: "{{ io_frost_detected }}"
+
+  - alias: Steg 14 – Etterdrift
+    variables:
+      ts_snow_last: "{{ as_timestamp(states(io_snow_last), 0) | float(0) }}"
+      ts_frost_last: "{{ as_timestamp(states(io_frost_last), 0) | float(0) }}"
+      ts_last_activated: "{{ [ts_snow_last | float(0), ts_frost_last | float(0)] | max }}"
+      seconds_since_last: "{{ (now().timestamp() - (ts_last_activated | float(0))) | round(0) }}"
+      afterrun_active: >-
+        {{ (ts_last_activated | float(0)) > 0
+           and (seconds_since_last | float(0)) < ((afterrun_hours | float(0)) * 3600) }}
+      afterrun_remaining_h: "{{ [((afterrun_hours | float(0)) - ((seconds_since_last | float(0)) / 3600)), 0] | max | round(1) }}"
+
+  - alias: Steg 15 – Manuell kjøring
+    variables:
+      ts_manual_until: "{{ as_timestamp(states(io_manual_until), 0) | float(0) }}"
+      manual_active: "{{ (ts_manual_until | float(0)) > now().timestamp() }}"
+      manual_remaining_h: "{{ [(((ts_manual_until | float(0)) - now().timestamp()) / 3600), 0] | max | round(1) }}"
+
+  - alias: Steg 16 – Samlet behov
+    variables:
+      demand: "{{ snow_detected or frost_detected or afterrun_active or manual_active }}"
+
+  - alias: Steg 17 – Bygg årsakstekst
+    variables:
+      reason_weather: >-
+        {% if not has_data %}
+          Ingen gyldige værdata.
+        {% elif snow_detected %}
+          Start snøsmelt, nedbør detektert.
+        {% elif frost_detected %}
+          Start snøsmelt, rim/frost detektert.
+        {% elif afterrun_active %}
+          Etterdrift for {{ afterrun_hours | int }} timer aktiv. Timer igjen; {{ ((afterrun_remaining_h | float(0)) + 0.999) | int }}.
+        {% elif too_warm %}
+          Stopp. For varmt.
+        {% elif too_cold %}
+          Stopp. For kaldt.
+        {% else %}
+          Stopp. Lite/ingen nedbør.
+        {% endif %}
+      reason_combined: >-
+        {% set base = (reason_weather | trim) ~ ' ' ~ mode_text %}
+        {% if manual_active %}
+          Manuell aktivering {{ ((manual_remaining_h | float(0)) + 0.999) | int }}t igjen. - {{ base }}
+        {% else %}
+          {{ base }}
+        {% endif %}
+      details_text: >-
+        {% if has_data %}
+          Nedbør {{ precip_sum }} mm · Temp {{ min_temp }} til {{ max_temp }} °C · Fukt maks {{ max_hum | round(0) | int }} % · Duggpunkt {{ dew_point }} °C
+        {% else %}
+          Ingen gyldige værdata.
+        {% endif %}
+
+  - alias: Steg 18 – Skriv årsak og detaljer til hjelpere
+    sequence:
+      - action: input_text.set_value
+        target:
+          entity_id: "{{ io_reason }}"
+        data:
+          value: "{{ (reason_combined | trim)[:255] }}"
+      - if:
+          - condition: template
+            value_template: "{{ io_details is string and (io_details | trim) != '' }}"
+        then:
+          - action: input_text.set_value
+            target:
+              entity_id: "{{ io_details }}"
+            data:
+              value: "{{ (details_text | trim)[:255] }}"
+
+  - alias: Steg 19 – Skriv samlet behov til hjelper (kun ved endring)
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ demand and not is_state(io_demand, 'on') }}"
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: "{{ io_demand }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ not demand and not is_state(io_demand, 'off') }}"
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: "{{ io_demand }}"
+
+  - alias: Steg 20 – Send hendelse med alle verdier (for egne sensorer/feilsøking)
+    event: webhome_snosmelt_update
+    event_data:
+      demand_entity: "{{ io_demand }}"
+      demand: "{{ demand }}"
+      reason: "{{ reason_combined | trim }}"
+      snow_detected: "{{ snow_detected }}"
+      frost_detected: "{{ frost_detected }}"
+      afterrun_active: "{{ afterrun_active }}"
+      manual_active: "{{ manual_active }}"
+      has_data: "{{ has_data }}"
+      is_cold_mode: "{{ is_cold_mode }}"
+      precip_sum: "{{ precip_sum }}"
+      min_temp: "{{ min_temp }}"
+      max_temp: "{{ max_temp }}"
+      max_hum: "{{ max_hum }}"
+      dew_point: "{{ dew_point }}"
+      min_temp_cold_window: "{{ min_temp_cold_window }}"
+
+  - alias: Steg 21 – Varsel når snøsmelting starter (valgfri)
+    if:
+      - condition: template
+        value_template: >-
+          {{ io_varsel_ved_start and demand and not demand_before
+             and (pushover_destination | string | trim) != '' }}
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "❄️ Snøsmelting aktivert"
+          message: "Årsak: {{ reason_combined | trim }}"
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl_hours: "{{ pushover_ttl_hours }}"
+
+  - alias: Steg 22 – Varsling ved manuell kjøring (valgfri)
+    if:
+      - condition: template
+        value_template: >-
+          {{ is_manual_run and io_varsel_ved_manuell_kjoring
+             and (pushover_destination | string | trim) != '' }}
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "🔔 Snøsmelt - Hent data (manuell kjøring)"
+          message: |-
+            Kjørt manuelt.
+            Behov: {{ 'PÅ' if demand else 'AV' }}
+            Årsak: {{ reason_combined | trim }}
+            {{ details_text | trim }}
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl_hours: "{{ pushover_ttl_hours }}"
