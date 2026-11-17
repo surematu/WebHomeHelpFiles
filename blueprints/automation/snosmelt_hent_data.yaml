@@ -22,7 +22,8 @@ blueprint:
     - input_boolean.snosmelt_behov              (Snøsmelt behov – hovedresultatet)
     - input_boolean.snosmelt_sno_detektert      (Snø detektert)
     - input_boolean.snosmelt_rim_detektert      (Rim/is detektert)
-    - input_text.snosmelt_arsak                 (Årsak, maks 255 tegn)
+    - input_text.snosmelt_arsak                 (Årsak – kort status, maks 255 tegn)
+    - input_text.snosmelt_forklaring            (Forklaring i klarspråk, maks 255 tegn, valgfri)
     - input_text.snosmelt_detaljer              (Værdata, maks 255 tegn, valgfri)
     - input_datetime.snosmelt_sno_sist_aktiv    (Snø sist aktiv, dato + tid)
     - input_datetime.snosmelt_rim_sist_aktivert (Rim sist aktivert, dato + tid)
@@ -32,7 +33,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.03
+    Blueprint versjon: 2026.11.04
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -278,6 +279,7 @@ actions:
       io_frost_last: input_datetime.snosmelt_rim_sist_aktivert
       io_manual_until: input_datetime.snosmelt_manuell_til
       io_details: input_text.snosmelt_detaljer
+      io_explanation: input_text.snosmelt_forklaring
       sp_temp_stop_warm: !input temp_stop_warm
       sp_temp_stop_cold: !input temp_stop_cold
       sp_temp_cold_mode: !input temp_cold_mode
@@ -468,6 +470,35 @@ actions:
         {% else %}
           {{ base }}
         {% endif %}
+      explanation_weather: >-
+        {% macro num(v, d=1) %}{{ (v | float(0) | round(d) | string).replace('.', ',').replace('-', '−') }}{% endmacro %}
+        {% macro temp(v) %}{{ ('+' if (v | float(0)) > 0 else '') ~ num(v) }} °C{% endmacro %}
+        {% set h = hours_to_check | int(3) %}
+        {% if not has_data %}
+          Værvarselet er ikke tilgjengelig akkurat nå. Anlegget starter ikke på vær før det er tilbake.
+        {% elif snow_detected %}
+          Det er meldt {{ num(precip_sum) }} mm nedbør de neste {{ h }} timene, og det er {{ temp(temp_now) }}. Anlegget går for å holde bakken fri for snø.
+        {% elif frost_detected %}
+          Det er {{ temp(temp_now) }} og fuktig luft, bare {{ num((temp_now | float(0)) - (dew_point | float(0))) }} °C over duggpunktet. Da kan det danne seg rim eller is, så anlegget går for å holde bakken tørr.
+        {% elif afterrun_active %}
+          {% set n = ((afterrun_remaining_h | float(0)) + 0.999) | int %}
+          {{ 'Snøfallet' if (ts_snow_last | float(0)) >= (ts_frost_last | float(0)) else 'Rimfaren' }} er over. Anlegget går i {{ n }} {{ 'time' if n == 1 else 'timer' }} til for å smelte og tørke opp det som ligger igjen.
+        {% elif too_warm %}
+          Det er {{ temp(min_temp) }} eller varmere de neste {{ h }} timene, så snøen smelter av seg selv.
+        {% elif too_cold %}
+          Det er {{ temp(max_temp) }} eller kaldere de neste {{ h }} timene. Anlegget starter ikke på snøfall når det er så kaldt.
+        {% else %}
+          Det er ikke meldt nedbør de neste {{ h }} timene, og det er ingen fare for rim.
+        {% endif %}
+      explanation_text: >-
+        {% set until = (ts_manual_until | float(0)) | timestamp_custom('%H:%M') %}
+        {% if manual_active and (snow_detected or frost_detected or afterrun_active) %}
+          {{ explanation_weather | trim }} Anlegget er også startet manuelt og går til kl. {{ until }}.
+        {% elif manual_active %}
+          Anlegget er startet manuelt og går til kl. {{ until }}.
+        {% else %}
+          {{ explanation_weather | trim }}
+        {% endif %}
       details_text: >-
         {% if has_data %}
           Nedbør {{ precip_sum }} mm · Temp {{ min_temp }} til {{ max_temp }} °C · Fukt maks {{ max_hum | round(0) | int }} % · Duggpunkt {{ dew_point }} °C
@@ -475,13 +506,22 @@ actions:
           Ingen gyldige værdata.
         {% endif %}
 
-  - alias: Steg 18 – Skriv årsak og detaljer til hjelpere
+  - alias: Steg 18 – Skriv årsak, forklaring og detaljer til hjelpere
     sequence:
       - action: input_text.set_value
         target:
           entity_id: "{{ io_reason }}"
         data:
           value: "{{ (reason_combined | trim)[:255] }}"
+      - if:
+          - condition: template
+            value_template: "{{ io_explanation in (states.input_text | map(attribute='entity_id') | list) }}"
+        then:
+          - action: input_text.set_value
+            target:
+              entity_id: "{{ io_explanation }}"
+            data:
+              value: "{{ (explanation_text | trim)[:255] }}"
       - if:
           - condition: template
             value_template: "{{ io_details in (states.input_text | map(attribute='entity_id') | list) }}"
@@ -515,6 +555,7 @@ actions:
       demand_entity: "{{ io_demand }}"
       demand: "{{ demand }}"
       reason: "{{ reason_combined | trim }}"
+      explanation: "{{ explanation_text | trim }}"
       snow_detected: "{{ snow_detected }}"
       frost_detected: "{{ frost_detected }}"
       afterrun_active: "{{ afterrun_active }}"
@@ -557,6 +598,7 @@ actions:
             Kjørt manuelt.
             Behov: {{ 'PÅ' if demand else 'AV' }}
             Årsak: {{ reason_combined | trim }}
+            {{ explanation_text | trim }}
             {{ details_text | trim }}
           destination: "{{ pushover_destination }}"
           priority: "{{ pushover_priority | int(0) }}"
