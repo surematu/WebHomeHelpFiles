@@ -9,16 +9,21 @@ blueprint:
     - Behov PÅ  → utgangen slås PÅ (eventuelt pulset med pådrag i prosent).
     - Behov AV  → utgangen slås AV.
     - Tilstanden kontrolleres hvert minutt og rettes hvis den er feil.
+    - Når automasjonen skrus PÅ, settes utgangen riktig med en gang.
+    - Når behovet slår inn, ventes et tilfeldig antall sekunder (standard 0–30)
+      før innkobling, slik at ikke alle utganger legger inn i samme sekund.
 
     Overvåkning (valgfri, varsel via Pushover):
     - Lav last: utgangen er PÅ, men målt effekt er under forventet.
     - Lav spoleeffekt: utgangen er PÅ, men kontaktorspolen trekker ikke forventet effekt.
     - Henger inne: utgangen er AV, men det måles fortsatt last.
+    - Ikke på: det er behov for snøsmelting, men utgangen er ikke PÅ (valgfri).
+    - Planlagt sjekk på faste ukedager: påminnelse så lenge en feil står.
 
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_styr_utgang.md
 
-    Blueprint versjon: 2026.11.00
+    Blueprint versjon: 2026.11.02
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_styr_utgang.yaml
@@ -149,6 +154,16 @@ blueprint:
               unit_of_measurement: "%"
               mode: box
 
+        check_not_on:
+          name: Varsle når utgangen ikke er PÅ ved behov
+          description: >
+            Feil når «Snøsmelt behov» er PÅ, men utgangen ikke er PÅ (f.eks. utgangen
+            svarer ikke eller er utilgjengelig). Brukes bare når pådrag er 100 %.
+            Merk: er denne automasjonen skrudd av, sendes ingen varsler fra den.
+          default: true
+          selector:
+            boolean:
+
         fault_latch:
           name: Feil-hjelper (input_boolean) (valgfri)
           description: >
@@ -165,6 +180,23 @@ blueprint:
       icon: mdi:tune
       collapsed: true
       input:
+        start_delay_max_s:
+          name: Tilfeldig startforsinkelse – maks (sekunder)
+          description: >
+            Når «Snøsmelt behov» slår inn (eller Home Assistant starter med behov),
+            ventes et tilfeldig antall sekunder mellom 0 og denne verdien før utgangen
+            slås PÅ. Sprer innkoblingen når flere utganger starter samtidig.
+            0 = ingen forsinkelse. Må være kortere enn «Forsinkelse før feil».
+            Utkobling skjer alltid med en gang.
+          default: 30
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              unit_of_measurement: s
+              mode: box
+
         duty_pct:
           name: Pådrag (%)
           description: >
@@ -245,6 +277,30 @@ blueprint:
               unit_of_measurement: h
               mode: box
 
+        check_time:
+          name: Tid for planlagt sjekk
+          description: På valgte ukedager sendes en påminnelse hvis en feil fortsatt står.
+          default: "09:00:00"
+          selector:
+            time:
+
+        check_weekdays:
+          name: Ukedag(er) for planlagt sjekk
+          default:
+            - wed
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - { label: Mandag, value: mon }
+                - { label: Tirsdag, value: tue }
+                - { label: Onsdag, value: wed }
+                - { label: Torsdag, value: thu }
+                - { label: Fredag, value: fri }
+                - { label: Lørdag, value: sat }
+                - { label: Søndag, value: sun }
+
         varsel_ved_ok:
           name: Send varsel når feilen er borte
           description: Krever at «Feil-hjelper» er valgt. Sender varsel når utgangen igjen er bekreftet OK.
@@ -271,6 +327,9 @@ max: 10
 
 trigger_variables:
   tv_switch: !input output_switch
+  tv_demand: !input demand_entity
+  tv_duty: !input duty_pct
+  tv_check_not_on: !input check_not_on
   tv_power: !input power_sensor
   tv_power_expected: !input power_expected
   tv_power_min_pct: !input power_min_pct
@@ -296,6 +355,12 @@ triggers:
   - trigger: homeassistant
     event: start
     id: ha_start
+
+  # Automasjonen blir skrudd PÅ: kjør med en gang, så utgangen får riktig tilstand
+  # uten å vente på neste minutt. «this» er automasjonen selv.
+  - trigger: template
+    id: automation_enabled
+    value_template: "{{ this is defined and this is not none and is_state(this.entity_id, 'on') }}"
 
   - trigger: template
     id: fault_power_low
@@ -328,6 +393,21 @@ triggers:
          and (states(tv_power) | float(0)) > ((tv_power_expected | float(0)) * (tv_stuck_pct | float(10)) / 100) }}
     for:
       minutes: !input fault_delay_min
+
+  - trigger: template
+    id: fault_not_on
+    value_template: >-
+      {{ tv_check_not_on
+         and (tv_duty | float(100)) >= 100
+         and is_state(tv_demand, 'on')
+         and not is_state(tv_switch, 'on') }}
+    for:
+      minutes: !input fault_delay_min
+
+  - trigger: time
+    at: !input check_time
+    weekday: !input check_weekdays
+    id: scheduled_check
 
   # Bekreftet OK: utgangen er PÅ og lasten er over grensen.
   # Uten lastmåling brukes spoleeffekten i stedet.
@@ -363,7 +443,9 @@ actions:
       io_stuck_pct: !input stuck_pct
       io_fault_delay_min: !input fault_delay_min
       io_fault_latch: !input fault_latch
+      io_check_not_on: !input check_not_on
       io_duty_pct: !input duty_pct
+      io_start_delay_max_s: !input start_delay_max_s
       io_period_min: !input period_min
       io_offset_min: !input offset_min
       pushover_destination: !input pushover_destination
@@ -371,7 +453,7 @@ actions:
       pushover_ttl_hours: !input pushover_ttl_hours
       io_varsel_ved_ok: !input varsel_ved_ok
       io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
-      is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'state', 'homeassistant', 'template'] }}"
+      is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'state', 'homeassistant', 'template', 'time'] }}"
       trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
 
   - alias: Steg 2 – Navn på utgangen
@@ -403,10 +485,26 @@ actions:
           - condition: template
             value_template: "{{ should_be_on and current_switch_state == 'off' }}"
         sequence:
-          - action: switch.turn_on
-            target:
-              entity_id: "{{ io_switch }}"
-            continue_on_error: true
+          - alias: Steg 5-A – Tilfeldig startforsinkelse (kun når behovet slår inn eller HA starter)
+            variables:
+              start_delay_s: >-
+                {% set mx = io_start_delay_max_s | int(0) %}
+                {{ (range(0, mx + 1) | random) if (mx > 0 and trigger_id in ['demand_changed', 'ha_start']) else 0 }}
+          - if:
+              - condition: template
+                value_template: "{{ (start_delay_s | int(0)) > 0 }}"
+            then:
+              - delay:
+                  seconds: "{{ start_delay_s | int(0) }}"
+          - alias: Steg 5-B – Slå PÅ hvis det fortsatt er behov etter ventetiden
+            if:
+              - condition: template
+                value_template: "{{ is_state(io_demand, 'on') and not is_state(io_switch, 'on') }}"
+            then:
+              - action: switch.turn_on
+                target:
+                  entity_id: "{{ io_switch }}"
+                continue_on_error: true
       - conditions:
           - condition: template
             value_template: "{{ not should_be_on and current_switch_state == 'on' }}"
@@ -427,16 +525,36 @@ actions:
       latch_was_on: "{{ (io_fault_latch is string and (io_fault_latch | trim) != '') and is_state(io_fault_latch, 'on') }}"
       can_notify: "{{ (pushover_destination | string | trim) != '' }}"
 
+  - alias: Steg 6-B – Hvilke feil står akkurat nå (brukes av planlagt sjekk)
+    variables:
+      switch_state_now: "{{ states(io_switch) }}"
+      has_power: "{{ io_power is string and io_power != '' and (io_power_expected | float(0)) > 0 and (states(io_power) | float(-1)) >= 0 }}"
+      has_coil: "{{ io_coil is string and io_coil != '' and (io_coil_expected | float(0)) > 0 and (states(io_coil) | float(-1)) >= 0 }}"
+      fault_now_power_low: "{{ has_power and switch_state_now == 'on' and (power_now | float(0)) < (power_limit | float(0)) }}"
+      fault_now_coil_low: "{{ has_coil and switch_state_now == 'on' and (coil_now | float(0)) < (coil_limit | float(0)) }}"
+      fault_now_stuck: "{{ has_power and switch_state_now == 'off' and (power_now | float(0)) > (stuck_limit | float(0)) }}"
+      fault_now_not_on: "{{ io_check_not_on and (duty | float(100)) >= 100 and demand_on and switch_state_now != 'on' }}"
+      fault_now_lines: >-
+        {% set ns = namespace(l=[]) %}
+        {% if fault_now_not_on %}{% set ns.l = ns.l + ['Behov for snøsmelting, men utgangen er ikke PÅ (' ~ switch_state_now ~ ').'] %}{% endif %}
+        {% if fault_now_power_low %}{% set ns.l = ns.l + ['Lav last: ' ~ power_now ~ ' (grense ' ~ power_limit ~ ').'] %}{% endif %}
+        {% if fault_now_coil_low %}{% set ns.l = ns.l + ['Lav spoleeffekt: ' ~ coil_now ~ ' (grense ' ~ coil_limit ~ ').'] %}{% endif %}
+        {% if fault_now_stuck %}{% set ns.l = ns.l + ['Utgangen er AV, men det måles last: ' ~ power_now ~ '.'] %}{% endif %}
+        {% if latch_was_on and ns.l | length == 0 %}{% set ns.l = ns.l + ['Feil er registrert tidligere og utgangen er ikke bekreftet OK siden.'] %}{% endif %}
+        {{ ns.l }}
+
   - alias: Steg 7 – Feil oppdaget
     if:
       - condition: template
-        value_template: "{{ trigger_id in ['fault_power_low', 'fault_coil_low', 'fault_stuck_on'] }}"
+        value_template: "{{ trigger_id in ['fault_power_low', 'fault_coil_low', 'fault_stuck_on', 'fault_not_on'] }}"
     then:
       - alias: Steg 7-A – Bygg feiltekst
         variables:
           fault_message: >-
             {% if trigger_id == 'fault_power_low' %}
               Utgangen er PÅ, men lasten er {{ power_now }} (forventet ca. {{ io_power_expected }}, grense {{ power_limit }}). Sjekk sikring, kontaktor og varmekabel.
+            {% elif trigger_id == 'fault_not_on' %}
+              Det er behov for snøsmelting, men utgangen er ikke PÅ (tilstand: {{ switch_state_now }}). Sjekk at utgangen svarer og ikke er slått av manuelt.
             {% elif trigger_id == 'fault_coil_low' %}
               Utgangen er PÅ, men spoleeffekten er {{ coil_now }} (forventet ca. {{ io_coil_expected }}, grense {{ coil_limit }}). Sjekk reléutgang og kontaktorspole.
             {% else %}
@@ -464,7 +582,20 @@ actions:
               priority: "{{ pushover_priority | int(0) }}"
               ttl_hours: "{{ pushover_ttl_hours }}"
 
-  - alias: Steg 8 – Bekreftet OK igjen (kun med feil-hjelper)
+  - alias: Steg 8 – Planlagt sjekk på faste ukedager (påminnelse hvis feil står)
+    if:
+      - condition: template
+        value_template: "{{ trigger_id == 'scheduled_check' and (fault_now_lines | length) > 0 and can_notify }}"
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "⚠️ Snøsmelt feil (påminnelse) - {{ output_name | trim }}"
+          message: "{{ fault_now_lines | join('\n') }}"
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl_hours: "{{ pushover_ttl_hours }}"
+
+  - alias: Steg 9 – Bekreftet OK igjen (kun med feil-hjelper)
     if:
       - condition: template
         value_template: "{{ trigger_id == 'ok_verified' and latch_configured and latch_was_on }}"
@@ -484,7 +615,7 @@ actions:
               priority: 0
               ttl_hours: "{{ pushover_ttl_hours }}"
 
-  - alias: Steg 9 – Varsling ved manuell kjøring (valgfri)
+  - alias: Steg 10 – Varsling ved manuell kjøring (valgfri)
     if:
       - condition: template
         value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring and can_notify }}"

@@ -9,10 +9,12 @@
 #          packages: !include_dir_named packages
 #   3. Start Home Assistant på nytt.
 #
+# Entitets-ID-ene under er hardkodet i snosmelt_hent_data.yaml og må ikke endres.
+#
 # Alternativt kan de samme hjelperne opprettes manuelt under
 # Innstillinger → Enheter og tjenester → Hjelpere (se README_snosmelt_hent_data.md).
 #
-# Versjon: 2026.11.00
+# Versjon: 2026.11.01
 
 input_boolean:
   snosmelt_behov:

@@ -8,7 +8,7 @@ Styrer én utgang (f.eks. en kontaktor for varmekabel) ut fra «Snøsmelt behov�
 
 ### 2.1 Vanlig drift
 
-«Snøsmelt behov» går PÅ. Innen noen sekunder slås kontaktoren PÅ. Når behovet går AV, slås kontaktoren AV.
+«Snøsmelt behov» går PÅ. Etter en tilfeldig ventetid på 0–30 sekunder slås kontaktoren PÅ, slik at flere kontaktorer ikke legger inn i samme sekund. Når behovet går AV, slås kontaktoren AV.
 
 ### 2.2 Manuell styring av én kontaktor
 
@@ -40,7 +40,7 @@ Den husker at det er feil. Da får du ett varsel per feil, og et varsel når fei
 Det tolkes som AV, og utgangen slås AV.
 
 **Hva skjer når automasjonen er skrudd av?**
-Utgangen styres ikke, og det sendes ingen varsler for den utgangen.
+Utgangen styres ikke, og det sendes ingen varsler for den utgangen – heller ikke «ikke på» eller planlagt sjekk. Når den skrus på igjen, settes utgangen riktig med en gang.
 
 ## 4. Hva slags info trengs
 
@@ -71,12 +71,14 @@ Utgangen styres ikke, og det sendes ingen varsler for den utgangen.
 | Last – laveste godkjente andel | 70 % | Feil når målt last er under denne andelen av forventet |
 | Spole – laveste godkjente andel | 30 % | Feil når målt spoleeffekt er under denne andelen av forventet |
 | Henger inne – grense | 10 % | Feil når utgangen er AV og lasten er over denne andelen av forventet |
+| Varsle når utgangen ikke er PÅ ved behov | true | Feil når «Snøsmelt behov» er PÅ, men utgangen ikke er PÅ. Brukes bare når pådrag er 100 % |
 | Feil-hjelper (valgfri) | tom | input_boolean som husker feil (se FAQ) |
 
 **Innstillinger**
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
+| Tilfeldig startforsinkelse – maks | 30 s | Når behovet slår inn ventes tilfeldig 0–maks sekunder før innkobling. 0 = av. Må være kortere enn «Forsinkelse før feil» |
 | Pådrag | 100 % | Andel av perioden utgangen er PÅ ved behov |
 | Periode | 10 min | Lengden på én puls-syklus (brukes når pådrag < 100 %) |
 | Offset | 0 min | Forskyver syklusen mellom utganger |
@@ -88,6 +90,8 @@ Utgangen styres ikke, og det sendes ingen varsler for den utgangen.
 | Pushover destination (valgfri) | pushover | Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres slik at den blir sendt ulikt. |
 | Pushover priority | 1 | −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd), 1 (Høy prioritet, rødt varsel, omgår stilleperiode), 2 (nødvarsel som gjentas til det bekreftes). |
 | Levetid varsel (timer) | 168 | Hvor lenge skal varslet være synlig før det forsvinner? |
+| Tid for planlagt sjekk | 09:00 | Tidspunkt for påminnelse hvis en feil fortsatt står |
+| Ukedag(er) for planlagt sjekk | Onsdag | Hvilke dager påminnelsen sendes |
 | Send varsel når feilen er borte | true | Krever «Feil-hjelper» |
 | Send varsel ved manuell kjøring | true | Sett til true for å sende varsel når automasjonen kjøres manuelt. Sett til false for å ikke sende varsel ved manuell kjøring. |
 
@@ -95,7 +99,7 @@ Utgangen styres ikke, og det sendes ingen varsler for den utgangen.
 
 ## 6. Funksjonsbeskrivelse
 
-Automasjonen kjøres hvert minutt, med en gang «Snøsmelt behov» endrer seg, når bryteren kommer tilbake fra utilgjengelig, ved omstart av Home Assistant, og når en av overvåkningene slår ut.
+Automasjonen kjøres hvert minutt, med en gang «Snøsmelt behov» endrer seg, når bryteren kommer tilbake fra utilgjengelig, ved omstart av Home Assistant, med en gang automasjonen selv skrus PÅ, når en av overvåkningene slår ut, og ved planlagt sjekk på faste ukedager.
 
 **Styring**
 
@@ -103,6 +107,7 @@ Automasjonen kjøres hvert minutt, med en gang «Snøsmelt behov» endrer seg, n
 2. Beregner fase i puls-syklusen: `(minutt i døgnet + offset) % periode`.
 3. Ønsket tilstand er PÅ når det er behov og (pådrag er 100 % eller fasen er innenfor på-tiden).
 4. Slår utgangen PÅ eller AV bare hvis den står feil.
+5. Skal utgangen PÅ fordi behovet nettopp slo inn (eller Home Assistant nettopp startet), ventes først et tilfeldig antall sekunder mellom 0 og «tilfeldig startforsinkelse». Etter ventetiden slås utgangen PÅ bare hvis det fortsatt er behov. Utkobling, og innkobling når automasjonen skrus PÅ, skjer uten ventetid.
 
 **Overvåkning**
 
@@ -111,9 +116,14 @@ Automasjonen kjøres hvert minutt, med en gang «Snøsmelt behov» endrer seg, n
 | Lav last | Utgangen er PÅ og målt last < forventet last × laveste andel |
 | Lav spoleeffekt | Utgangen er PÅ og målt spoleeffekt < forventet spoleeffekt × laveste andel |
 | Henger inne | Utgangen er AV og målt last > forventet last × «henger inne»-grense |
+| Ikke på | «Snøsmelt behov» er PÅ og utgangen er ikke PÅ (av eller utilgjengelig). Kun ved pådrag 100 % |
 | Bekreftet OK | Utgangen er PÅ og målt last ≥ grensen (uten lastmåling brukes spoleeffekten) |
 
 Ved feil slås «Feil-hjelper» PÅ (hvis valgt) og feilvarsel sendes. Ved «bekreftet OK» slås hjelperen AV og det sendes varsel om at feilen er borte.
+
+**Planlagt sjekk**
+
+På valgte ukedager og tidspunkt (standard onsdag 09:00) kontrolleres det om en feil står akkurat da. I så fall sendes en påminnelse med alle feilene som gjelder. Står ingen feil, sendes ingenting.
 
 ## 7. Resultat
 
@@ -130,6 +140,12 @@ Ved feil slås «Feil-hjelper» PÅ (hvis valgt) og feilvarsel sendes. Ved «bek
 - **Melding (lav last):** `Utgangen er PÅ, men lasten er 0 (forventet ca. 6500, grense 4550). Sjekk sikring, kontaktor og varmekabel.`
 - **Melding (lav spoleeffekt):** `Utgangen er PÅ, men spoleeffekten er 0.0 (forventet ca. 2.5, grense 0.8). Sjekk reléutgang og kontaktorspole.`
 - **Melding (henger inne):** `Utgangen er AV, men det måles fortsatt last: 6480 (grense 650). Kontaktoren kan henge inne.`
+- **Melding (ikke på):** `Det er behov for snøsmelting, men utgangen er ikke PÅ (tilstand: off). Sjekk at utgangen svarer og ikke er slått av manuelt.`
+
+**Påminnelse ved planlagt sjekk (kun når en feil står):**
+
+- **Tittel:** `⚠️ Snøsmelt feil (påminnelse) - <navn>`
+- **Melding:** én linje per feil som står.
 
 **OK igjen (krever «Feil-hjelper»):**
 
@@ -145,13 +161,14 @@ Ved feil slås «Feil-hjelper» PÅ (hvis valgt) og feilvarsel sendes. Ved «bek
 - Syklusen er basert på minutter siden midnatt. Perioder som går opp i 1440 (10, 15, 20, 30, 60 …) gir lik syklus hver dag.
 - Måleverdi og forventet verdi må ha samme enhet (normalt W).
 - Blueprintet skriver bare til den valgte utgangen. Ikke la to automasjoner styre samme utgang.
+- Under den tilfeldige ventetiden står andre kjøringer av automasjonen i kø. Slår behovet av i ventetiden, blir utgangen ikke slått PÅ.
 
 ## 10. Avansert
 
 ### 10.1 Forutsettninger
 
 - Home Assistant 2025.11.0 eller nyere.
-- «Snøsmelt - Hent data» satt opp, med hjelperen «Snøsmelt behov».
+- «Snøsmelt - Hent data» satt opp, med hjelperen «Snøsmelt behov» (`input_boolean.snosmelt_behov`).
 - En switch-entitet for utgangen.
 - `script.varsel_pushover_send_melding_webhome` (fra `blueprints/scripts/varsel_pushover.yaml`) hvis varsling brukes.
 - Valgfritt: én input_boolean per utgang som «Feil-hjelper», f.eks. `input_boolean.snosmelt_q1_2_feil`.
@@ -189,13 +206,17 @@ use_blueprint:
 | `demand_on` | true når «Snøsmelt behov» er PÅ |
 | `duty`, `period`, `phase`, `on_minutes` | Puls-beregning |
 | `should_be_on` | Ønsket tilstand på utgangen |
+| `start_delay_s` | Tilfeldig ventetid før innkobling i denne kjøringen (0 når den ikke brukes) |
 | `current_switch_state` | Tilstanden til utgangen før kjøringen |
 | `power_now`, `coil_now` | Måleverdier |
 | `power_limit`, `coil_limit`, `stuck_limit` | Grenser regnet ut fra forventet verdi og prosent |
 | `latch_configured`, `latch_was_on` | Om «Feil-hjelper» er valgt, og om den var PÅ |
 | `fault_message`, `fault_should_notify` | Feiltekst og om varsel skal sendes |
+| `fault_now_*`, `fault_now_lines` | Hvilke feil som står akkurat nå (brukes av planlagt sjekk) |
 
 Overvåkningen bruker template-triggere med `trigger_variables` (`tv_*`), slik at vilkårene må være sanne sammenhengende i «forsinkelse før feil».
+
+Triggeren `automation_enabled` er en template-trigger på automasjonens egen tilstand (`this.entity_id`). Den slår til i det automasjonen skrus PÅ.
 
 ### 10.5 Feilhåndtering
 

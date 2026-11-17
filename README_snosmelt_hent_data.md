@@ -14,7 +14,7 @@ Det er −2 °C og meldt 0,6 mm nedbør de neste 3 timene. «Snø detektert» og
 
 ### 2.2 Etterdrift
 
-Snøfallet er over. «Snø detektert» slås AV, men «Snøsmelt behov» holdes PÅ i 3 timer (6 timer når det er kaldt) for å smelte det som ligger igjen.
+Snøfallet er over. «Snø detektert» slås AV, men «Snøsmelt behov» holdes PÅ i 4 timer (7 timer når det er kaldt) for å smelte det som ligger igjen.
 
 ### 2.3 Manuell kjøring
 
@@ -29,7 +29,7 @@ Nei. Den bestemmer bare om det er behov. Selve utgangene styres av «Snøsmelt -
 Én gang i timen (minutt 30), ved omstart av Home Assistant, og med en gang manuell kjøring slås av eller på.
 
 **Hva er forskjellen på «varmt» og «kaldt»?**
-Når laveste temperatur de neste timene er −5 °C eller lavere, regnes det som kaldt. Da ser automasjonen lenger frem (6 timer i stedet for 3) og kjører lengre etterdrift (6 timer i stedet for 3).
+Når laveste temperatur de neste timene er −5 °C eller lavere, regnes det som kaldt. Da ser automasjonen lenger frem (6 timer i stedet for 3) og kjører lengre etterdrift (7 timer i stedet for 4).
 
 **Hva er rimfare?**
 Når lufttemperaturen er nær duggpunktet og under +2 °C, kan det danne seg rim eller is selv uten nedbør.
@@ -38,30 +38,26 @@ Når lufttemperaturen er nær duggpunktet og under +2 °C, kan det danne seg rim
 Snø og rim settes til AV, og årsaken blir «Ingen gyldige værdata.». Etterdrift og manuell kjøring virker fortsatt.
 
 **Kan jeg bruke blueprintet på et annet anlegg?**
-Ja. Opprett hjelperne (se §10.1), importer blueprintet og velg hjelperne i automasjonen.
+Ja. Opprett hjelperne (se §10.1) og importer blueprintet. Hjelperne har faste entitets-ID-er og velges ikke i automasjonen, så det eneste som må velges er værvarselet.
+
+**Kan jeg ha to anlegg i samme Home Assistant?**
+Nei. Hjelperne er hardkodet, så det kan bare være én «Snøsmelt - Hent data» per Home Assistant.
 
 ## 4. Hva slags info trengs
 
 - En weather-entitet med timevarsel (f.eks. Met.no).
-- Åtte hjelpere (én valgfri i tillegg), se §10.1. Disse kan opprettes samlet med `packages/snosmelt_hjelpere.yaml`.
+- Åtte hjelpere (én valgfri i tillegg) med faste entitets-ID-er, se §10.1. De er hardkodet i blueprintet og må finnes i Home Assistant. Opprett dem samlet med `packages/snosmelt_hjelpere.yaml`.
 - Scriptet `script.varsel_pushover_send_melding_webhome` hvis varsling skal brukes.
 
 ## 5. Innstillinger
 
-**Hovedinnganger og hjelpere**
+**Hovedinnganger**
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Værvarsel | – | Weather-entitet med timevarsel |
-| Snøsmelt behov | – | input_boolean. Hovedresultatet |
-| Årsak for driftsmodus | – | input_text (maks 255 tegn) |
-| Snø detektert | – | input_boolean |
-| Rim/is detektert | – | input_boolean |
-| Snø sist aktiv | – | input_datetime (dato + tid) |
-| Rim sist aktivert | – | input_datetime (dato + tid) |
-| Manuell kjøring til | – | input_datetime (dato + tid) |
-| Manuell kjøring knapp | – | input_button |
-| Detaljer (valgfri) | tom | input_text (maks 255 tegn) med nedbør, temperatur, fukt og duggpunkt |
+
+Hjelperne velges ikke her. De er hardkodet, se §10.1.
 
 **Innstillinger**
 
@@ -73,8 +69,8 @@ Ja. Opprett hjelperne (se §10.1), importer blueprintet og velg hjelperne i auto
 | Nedbørsgrense | 0,1 mm | Sum meldt nedbør i vinduet som gir behov |
 | Timer å sjekke – varmt | 3 t | Hvor langt frem det sjekkes når det er varmt |
 | Timer å sjekke – kaldt | 6 t | Hvor langt frem det sjekkes når det er kaldt |
-| Etterdrift – varmt | 3 t | Etterdrift når det er varmt |
-| Etterdrift – kaldt | 6 t | Etterdrift når det er kaldt |
+| Etterdrift – varmt | 4 t | Etterdrift når det er varmt, regnet fra siste kjøring med snø |
+| Etterdrift – kaldt | 7 t | Etterdrift når det er kaldt, regnet fra siste kjøring med snø |
 | Rimfare – avstand til duggpunkt | 1,5 °C | Rimfare når temperatur − duggpunkt er mindre enn dette |
 | Manuell kjøring – varighet | 6 t | Hvor lenge ett trykk på knappen kjører anlegget |
 
@@ -84,8 +80,8 @@ Ja. Opprett hjelperne (se §10.1), importer blueprintet og velg hjelperne i auto
 |---|---:|---|
 | Pushover destination (valgfri) | pushover | Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres slik at den blir sendt ulikt. |
 | Pushover priority | 0 | −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd), 1 (Høy prioritet, rødt varsel, omgår stilleperiode), 2 (nødvarsel som gjentas til det bekreftes). |
-| Levetid varsel (timer) | 6 | Hvor lenge skal varslet være synlig før det forsvinner? |
-| Send varsel når snøsmelting starter | false | Varsel når «Snøsmelt behov» går fra AV til PÅ |
+| Levetid varsel (timer) | 168 | Hvor lenge skal varslet være synlig før det forsvinner? |
+| Send varsel når snøsmelting starter | true | Varsel når «Snøsmelt behov» går fra AV til PÅ |
 | Send varsel ved manuell kjøring | true | Sett til true for å sende varsel når automasjonen kjøres manuelt. Sett til false for å ikke sende varsel ved manuell kjøring. |
 
 > Levetid sendes til scriptet i timer. Scriptet regner om til sekunder, som er det Pushover bruker.
@@ -120,15 +116,17 @@ Ja. Opprett hjelperne (se §10.1), importer blueprintet og velg hjelperne i auto
 
 ## 8. Varsling
 
-Ingen varsler er aktive som standard, bortsett fra statusvarsel når automasjonen kjøres manuelt fra Home Assistant:
+Varsel når snøsmelting starter («Snøsmelt behov» går fra AV til PÅ):
+
+- **Tittel:** `❄️ Snøsmelting aktivert`
+- **Melding:** `Årsak: Start snøsmelt, nedbør detektert. (Varmt, sjekk de neste 3 timene.)`
+
+Statusvarsel når automasjonen kjøres manuelt fra Home Assistant:
 
 - **Tittel:** `🔔 Snøsmelt - Hent data (manuell kjøring)`
 - **Melding:** behov PÅ/AV, årsak og detaljer.
 
-Valgfritt varsel når snøsmelting starter (av som standard):
-
-- **Tittel:** `❄️ Snøsmelting aktivert`
-- **Melding:** `Årsak: Start snøsmelt, nedbør detektert. (Varmt, sjekk de neste 3 timene.)`
+Begge kan slås av i innstillingene.
 
 ## 9. Annet
 
@@ -147,18 +145,18 @@ Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe a
 - Home Assistant 2025.11.0 eller nyere.
 - Weather-integrasjon med timevarsel som gir `temperature`, `precipitation` og `humidity` (f.eks. Met.no).
 - `script.varsel_pushover_send_melding_webhome` (fra `blueprints/scripts/varsel_pushover.yaml`) hvis varsling brukes.
-- Hjelpere. Enklest: kopier `packages/snosmelt_hjelpere.yaml` til `/config/packages/` og start på nytt. Eller opprett dem manuelt under Innstillinger → Enheter og tjenester → Hjelpere:
+- Hjelpere med **nøyaktig disse entitets-ID-ene** (hardkodet i blueprintet). Enklest: kopier `packages/snosmelt_hjelpere.yaml` til `/config/packages/` og start på nytt. Eller opprett dem manuelt under Innstillinger → Enheter og tjenester → Hjelpere, og kontroller at entitets-ID-en blir lik tabellen:
 
-| Type | Foreslått navn | Entitets-ID | Merknad |
+| Type | Foreslått navn | Entitets-ID (må være lik) | Merknad |
 |---|---|---|---|
 | Bryter (input_boolean) | Snøsmelt behov | `input_boolean.snosmelt_behov` | |
 | Bryter (input_boolean) | Snøsmelt snø detektert | `input_boolean.snosmelt_sno_detektert` | |
 | Bryter (input_boolean) | Snøsmelt rim detektert | `input_boolean.snosmelt_rim_detektert` | |
 | Tekst (input_text) | Snøsmelt årsak | `input_text.snosmelt_arsak` | Maks lengde 255 |
-| Tekst (input_text) | Snøsmelt detaljer | `input_text.snosmelt_detaljer` | Valgfri. Maks lengde 255 |
+| Tekst (input_text) | Snøsmelt detaljer | `input_text.snosmelt_detaljer` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
 | Dato og tid (input_datetime) | Snøsmelt snø sist aktiv | `input_datetime.snosmelt_sno_sist_aktiv` | Dato og tid |
 | Dato og tid (input_datetime) | Snøsmelt rim sist aktivert | `input_datetime.snosmelt_rim_sist_aktivert` | Dato og tid |
-| Dato og tid (input_datetime) | Snøsmelt manuell kjøring til | `input_datetime.snosmelt_manuell_til` | Dato og tid |
+| Dato og tid (input_datetime) | Snøsmelt manuell kjøring til | `input_datetime.snosmelt_manuell_til` | Dato og tid. Opprettet manuelt blir ID-en `…_manuell_kjoring_til` – endre den til `…_manuell_til` |
 | Knapp (input_button) | Snøsmelt manuell kjøring | `input_button.snosmelt_manuell_kjoring` | |
 
 > Tekst-hjelpere har 100 tegn som standard maks-lengde. Sett den til 255, ellers kan årsaksteksten bli avvist.
@@ -219,8 +217,9 @@ Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reas
 | Værvarselet feiler eller er tomt | `has_data` = false. Snø og rim settes AV. Etterdrift og manuell kjøring virker fortsatt |
 | Varselet mangler fukt eller nedbør | Verdier som ikke er tall filtreres bort. Mangler en hel liste, blir `has_data` false |
 | Omstart av Home Assistant | Beregningen kjøres 3 minutter etter oppstart |
-| Knappen får ny tilstand ved oppstart | Triggeren ignorerer overganger fra/til `unknown`/`unavailable`, så manuell kjøring startes ikke av en omstart |
+| Knappen får ny tilstand ved oppstart | Triggeren ignorerer overganger fra `unavailable`, til `unknown`/`unavailable`, og kjøringer uten forrige tilstand, så manuell kjøring startes ikke av en omstart. Første trykk på en helt ny knapp (fra `unknown`) virker |
 | Tidspunkt-hjelper er tom | Tolkes som «aldri», altså ingen etterdrift/manuell kjøring |
+| En hjelper mangler eller har annen entitets-ID | Automasjonen feiler i steget som skriver til hjelperen (synlig i sporloggen). «Detaljer» er unntaket og hoppes over |
 
 ### 10.6 Varsling og debug info
 
@@ -230,7 +229,7 @@ Ingen egne debug-varsler. Alle mellomverdier er synlige i sporloggen (Trace) til
 
 - Resultatet skrives til hjelpere i stedet for til YAML-definerte template-sensorer.
 - Manuell kjøring styres av en input_button i stedet for et eget script, og utløpet treffes på tidspunktet (ikke først ved neste time).
-- Tidspunkter lagres med minutt-presisjon, og etterdrift regnes nøyaktig fra tidspunktet (uten en ekstra time).
+- Tidspunkter lagres med minutt-presisjon, og etterdrift regnes nøyaktig fra tidspunktet. Den opprinnelige automasjonen rundet ned til hel time og la på én time, slik at «3 og 6 timer» i praksis ga 4 og 7 timer. Standard er derfor 4 og 7 timer her, som gir samme gangtid.
 - Hendelsen heter `webhome_snosmelt_update` (tidligere `metno_next6h_update`).
 
 ## 11. Dokumentasjon
