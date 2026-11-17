@@ -10,6 +10,8 @@ blueprint:
     - Behov AV  → utgangen slås AV.
     - Tilstanden kontrolleres hvert minutt og rettes hvis den er feil.
     - Når automasjonen skrus PÅ, settes utgangen riktig med en gang.
+    - Når behovet slår inn, ventes et tilfeldig antall sekunder (standard 0–30)
+      før innkobling, slik at ikke alle utganger legger inn i samme sekund.
 
     Overvåkning (valgfri, varsel via Pushover):
     - Lav last: utgangen er PÅ, men målt effekt er under forventet.
@@ -21,7 +23,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_styr_utgang.md
 
-    Blueprint versjon: 2026.11.01
+    Blueprint versjon: 2026.11.02
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_styr_utgang.yaml
@@ -178,6 +180,23 @@ blueprint:
       icon: mdi:tune
       collapsed: true
       input:
+        start_delay_max_s:
+          name: Tilfeldig startforsinkelse – maks (sekunder)
+          description: >
+            Når «Snøsmelt behov» slår inn (eller Home Assistant starter med behov),
+            ventes et tilfeldig antall sekunder mellom 0 og denne verdien før utgangen
+            slås PÅ. Sprer innkoblingen når flere utganger starter samtidig.
+            0 = ingen forsinkelse. Må være kortere enn «Forsinkelse før feil».
+            Utkobling skjer alltid med en gang.
+          default: 30
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              unit_of_measurement: s
+              mode: box
+
         duty_pct:
           name: Pådrag (%)
           description: >
@@ -426,6 +445,7 @@ actions:
       io_fault_latch: !input fault_latch
       io_check_not_on: !input check_not_on
       io_duty_pct: !input duty_pct
+      io_start_delay_max_s: !input start_delay_max_s
       io_period_min: !input period_min
       io_offset_min: !input offset_min
       pushover_destination: !input pushover_destination
@@ -465,10 +485,26 @@ actions:
           - condition: template
             value_template: "{{ should_be_on and current_switch_state == 'off' }}"
         sequence:
-          - action: switch.turn_on
-            target:
-              entity_id: "{{ io_switch }}"
-            continue_on_error: true
+          - alias: Steg 5-A – Tilfeldig startforsinkelse (kun når behovet slår inn eller HA starter)
+            variables:
+              start_delay_s: >-
+                {% set mx = io_start_delay_max_s | int(0) %}
+                {{ (range(0, mx + 1) | random) if (mx > 0 and trigger_id in ['demand_changed', 'ha_start']) else 0 }}
+          - if:
+              - condition: template
+                value_template: "{{ (start_delay_s | int(0)) > 0 }}"
+            then:
+              - delay:
+                  seconds: "{{ start_delay_s | int(0) }}"
+          - alias: Steg 5-B – Slå PÅ hvis det fortsatt er behov etter ventetiden
+            if:
+              - condition: template
+                value_template: "{{ is_state(io_demand, 'on') and not is_state(io_switch, 'on') }}"
+            then:
+              - action: switch.turn_on
+                target:
+                  entity_id: "{{ io_switch }}"
+                continue_on_error: true
       - conditions:
           - condition: template
             value_template: "{{ not should_be_on and current_switch_state == 'on' }}"

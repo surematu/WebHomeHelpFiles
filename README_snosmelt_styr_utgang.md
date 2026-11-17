@@ -8,7 +8,7 @@ Styrer én utgang (f.eks. en kontaktor for varmekabel) ut fra «Snøsmelt behov�
 
 ### 2.1 Vanlig drift
 
-«Snøsmelt behov» går PÅ. Innen noen sekunder slås kontaktoren PÅ. Når behovet går AV, slås kontaktoren AV.
+«Snøsmelt behov» går PÅ. Etter en tilfeldig ventetid på 0–30 sekunder slås kontaktoren PÅ, slik at flere kontaktorer ikke legger inn i samme sekund. Når behovet går AV, slås kontaktoren AV.
 
 ### 2.2 Manuell styring av én kontaktor
 
@@ -78,6 +78,7 @@ Utgangen styres ikke, og det sendes ingen varsler for den utgangen – heller ik
 
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
+| Tilfeldig startforsinkelse – maks | 30 s | Når behovet slår inn ventes tilfeldig 0–maks sekunder før innkobling. 0 = av. Må være kortere enn «Forsinkelse før feil» |
 | Pådrag | 100 % | Andel av perioden utgangen er PÅ ved behov |
 | Periode | 10 min | Lengden på én puls-syklus (brukes når pådrag < 100 %) |
 | Offset | 0 min | Forskyver syklusen mellom utganger |
@@ -106,6 +107,7 @@ Automasjonen kjøres hvert minutt, med en gang «Snøsmelt behov» endrer seg, n
 2. Beregner fase i puls-syklusen: `(minutt i døgnet + offset) % periode`.
 3. Ønsket tilstand er PÅ når det er behov og (pådrag er 100 % eller fasen er innenfor på-tiden).
 4. Slår utgangen PÅ eller AV bare hvis den står feil.
+5. Skal utgangen PÅ fordi behovet nettopp slo inn (eller Home Assistant nettopp startet), ventes først et tilfeldig antall sekunder mellom 0 og «tilfeldig startforsinkelse». Etter ventetiden slås utgangen PÅ bare hvis det fortsatt er behov. Utkobling, og innkobling når automasjonen skrus PÅ, skjer uten ventetid.
 
 **Overvåkning**
 
@@ -159,6 +161,7 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) kontrolleres det om en 
 - Syklusen er basert på minutter siden midnatt. Perioder som går opp i 1440 (10, 15, 20, 30, 60 …) gir lik syklus hver dag.
 - Måleverdi og forventet verdi må ha samme enhet (normalt W).
 - Blueprintet skriver bare til den valgte utgangen. Ikke la to automasjoner styre samme utgang.
+- Under den tilfeldige ventetiden står andre kjøringer av automasjonen i kø. Slår behovet av i ventetiden, blir utgangen ikke slått PÅ.
 
 ## 10. Avansert
 
@@ -203,6 +206,7 @@ use_blueprint:
 | `demand_on` | true når «Snøsmelt behov» er PÅ |
 | `duty`, `period`, `phase`, `on_minutes` | Puls-beregning |
 | `should_be_on` | Ønsket tilstand på utgangen |
+| `start_delay_s` | Tilfeldig ventetid før innkobling i denne kjøringen (0 når den ikke brukes) |
 | `current_switch_state` | Tilstanden til utgangen før kjøringen |
 | `power_now`, `coil_now` | Måleverdier |
 | `power_limit`, `coil_limit`, `stuck_limit` | Grenser regnet ut fra forventet verdi og prosent |
