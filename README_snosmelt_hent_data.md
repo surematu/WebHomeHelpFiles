@@ -219,7 +219,7 @@ Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reas
 | Værvarselet feiler eller er tomt | `has_data` = false. Snø og rim settes AV. Etterdrift og manuell kjøring virker fortsatt |
 | Varselet mangler fukt eller nedbør | Verdier som ikke er tall filtreres bort. Mangler en hel liste, blir `has_data` false |
 | Omstart av Home Assistant | Beregningen kjøres 3 minutter etter oppstart |
-| Knappen får ny tilstand ved oppstart | Triggeren ignorerer overganger fra/til `unknown`/`unavailable`, så manuell kjøring startes ikke av en omstart |
+| Knappen får ny tilstand ved oppstart | Triggeren ignorerer overganger fra `unavailable`, til `unknown`/`unavailable`, og kjøringer uten forrige tilstand, så manuell kjøring startes ikke av en omstart. Første trykk på en helt ny knapp (fra `unknown`) virker |
 | Tidspunkt-hjelper er tom | Tolkes som «aldri», altså ingen etterdrift/manuell kjøring |
 
 ### 10.6 Varsling og debug info

@@ -21,7 +21,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.00
+    Blueprint versjon: 2026.11.01
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -308,9 +308,9 @@ triggers:
 
   - trigger: state
     entity_id: !input helper_manual_button
+    # «unknown» er tillatt som fra-tilstand: en ny knapp er «unknown» til første trykk.
     not_from:
       - unavailable
-      - unknown
     not_to:
       - unavailable
       - unknown
