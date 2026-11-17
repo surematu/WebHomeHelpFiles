@@ -179,6 +179,26 @@ Detaljert funksjonsbeskrivelse:
 
 ---
 
+### snosmelt_hent_data.yaml — Snøsmelt - Hent data
+
+Overordnet automasjon for et snøsmelteanlegg. Henter timevarsel fra en weather-entitet, avgjør om det er behov for snøsmelting (snø, rim/is, etterdrift eller manuell kjøring) og skriver resultatet til hjelpere som kan vises i et dashbord. Resultatet «Snøsmelt behov» brukes av én eller flere «Snøsmelt - Styr utgang»-automasjoner, én per kontaktor.
+
+Hjelperne kan opprettes samlet med [packages/snosmelt_hjelpere.yaml](./packages/snosmelt_hjelpere.yaml).
+
+Detaljert funksjonsbeskrivelse:
+- [README_snosmelt_hent_data.md](./README_snosmelt_hent_data.md)
+
+---
+
+### snosmelt_styr_utgang.yaml — Snøsmelt - Styr utgang
+
+Styrer én utgang (f.eks. en kontaktor for varmekabel) ut fra «Snøsmelt behov» fra automasjonen «Snøsmelt - Hent data». Det lages én automasjon per utgang, slik at en enkelt kontaktor kan settes i manuell ved å skru av sin egen automasjon. Automasjonen kan også overvåke last og spoleeffekt og sende varsel via Pushover når utgangen er PÅ uten at det trekkes forventet effekt.
+
+Detaljert funksjonsbeskrivelse:
+- [README_snosmelt_styr_utgang.md](./README_snosmelt_styr_utgang.md)
+
+---
+
 ### varsel_printer.yaml — Varsel - Printer - Blekk/Toner lavt
 
 Finner automatisk alle printer-sensorer og sender varsel via Pushover når blekk eller toner er lavere enn valgt terskel. Grupperer sensorer per printer og filtrerer ugyldige verdier automatisk.

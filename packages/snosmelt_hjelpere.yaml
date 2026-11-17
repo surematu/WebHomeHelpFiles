@@ -1,0 +1,55 @@
+# Snøsmelt – hjelpere for blueprintene
+#   blueprints/automation/snosmelt_hent_data.yaml
+#   blueprints/automation/snosmelt_styr_utgang.yaml
+#
+# Bruk:
+#   1. Kopier denne filen til /config/packages/snosmelt_hjelpere.yaml
+#   2. Sørg for at packages er aktivert i configuration.yaml:
+#        homeassistant:
+#          packages: !include_dir_named packages
+#   3. Start Home Assistant på nytt.
+#
+# Alternativt kan de samme hjelperne opprettes manuelt under
+# Innstillinger → Enheter og tjenester → Hjelpere (se README_snosmelt_hent_data.md).
+#
+# Versjon: 2026.11.00
+
+input_boolean:
+  snosmelt_behov:
+    name: Snøsmelt behov
+    icon: mdi:snowflake-melt
+  snosmelt_sno_detektert:
+    name: Snøsmelt snø detektert
+    icon: mdi:weather-snowy-heavy
+  snosmelt_rim_detektert:
+    name: Snøsmelt rim detektert
+    icon: mdi:snowflake-alert
+
+input_text:
+  snosmelt_arsak:
+    name: Snøsmelt årsak
+    icon: mdi:information-outline
+    max: 255
+  snosmelt_detaljer:
+    name: Snøsmelt detaljer
+    icon: mdi:thermometer-lines
+    max: 255
+
+input_datetime:
+  snosmelt_sno_sist_aktiv:
+    name: Snøsmelt snø sist aktiv
+    has_date: true
+    has_time: true
+  snosmelt_rim_sist_aktivert:
+    name: Snøsmelt rim sist aktivert
+    has_date: true
+    has_time: true
+  snosmelt_manuell_til:
+    name: Snøsmelt manuell kjøring til
+    has_date: true
+    has_time: true
+
+input_button:
+  snosmelt_manuell_kjoring:
+    name: Snøsmelt manuell kjøring
+    icon: mdi:gesture-tap-button

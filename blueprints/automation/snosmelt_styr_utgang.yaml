@@ -1,0 +1,502 @@
+blueprint:
+  name: Snøsmelt - Styr utgang (WebHome Automation)
+  description: >
+    Styrer ÉN utgang (f.eks. en kontaktor for varmekabel) ut fra «Snøsmelt behov»
+    fra automasjonen «Snøsmelt - Hent data». Lag én automasjon per utgang, slik at
+    hver utgang kan settes i manuell ved å skru av sin egen automasjon.
+
+    Styring:
+    - Behov PÅ  → utgangen slås PÅ (eventuelt pulset med pådrag i prosent).
+    - Behov AV  → utgangen slås AV.
+    - Tilstanden kontrolleres hvert minutt og rettes hvis den er feil.
+
+    Overvåkning (valgfri, varsel via Pushover):
+    - Lav last: utgangen er PÅ, men målt effekt er under forventet.
+    - Lav spoleeffekt: utgangen er PÅ, men kontaktorspolen trekker ikke forventet effekt.
+    - Henger inne: utgangen er AV, men det måles fortsatt last.
+
+    Dokumentasjon/wiki:
+    https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_styr_utgang.md
+
+    Blueprint versjon: 2026.11.00
+
+  domain: automation
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_styr_utgang.yaml
+  author: WebHome
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    main:
+      name: Hovedinnganger
+      icon: mdi:snowflake-melt
+      input:
+        demand_entity:
+          name: Snøsmelt behov
+          description: >
+            Hjelperen «Snøsmelt behov» som skrives av «Snøsmelt - Hent data».
+            Utgangen følger denne.
+          selector:
+            entity:
+              domain:
+                - input_boolean
+                - binary_sensor
+
+        output_switch:
+          name: Utgang
+          description: Bryteren som styrer kontaktoren/varmekabelen.
+          selector:
+            entity:
+              domain: switch
+
+        output_name:
+          name: Navn i varsel (valgfri)
+          description: Brukes i varseltittel. Tom = navnet til bryteren.
+          default: ""
+          selector:
+            text:
+
+    overvaking:
+      name: Overvåkning (Valgfri)
+      icon: mdi:flash-alert
+      collapsed: true
+      input:
+        power_sensor:
+          name: Effekt – målt last (valgfri)
+          description: Sensor som måler effekten til varmekabelen. Tom = ingen overvåkning av last.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+        power_expected:
+          name: Effekt – forventet last
+          description: Normal effekt når utgangen er PÅ. Samme enhet som sensoren (normalt W).
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100000
+              step: 1
+              mode: box
+
+        coil_sensor:
+          name: Spole – målt effekt (valgfri)
+          description: Sensor som måler effekten til kontaktorspolen (f.eks. effektmåling på reléutgangen). Tom = ingen overvåkning av spole.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+        coil_expected:
+          name: Spole – forventet effekt
+          description: Normal spoleeffekt når kontaktoren ligger inne. Samme enhet som sensoren (normalt W).
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 0.1
+              mode: box
+
+        fault_delay_min:
+          name: Forsinkelse før feil (minutter)
+          description: >
+            Avviket må vare sammenhengende så lenge før det regnes som feil.
+            Hindrer falske varsler ved innkobling og korte dropp i målingen.
+          default: 2
+          selector:
+            number:
+              min: 1
+              max: 30
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+        power_min_pct:
+          name: Last – laveste godkjente andel (%)
+          description: Feil når målt last er under denne andelen av forventet last.
+          default: 70
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: box
+
+        coil_min_pct:
+          name: Spole – laveste godkjente andel (%)
+          description: Feil når målt spoleeffekt er under denne andelen av forventet spoleeffekt.
+          default: 30
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: box
+
+        stuck_pct:
+          name: Henger inne – grense (%)
+          description: Feil når utgangen er AV, men målt last er over denne andelen av forventet last.
+          default: 10
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: box
+
+        fault_latch:
+          name: Feil-hjelper (input_boolean) (valgfri)
+          description: >
+            Valgfri. Slås PÅ ved feil og AV når utgangen igjen er bekreftet OK.
+            Med denne sendes feilvarsel bare én gang per feil (ikke i hver puls),
+            og du får varsel når feilen er borte.
+          default: ""
+          selector:
+            entity:
+              domain: input_boolean
+
+    settings:
+      name: Innstillinger
+      icon: mdi:tune
+      collapsed: true
+      input:
+        duty_pct:
+          name: Pådrag (%)
+          description: >
+            Andel av perioden utgangen er PÅ når det er behov. 100 = alltid PÅ ved behov.
+            Lavere verdi pulser utgangen (f.eks. 50 % = PÅ halve perioden).
+          default: 100
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 5
+              unit_of_measurement: "%"
+              mode: box
+
+        period_min:
+          name: Periode (minutter)
+          description: Lengden på én puls-syklus. Brukes bare når pådrag er under 100 %.
+          default: 10
+          selector:
+            number:
+              min: 2
+              max: 120
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+        offset_min:
+          name: Offset (minutter)
+          description: >
+            Forskyver syklusen. Gi utgangene ulik offset så de ikke slår inn samtidig
+            når pådrag er under 100 %.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 119
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+    varsling:
+      name: Varsling (Valgfri)
+      icon: mdi:bell
+      collapsed: true
+      input:
+        pushover_destination:
+          name: Pushover destination (valgfri)
+          description: >
+            Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres
+            slik at den blir sendt ulikt.
+          default: pushover
+          selector:
+            text:
+
+        pushover_priority:
+          name: Pushover priority
+          description: >
+            −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd),
+            1 (Høy prioritet, rødt varsel, omgår stilleperiode),
+            2 (nødvarsel som gjentas til det bekreftes).
+          default: 1
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_ttl_hours:
+          name: Levetid varsel (timer)
+          description: Hvor lenge skal varslet være synlig før det forsvinner?
+          default: 168
+          selector:
+            number:
+              min: 0
+              max: 168
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+        varsel_ved_ok:
+          name: Send varsel når feilen er borte
+          description: Krever at «Feil-hjelper» er valgt. Sender varsel når utgangen igjen er bekreftet OK.
+          default: true
+          selector:
+            boolean:
+
+    avansert:
+      name: Avansert
+      icon: mdi:cog
+      collapsed: true
+      input:
+        varsel_ved_manuell_kjoring:
+          name: Send varsel ved manuell kjøring
+          description: >
+            Sett til true for å sende varsel når automasjonen kjøres manuelt.
+            Sett til false for å ikke sende varsel ved manuell kjøring.
+          default: true
+          selector:
+            boolean:
+
+mode: queued
+max: 10
+
+trigger_variables:
+  tv_switch: !input output_switch
+  tv_power: !input power_sensor
+  tv_power_expected: !input power_expected
+  tv_power_min_pct: !input power_min_pct
+  tv_stuck_pct: !input stuck_pct
+  tv_coil: !input coil_sensor
+  tv_coil_expected: !input coil_expected
+  tv_coil_min_pct: !input coil_min_pct
+
+triggers:
+  - trigger: time_pattern
+    minutes: /1
+    id: time
+
+  - trigger: state
+    entity_id: !input demand_entity
+    id: demand_changed
+
+  - trigger: state
+    entity_id: !input output_switch
+    from: "unavailable"
+    id: switch_recovered
+
+  - trigger: homeassistant
+    event: start
+    id: ha_start
+
+  - trigger: template
+    id: fault_power_low
+    value_template: >-
+      {{ tv_power is string and tv_power != ''
+         and (tv_power_expected | float(0)) > 0
+         and is_state(tv_switch, 'on')
+         and (states(tv_power) | float(-1)) >= 0
+         and (states(tv_power) | float(0)) < ((tv_power_expected | float(0)) * (tv_power_min_pct | float(70)) / 100) }}
+    for:
+      minutes: !input fault_delay_min
+
+  - trigger: template
+    id: fault_coil_low
+    value_template: >-
+      {{ tv_coil is string and tv_coil != ''
+         and (tv_coil_expected | float(0)) > 0
+         and is_state(tv_switch, 'on')
+         and (states(tv_coil) | float(-1)) >= 0
+         and (states(tv_coil) | float(0)) < ((tv_coil_expected | float(0)) * (tv_coil_min_pct | float(30)) / 100) }}
+    for:
+      minutes: !input fault_delay_min
+
+  - trigger: template
+    id: fault_stuck_on
+    value_template: >-
+      {{ tv_power is string and tv_power != ''
+         and (tv_power_expected | float(0)) > 0
+         and is_state(tv_switch, 'off')
+         and (states(tv_power) | float(0)) > ((tv_power_expected | float(0)) * (tv_stuck_pct | float(10)) / 100) }}
+    for:
+      minutes: !input fault_delay_min
+
+  # Bekreftet OK: utgangen er PÅ og lasten er over grensen.
+  # Uten lastmåling brukes spoleeffekten i stedet.
+  - trigger: template
+    id: ok_verified
+    value_template: >-
+      {% set has_power = tv_power is string and tv_power != '' and (tv_power_expected | float(0)) > 0 %}
+      {% set has_coil = tv_coil is string and tv_coil != '' and (tv_coil_expected | float(0)) > 0 %}
+      {% if not is_state(tv_switch, 'on') %}
+        false
+      {% elif has_power %}
+        {{ (states(tv_power) | float(-1)) >= ((tv_power_expected | float(0)) * (tv_power_min_pct | float(70)) / 100) }}
+      {% elif has_coil %}
+        {{ (states(tv_coil) | float(-1)) >= ((tv_coil_expected | float(0)) * (tv_coil_min_pct | float(30)) / 100) }}
+      {% else %}
+        false
+      {% endif %}
+    for:
+      minutes: !input fault_delay_min
+
+actions:
+  - alias: Steg 1 – Les innstillinger fra blueprint
+    variables:
+      io_demand: !input demand_entity
+      io_switch: !input output_switch
+      io_output_name: !input output_name
+      io_power: !input power_sensor
+      io_power_expected: !input power_expected
+      io_coil: !input coil_sensor
+      io_coil_expected: !input coil_expected
+      io_power_min_pct: !input power_min_pct
+      io_coil_min_pct: !input coil_min_pct
+      io_stuck_pct: !input stuck_pct
+      io_fault_delay_min: !input fault_delay_min
+      io_fault_latch: !input fault_latch
+      io_duty_pct: !input duty_pct
+      io_period_min: !input period_min
+      io_offset_min: !input offset_min
+      pushover_destination: !input pushover_destination
+      pushover_priority: !input pushover_priority
+      pushover_ttl_hours: !input pushover_ttl_hours
+      io_varsel_ved_ok: !input varsel_ved_ok
+      io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
+      is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'state', 'homeassistant', 'template'] }}"
+      trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
+
+  - alias: Steg 2 – Navn på utgangen
+    variables:
+      output_name: >-
+        {% if io_output_name is string and (io_output_name | trim) != '' %}
+          {{ io_output_name | trim }}
+        {% else %}
+          {{ state_attr(io_switch, 'friendly_name') or io_switch }}
+        {% endif %}
+
+  - alias: Steg 3 – Les behov og beregn fase i puls-syklusen
+    variables:
+      demand_on: "{{ is_state(io_demand, 'on') }}"
+      duty: "{{ io_duty_pct | float(100) }}"
+      period: "{{ [io_period_min | int(10), 1] | max }}"
+      current_minute: "{{ now().hour * 60 + now().minute }}"
+      phase: "{{ ((current_minute | int) + (io_offset_min | int(0))) % (period | int) }}"
+      on_minutes: "{{ ((duty | float(100)) / 100 * (period | int)) | round(0) | int }}"
+
+  - alias: Steg 4 – Avgjør ønsket tilstand på utgangen
+    variables:
+      should_be_on: "{{ demand_on and ((duty | float(100)) >= 100 or (phase | int) < (on_minutes | int)) }}"
+      current_switch_state: "{{ states(io_switch) }}"
+
+  - alias: Steg 5 – Sett utgangen hvis den står feil
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ should_be_on and current_switch_state == 'off' }}"
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: "{{ io_switch }}"
+            continue_on_error: true
+      - conditions:
+          - condition: template
+            value_template: "{{ not should_be_on and current_switch_state == 'on' }}"
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: "{{ io_switch }}"
+            continue_on_error: true
+
+  - alias: Steg 6 – Les måleverdier og grenser for overvåkning
+    variables:
+      power_now: "{{ states(io_power) | float(0) | round(0) | int if (io_power is string and io_power != '') else 0 }}"
+      coil_now: "{{ states(io_coil) | float(0) | round(1) if (io_coil is string and io_coil != '') else 0 }}"
+      power_limit: "{{ ((io_power_expected | float(0)) * (io_power_min_pct | float(70)) / 100) | round(0) | int }}"
+      coil_limit: "{{ ((io_coil_expected | float(0)) * (io_coil_min_pct | float(30)) / 100) | round(1) }}"
+      stuck_limit: "{{ ((io_power_expected | float(0)) * (io_stuck_pct | float(10)) / 100) | round(0) | int }}"
+      latch_configured: "{{ io_fault_latch is string and (io_fault_latch | trim) != '' }}"
+      latch_was_on: "{{ (io_fault_latch is string and (io_fault_latch | trim) != '') and is_state(io_fault_latch, 'on') }}"
+      can_notify: "{{ (pushover_destination | string | trim) != '' }}"
+
+  - alias: Steg 7 – Feil oppdaget
+    if:
+      - condition: template
+        value_template: "{{ trigger_id in ['fault_power_low', 'fault_coil_low', 'fault_stuck_on'] }}"
+    then:
+      - alias: Steg 7-A – Bygg feiltekst
+        variables:
+          fault_message: >-
+            {% if trigger_id == 'fault_power_low' %}
+              Utgangen er PÅ, men lasten er {{ power_now }} (forventet ca. {{ io_power_expected }}, grense {{ power_limit }}). Sjekk sikring, kontaktor og varmekabel.
+            {% elif trigger_id == 'fault_coil_low' %}
+              Utgangen er PÅ, men spoleeffekten er {{ coil_now }} (forventet ca. {{ io_coil_expected }}, grense {{ coil_limit }}). Sjekk reléutgang og kontaktorspole.
+            {% else %}
+              Utgangen er AV, men det måles fortsatt last: {{ power_now }} (grense {{ stuck_limit }}). Kontaktoren kan henge inne.
+            {% endif %}
+          fault_should_notify: "{{ can_notify and (not latch_configured or not latch_was_on) }}"
+      - alias: Steg 7-B – Slå på feil-hjelper (valgfri)
+        if:
+          - condition: template
+            value_template: "{{ latch_configured and not latch_was_on }}"
+        then:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: "{{ io_fault_latch }}"
+      - alias: Steg 7-C – Send feilvarsel
+        if:
+          - condition: template
+            value_template: "{{ fault_should_notify }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "⚠️ Snøsmelt feil - {{ output_name | trim }}"
+              message: "{{ fault_message | trim }}"
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl_hours: "{{ pushover_ttl_hours }}"
+
+  - alias: Steg 8 – Bekreftet OK igjen (kun med feil-hjelper)
+    if:
+      - condition: template
+        value_template: "{{ trigger_id == 'ok_verified' and latch_configured and latch_was_on }}"
+    then:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: "{{ io_fault_latch }}"
+      - if:
+          - condition: template
+            value_template: "{{ io_varsel_ved_ok and can_notify }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "✅ Snøsmelt OK igjen - {{ output_name | trim }}"
+              message: "Utgangen er PÅ og målingene er normale igjen. Last: {{ power_now }}, spole: {{ coil_now }}."
+              destination: "{{ pushover_destination }}"
+              priority: 0
+              ttl_hours: "{{ pushover_ttl_hours }}"
+
+  - alias: Steg 9 – Varsling ved manuell kjøring (valgfri)
+    if:
+      - condition: template
+        value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring and can_notify }}"
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "🔔 Snøsmelt - Styr utgang (manuell kjøring)"
+          message: |-
+            {{ output_name | trim }}
+            Behov: {{ 'PÅ' if demand_on else 'AV' }} · Pådrag: {{ duty | int }} %
+            Ønsket utgang: {{ 'PÅ' if should_be_on else 'AV' }} · Utgang var: {{ current_switch_state }}
+            Last: {{ power_now }} (grense {{ power_limit }}) · Spole: {{ coil_now }} (grense {{ coil_limit }})
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl_hours: "{{ pushover_ttl_hours }}"
