@@ -41,7 +41,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.10
+    Blueprint versjon: 2026.11.11
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -264,6 +264,15 @@ blueprint:
               unit_of_measurement: h
               mode: box
 
+        varsel_ved_ok:
+          name: Send varsel når feilen er borte
+          description: >
+            Sender «Tilbake i normal drift» når det er sendt et feilvarsel og feilen
+            ikke lenger står. Samme prioritet og levetid som feilvarselet.
+          default: true
+          selector:
+            boolean:
+
         varsel_ved_start:
           name: Send varsel når snøsmelting starter
           description: Sender varsel når «Snøsmelt behov» går fra AV til PÅ.
@@ -323,6 +332,15 @@ triggers:
       minutes: 1
     id: common_fault
 
+  # Fellesfeil er borte: kjør med en gang, så «Tilbake i normal drift» ikke venter til neste time.
+  - trigger: state
+    entity_id: binary_sensor.snosmelt_fellesfeil
+    from: "on"
+    to: "off"
+    for:
+      minutes: 1
+    id: common_fault_cleared
+
 actions:
   - alias: Steg 1 – Les innstillinger fra blueprint
     variables:
@@ -355,6 +373,7 @@ actions:
       pushover_priority: !input pushover_priority
       pushover_ttl_hours: !input pushover_ttl_hours
       io_varsel_ved_start: !input varsel_ved_start
+      io_varsel_ved_ok: !input varsel_ved_ok
       io_varsel_ved_feil: !input varsel_ved_feil
       io_feilvarsel_timer: !input feilvarsel_timer
       io_feilvarsel_priority: !input feilvarsel_priority
@@ -900,11 +919,24 @@ actions:
           priority: "{{ io_feilvarsel_priority | int(1) }}"
           ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
 
-  - alias: Steg 40 – Ingen feil – nullstill «feil sist varslet», så en ny feil varsles med en gang
+  - alias: Steg 40 – Ingen feil lenger – send «Tilbake i normal drift» og nullstill «feil sist varslet»
     if:
       - condition: template
         value_template: "{{ not fault_active and fault_notify_ready and (ts_fault_notified | float(0)) > as_timestamp('2000-01-02 00:00:00') }}"
     then:
+      - if:
+          - condition: template
+            value_template: "{{ io_varsel_ved_ok }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "✅ Snøsmelt - Tilbake i normal drift"
+              message: |-
+                Feilen er borte. Det er ingen feil på snøsmeltingen nå.
+                Snøsmeltingen er {{ 'PÅ' if demand else 'AV' }}. {{ reason_combined | trim }}
+              destination: "{{ pushover_destination }}"
+              priority: "{{ io_feilvarsel_priority | int(1) }}"
+              ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
       - action: input_datetime.set_datetime
         target:
           entity_id: "{{ io_fault_notified }}"

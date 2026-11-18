@@ -84,6 +84,7 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 | Send varsel ved feil | true | Varsel ved fellesfeil, manglende værvarsel, og hvis automasjonen ikke har fullført på over 2,5 timer |
 | Feilvarsel – Pushover priority | 1 | Prioritet for feilvarsel. 1 gir rødt varsel som omgår stilleperiode |
 | Feilvarsel – levetid og gjentakelse | 24 t | Feilvarselet er synlig så lenge, og sendes på nytt etter så mange timer hvis feilen står |
+| Send varsel når feilen er borte | true | Sender «Tilbake i normal drift» når det er sendt et feilvarsel og feilen ikke lenger står. Samme prioritet og levetid som feilvarselet |
 | Send varsel når snøsmelting starter | true | Varsel når «Snøsmelt behov» går fra AV til PÅ |
 | Send varsel ved manuell kjøring | true | Sett til true for å sende varsel når automasjonen kjøres manuelt. Sett til false for å ikke sende varsel ved manuell kjøring. |
 
@@ -165,7 +166,14 @@ Feilvarsel (krever hjelperen «Snøsmelt - Feil sist varslet»):
 | Værvarsel mangler | `🔔 Snøsmelt - Fellesfeil` | Værvarselet kunne ikke hentes, heller ikke etter 5 minutters venting |
 | Automasjonen har stoppet | `🔔 Snøsmelt - Hent data har stoppet` | Ingen fullført kjøring på over 2,5 timer (krever hjelperen «Snøsmelt - Sist fullført»). Sendes helt i starten av neste kjøring, før stegene som kan feile |
 
-Feilvarselet sendes med høy prioritet (1, rødt varsel), har 24 timers levetid og sendes på nytt hver 24. time så lenge feilen står. Når feilen er borte nullstilles det, slik at en ny feil varsles med en gang. Når fellesfeilen slår inn, kjører automasjonen etter 1 minutt i stedet for å vente til neste time.
+Feilvarselet sendes med høy prioritet (1, rødt varsel), har 24 timers levetid og sendes på nytt hver 24. time så lenge feilen står. Når fellesfeilen slår inn, kjører automasjonen etter 1 minutt i stedet for å vente til neste time.
+
+Varsel når feilen er borte:
+
+- **Tittel:** `✅ Snøsmelt - Tilbake i normal drift`
+- **Melding:** at det ikke er noen feil nå, og om snøsmeltingen er PÅ eller AV med årsak.
+
+Det sendes 1 minutt etter at fellesfeilen er borte, med samme prioritet og levetid som feilvarselet, og bare hvis det først er sendt et feilvarsel. Samtidig nullstilles tellingen, slik at en ny feil varsles med en gang.
 
 Begrensning: en automasjon som er skrudd av, eller som feiler allerede i første steg, kan ikke varsle selv. Det fanges av fellesfeil-lampa (se §9.3), ikke av Pushover.
 

@@ -4,7 +4,7 @@ Oppskrift for å sette opp hele snøsmelt-løsningen på en ny Home Assistant-in
 
 Oppskriften er skrevet slik at den kan følges både for hånd og av en AI-assistent som jobber i nettleseren (se §9).
 
-Versjon: 2026.11.02
+Versjon: 2026.11.03
 
 ## 1. Hva løsningen består av
 
@@ -230,13 +230,13 @@ Arbeidsmåte:
 | 2 | Manuell kjøring på | Driftsstatus PÅ, kontaktoren inne innen 30 s, grønn statusboks, tavle-flis gul |
 | 3 | Manuell kjøring av | Driftsstatus følger været igjen, kontaktoren ute |
 | 4 | Slå en kontaktor på for hånd mens driftsstatus er AV | Automasjonen slår den av igjen etter ca. 35 s |
-| 5 | Slå av kontaktorens automasjon | Rød bjelle på kontaktoren etter 1 minutt, tavla Problem, Fellesfeil, Pushover «🔔 Snøsmelt - Fellesfeil» |
-| 6 | Slå automasjonen på igjen | Kontaktoren går inn straks, feilene forsvinner |
+| 5 | Slå av kontaktorens automasjon | Rød bjelle på kontaktoren etter 1 minutt, tavla Problem, Fellesfeil, rødt Pushover-varsel «🔔 Snøsmelt - Fellesfeil» ca. 1 minutt etter det |
+| 6 | Slå automasjonen på igjen | Kontaktoren følger driftsstatusen straks, feilene forsvinner, og etter 1 minutt kommer Pushover «✅ Snøsmelt - Tilbake i normal drift» |
 | 7 | Slå av «Hent data» | Fellesfeil med årsak «Snøsmeltingen er skrudd av». Det sendes ikke Pushover i dette tilfellet |
 | 8 | Vanlig bruker | Ser startside og tavlesider, ikke admin-seksjoner og feilsøking |
 | 9 | Første reelle snøfall eller rim | Start, etterdrift og stopp stemmer med statustekstene |
 
-Testene som gir Pushover (nr. 5) avtales på forhånd med den som mottar varslene.
+Testene som gir Pushover (nr. 5 og 6) avtales på forhånd med den som mottar varslene.
 
 ## 11. Etter godkjenning
 
