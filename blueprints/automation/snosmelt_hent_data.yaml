@@ -35,7 +35,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.05
+    Blueprint versjon: 2026.11.06
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -529,47 +529,46 @@ actions:
   - alias: Steg 17 – Bygg årsakstekst
     variables:
       reason_weather: >-
+        {% set h = hours_to_check | int(3) %}
         {% if not has_data %}
-          Ingen gyldige værdata.
+          Stopp. Værvarselet er ikke tilgjengelig.
         {% elif snow_detected %}
-          Start snøsmelt, nedbør detektert.
+          Start. Meldt snø de neste {{ h }} timene.
         {% elif frost_detected %}
-          Start snøsmelt, rim/frost detektert.
+          Start. Fare for frost.
         {% elif afterrun_active %}
-          Etterdrift for {{ afterrun_hours | int }} timer aktiv. Timer igjen; {{ ((afterrun_remaining_h | float(0)) + 0.999) | int }}.
+          Etterdrift etter {{ 'snøfall' if (ts_snow_last | float(0)) >= (ts_frost_last | float(0)) else 'frost' }}.
         {% elif too_warm %}
-          Stopp. For varmt.
+          Stopp. For varmt de neste {{ h }} timene.
         {% elif too_cold %}
-          Stopp. For kaldt.
+          Stopp. For kaldt de neste {{ h }} timene.
         {% else %}
-          Stopp. Lite/ingen nedbør.
+          Stopp. Lite/ingen nedbør og ingen fare for frost de neste {{ h }} timene.
         {% endif %}
+      weather_demand: "{{ snow_detected or frost_detected or afterrun_active }}"
+      manual_until_text: "{{ (ts_manual_until | float(0)) | timestamp_custom('%H:%M') }}"
       reason_combined: >-
-        {% set base = (reason_weather | trim) ~ ' ' ~ mode_text %}
-        {% if manual_active %}
-          Manuell aktivering {{ ((manual_remaining_h | float(0)) + 0.999) | int }}t igjen. - {{ base }}
+        {% if manual_active and not weather_demand %}
+          Manuell kjøring til kl. {{ manual_until_text }}.
         {% else %}
-          {{ base }}
+          {{ reason_weather | trim }}
         {% endif %}
       explanation_weather: >-
         {% macro num(v, d=1) %}{{ (v | float(0) | round(d) | string).replace('.', ',').replace('-', '−') }}{% endmacro %}
         {% macro temp(v) %}{{ ('+' if (v | float(0)) > 0 else '') ~ num(v) }} °C{% endmacro %}
-        {% set h = hours_to_check | int(3) %}
         {% if not has_data %}
-          Værvarselet er ikke tilgjengelig akkurat nå. Anlegget starter ikke på vær før det er tilbake.
+          Anlegget starter ikke på vær før varselet er tilbake.
         {% elif snow_detected %}
-          Det er meldt snø de neste {{ h }} timene ({{ num(precip_sum) }} mm), og det er {{ temp(temp_now) }}. Anlegget går for å holde bakken fri for snø.
+          Det er meldt {{ num(precip_sum) }} mm, og det er {{ temp(temp_now) }}. Anlegget går for å holde bakken fri for snø.
         {% elif frost_detected %}
-          Det er {{ temp(temp_now) }} og fuktig luft, bare {{ num((temp_now | float(0)) - (dew_point | float(0))) }} °C over duggpunktet. Da kan det danne seg rim eller is, så anlegget går for å holde bakken tørr.
+          Det er {{ temp(temp_now) }} og fuktig luft, bare {{ num((temp_now | float(0)) - (dew_point | float(0))) }} °C over duggpunktet. Anlegget går for å holde bakken tørr.
         {% elif afterrun_active %}
           {% set n = ((afterrun_remaining_h | float(0)) + 0.999) | int %}
-          {{ 'Snøfallet' if (ts_snow_last | float(0)) >= (ts_frost_last | float(0)) else 'Rimfaren' }} er over. Anlegget går i {{ n }} {{ 'time' if n == 1 else 'timer' }} til for å smelte og tørke opp det som ligger igjen.
+          Anlegget går i {{ n }} {{ 'time' if n == 1 else 'timer' }} til for å smelte og tørke opp det som ligger igjen.
         {% elif too_warm %}
-          Det er {{ temp(min_temp) }} eller varmere de neste {{ h }} timene, så snøen smelter av seg selv.
+          Det er {{ temp(min_temp) }} eller varmere, så snøen smelter av seg selv.
         {% elif too_cold %}
-          Det er {{ temp(max_temp) }} eller kaldere de neste {{ h }} timene. Anlegget starter ikke på snøfall når det er så kaldt.
-        {% else %}
-          Det er ikke meldt snø de neste {{ h }} timene, og det er ingen fare for rim.
+          Det er {{ temp(max_temp) }} eller kaldere. Anlegget starter ikke på snøfall når det er så kaldt.
         {% endif %}
       next_start_text: >-
         {% set wd = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'] %}
@@ -589,13 +588,12 @@ actions:
           De neste {{ forecast_days | int(2) }} dagene ser det ikke ut til å bli behov for snøsmelting.
         {% endif %}
       explanation_text: >-
-        {% set until = (ts_manual_until | float(0)) | timestamp_custom('%H:%M') %}
-        {% if manual_active and (snow_detected or frost_detected or afterrun_active) %}
-          {{ explanation_weather | trim }} Anlegget er også startet manuelt og går til kl. {{ until }}.
+        {% if manual_active and weather_demand %}
+          {{ explanation_weather | trim }} Anlegget er også startet manuelt og går til kl. {{ manual_until_text }}.
         {% elif manual_active %}
-          Anlegget er startet manuelt og går til kl. {{ until }}.
+          Uten manuell kjøring: {{ reason_weather | trim }}
         {% elif has_data and not demand %}
-          {{ explanation_weather | trim }} {{ next_start_text | trim }}
+          {{ ((explanation_weather | trim) ~ ' ' ~ (next_start_text | trim)) | trim }}
         {% else %}
           {{ explanation_weather | trim }}
         {% endif %}

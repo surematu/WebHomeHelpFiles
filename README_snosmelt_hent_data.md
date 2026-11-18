@@ -10,7 +10,7 @@ Det trengs bare én slik automasjon per anlegg.
 
 ### 2.1 Snøfall i vente
 
-Det er −2 °C og meldt 0,6 mm nedbør de neste 3 timene. «Snø detektert» og «Snøsmelt behov» slås PÅ, og årsaken blir «Start snøsmelt, nedbør detektert. (Varmt, sjekk de neste 3 timene.)».
+Det er −2 °C og meldt 0,6 mm nedbør de neste 3 timene. «Snø detektert» og «Snøsmelt behov» slås PÅ, og årsaken blir «Start. Meldt snø de neste 3 timene.».
 
 ### 2.2 Etterdrift
 
@@ -108,8 +108,8 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 | Snøsmelt behov | PÅ/AV – samlet behov |
 | Snø detektert | PÅ/AV |
 | Rim/is detektert | PÅ/AV |
-| Årsak for driftsmodus | Kort status i fast form, f.eks. «Stopp. Lite/ingen nedbør. (Varmt, sjekk de neste 3 timene.)» |
-| Forklaring (valgfri) | Forklaring i klarspråk med tall, f.eks. «Det er meldt snø de neste 3 timene (0,6 mm), og det er −2,0 °C. Anlegget går for å holde bakken fri for snø.» |
+| Årsak for driftsmodus | Kort og konkret hovedstatus, f.eks. «Stopp. Lite/ingen nedbør og ingen fare for frost de neste 3 timene.» |
+| Forklaring (valgfri) | Ekstra informasjon som ikke gjentar årsaken, f.eks. «De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting.» |
 | Detaljer (valgfri) | Tekst, f.eks. «Nedbør 0.4 mm · Temp -2.5 til -1.0 °C · Fukt maks 87 % · Duggpunkt -4.2 °C» |
 | Snø sist aktiv | Tidspunkt for siste kjøring med snø detektert |
 | Rim sist aktivert | Tidspunkt da rimfare sist slo inn |
@@ -120,7 +120,7 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 Varsel når snøsmelting starter («Snøsmelt behov» går fra AV til PÅ):
 
 - **Tittel:** `❄️ Snøsmelting aktivert`
-- **Melding:** `Årsak: Start snøsmelt, nedbør detektert. (Varmt, sjekk de neste 3 timene.)`
+- **Melding:** `Årsak: Start. Meldt snø de neste 3 timene.`
 
 Statusvarsel når automasjonen kjøres manuelt fra Home Assistant:
 
@@ -137,20 +137,20 @@ Hjelperne kan vises direkte: «Snøsmelt behov» som hovedknapp, «Snø detekter
 
 ### 9.2 Årsak og forklaring
 
-Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på to måter:
+Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på to måter. Årsaken er kort og konkret, og endrer seg bare når situasjonen skifter. Forklaringen gjentar ikke årsaken, men legger til tall og når anlegget ser ut til å starte neste gang.
 
-| Situasjon | Årsak (kort status) | Forklaring (klarspråk) |
+| Situasjon | Årsak (hovedstatus) | Forklaring (ekstrastatus) |
 |---|---|---|
-| Snø | Start snøsmelt, nedbør detektert. | Det er meldt snø de neste 3 timene (0,6 mm), og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
-| Rim/is | Start snøsmelt, rim/frost detektert. | Det er −1,0 °C og fuktig luft, bare 0,4 °C over duggpunktet. Da kan det danne seg rim eller is, så anlegget går for å holde bakken tørr. |
-| Etterdrift | Etterdrift for 4 timer aktiv. Timer igjen; 2. | Snøfallet er over. Anlegget går i 2 timer til for å smelte og tørke opp det som ligger igjen. |
-| Manuell | Manuell aktivering 6t igjen. - … | Anlegget er startet manuelt og går til kl. 05:58. |
-| For varmt | Stopp. For varmt. | Det er +4,0 °C eller varmere de neste 3 timene, så snøen smelter av seg selv. |
-| For kaldt | Stopp. For kaldt. | Det er −12,0 °C eller kaldere de neste 6 timene. Anlegget starter ikke på snøfall når det er så kaldt. |
-| Ingen nedbør | Stopp. Lite/ingen nedbør. | Det er ikke meldt snø de neste 3 timene, og det er ingen fare for rim. |
-| Ingen værdata | Ingen gyldige værdata. | Værvarselet er ikke tilgjengelig akkurat nå. Anlegget starter ikke på vær før det er tilbake. |
+| Snø | Start. Meldt snø de neste 3 timene. | Det er meldt 0,6 mm, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
+| Rim/is | Start. Fare for frost. | Det er −1,0 °C og fuktig luft, bare 0,4 °C over duggpunktet. Anlegget går for å holde bakken tørr. |
+| Etterdrift | Etterdrift etter snøfall. | Anlegget går i 2 timer til for å smelte og tørke opp det som ligger igjen. |
+| Manuell | Manuell kjøring til kl. 05:58. | Uten manuell kjøring: Stopp. Lite/ingen nedbør og ingen fare for frost de neste 3 timene. |
+| Ingen nedbør | Stopp. Lite/ingen nedbør og ingen fare for frost de neste 3 timene. | De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting. |
+| For varmt | Stopp. For varmt de neste 3 timene. | Det er +4,0 °C eller varmere, så snøen smelter av seg selv. De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting. |
+| For kaldt | Stopp. For kaldt de neste 6 timene. | Det er −15,0 °C eller kaldere. Anlegget starter ikke på snøfall når det er så kaldt. I dag rundt kl. 22 er det meldt snø, som vil starte snøsmeltingen. |
+| Ingen værdata | Stopp. Værvarselet er ikke tilgjengelig. | Anlegget starter ikke på vær før varselet er tilbake. |
 
-Årsaken er ment for feilsøking og historikk. Forklaringen er ment for brukeren. I forklaringen kalles nedbør innenfor temperaturgrensene «snø».
+Går manuell kjøring samtidig med snø, rim eller etterdrift, viser årsaken været, og forklaringen får tillegget «Anlegget er også startet manuelt og går til kl. 05:58.». I forklaringen kalles nedbør innenfor temperaturgrensene «snø».
 
 **Neste start**
 
@@ -266,6 +266,7 @@ Ingen egne debug-varsler. Alle mellomverdier er synlige i sporloggen (Trace) til
 
 - Resultatet skrives til hjelpere i stedet for til YAML-definerte template-sensorer.
 - Manuell kjøring styres av en input_button i stedet for et eget script, og utløpet treffes på tidspunktet (ikke først ved neste time).
+- Årsaksteksten er skrevet om til en kort, konkret hovedstatus (se §9.2), og er ikke lenger lik teksten i den opprinnelige automasjonen.
 - Tidspunkter lagres med minutt-presisjon, og etterdrift regnes nøyaktig fra tidspunktet. Den opprinnelige automasjonen rundet ned til hel time og la på én time, slik at «3 og 6 timer» i praksis ga 4 og 7 timer. Standard er derfor 4 og 7 timer her, som gir samme gangtid.
 - Hendelsen heter `webhome_snosmelt_update` (tidligere `metno_next6h_update`).
 
