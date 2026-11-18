@@ -194,13 +194,15 @@ Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe a
 | Bryter (input_boolean) | Snøsmelt behov | `input_boolean.snosmelt_behov` | |
 | Bryter (input_boolean) | Snøsmelt snø detektert | `input_boolean.snosmelt_sno_detektert` | |
 | Bryter (input_boolean) | Snøsmelt rim detektert | `input_boolean.snosmelt_rim_detektert` | |
-| Tekst (input_text) | Snøsmelt årsak | `input_text.snosmelt_arsak` | Maks lengde 255 |
-| Tekst (input_text) | Snøsmelt forklaring | `input_text.snosmelt_forklaring` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
+| Tekst (input_text) | Status snøsmelt | `input_text.snosmelt_arsak` | Maks lengde 255 |
+| Tekst (input_text) | Status snøsmelt - Utvidet forklaring | `input_text.snosmelt_forklaring` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
 | Tekst (input_text) | Snøsmelt detaljer | `input_text.snosmelt_detaljer` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
 | Dato og tid (input_datetime) | Snøsmelt snø sist aktiv | `input_datetime.snosmelt_sno_sist_aktiv` | Dato og tid |
 | Dato og tid (input_datetime) | Snøsmelt rim sist aktivert | `input_datetime.snosmelt_rim_sist_aktivert` | Dato og tid |
 | Dato og tid (input_datetime) | Snøsmelt manuell kjøring til | `input_datetime.snosmelt_manuell_til` | Dato og tid. Opprettet manuelt blir ID-en `…_manuell_kjoring_til` – endre den til `…_manuell_til` |
 | Knapp (input_button) | Snøsmelt manuell kjøring | `input_button.snosmelt_manuell_kjoring` | |
+
+> Opprettes hjelperne manuelt med disse navnene, blir entitets-ID-en en annen enn i tabellen. Endre ID-en etterpå slik at den er lik tabellen.
 
 > Tekst-hjelpere har 100 tegn som standard maks-lengde. Sett den til 255, ellers kan årsaksteksten bli avvist.
 
