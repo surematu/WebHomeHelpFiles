@@ -31,11 +31,17 @@ blueprint:
     - input_datetime.snosmelt_rim_sist_aktivert (Snøsmelt - Rim sist aktivert, dato + tid)
     - input_datetime.snosmelt_manuell_til       (Snøsmelt - Manuellkjøring til, dato + tid)
     - input_button.snosmelt_manuell_kjoring     (Snøsmelt - Manuellkjøring)
+    - input_datetime.snosmelt_sist_fullfort     (Snøsmelt - Sist fullført, dato + tid, valgfri – trengs for varsel hvis automasjonen stopper)
+    - input_datetime.snosmelt_feil_sist_varslet (Snøsmelt - Feil sist varslet, dato + tid, valgfri – trengs for feilvarsel)
+
+    Feilvarsel (Pushover) sendes når fellesfeilen binary_sensor.snosmelt_fellesfeil
+    er aktiv (hvis den finnes), når værvarselet mangler, og når automasjonen ikke
+    har fullført en kjøring på over 2,5 timer. Varselet gjentas så lenge feilen står.
 
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.08
+    Blueprint versjon: 2026.11.09
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -217,6 +223,31 @@ blueprint:
               unit_of_measurement: h
               mode: box
 
+        varsel_ved_feil:
+          name: Send varsel ved feil
+          description: >
+            Sender varsel når fellesfeilen (binary_sensor.snosmelt_fellesfeil) er aktiv,
+            når værvarselet mangler, og når automasjonen ikke har fullført en kjøring
+            på over 2,5 timer (f.eks. etter en feil i en ny Home Assistant-versjon).
+            Krever hjelperen input_datetime.snosmelt_feil_sist_varslet.
+          default: true
+          selector:
+            boolean:
+
+        feilvarsel_timer:
+          name: Feilvarsel – levetid og gjentakelse (timer)
+          description: >
+            Feilvarselet er synlig så lenge, og sendes på nytt etter så mange timer
+            hvis feilen fortsatt står.
+          default: 24
+          selector:
+            number:
+              min: 1
+              max: 168
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
         varsel_ved_start:
           name: Send varsel når snøsmelting starter
           description: Sender varsel når «Snøsmelt behov» går fra AV til PÅ.
@@ -268,6 +299,14 @@ triggers:
     at: input_datetime.snosmelt_manuell_til
     id: manual_expired
 
+  # Fellesfeil slår inn: kjør med en gang, så feilvarselet ikke venter til neste time.
+  - trigger: state
+    entity_id: binary_sensor.snosmelt_fellesfeil
+    to: "on"
+    for:
+      minutes: 1
+    id: common_fault
+
 actions:
   - alias: Steg 1 – Les innstillinger fra blueprint
     variables:
@@ -282,6 +321,10 @@ actions:
       io_manual_until: input_datetime.snosmelt_manuell_til
       io_details: input_text.snosmelt_detaljer
       io_explanation: input_text.snosmelt_forklaring
+      io_last_success: input_datetime.snosmelt_sist_fullfort
+      io_fault_notified: input_datetime.snosmelt_feil_sist_varslet
+      io_common_fault: binary_sensor.snosmelt_fellesfeil
+      io_common_fault_reason: sensor.snosmelt_fellesfeil_arsak
       sp_temp_stop_warm: !input temp_stop_warm
       sp_temp_stop_cold: !input temp_stop_cold
       sp_temp_cold_mode: !input temp_cold_mode
@@ -296,12 +339,55 @@ actions:
       pushover_priority: !input pushover_priority
       pushover_ttl_hours: !input pushover_ttl_hours
       io_varsel_ved_start: !input varsel_ved_start
+      io_varsel_ved_feil: !input varsel_ved_feil
+      io_feilvarsel_timer: !input feilvarsel_timer
       io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
       is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'homeassistant', 'state', 'time'] }}"
       trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
       demand_before: "{{ is_state(io_demand, 'on') }}"
 
-  - alias: Steg 2 – Knapp for manuell kjøring (start/stopp), deretter avslutt
+  - alias: Steg 2 – Kan feilvarsel sendes nå (finnes hjelperen, og er det lenge nok siden sist)
+    variables:
+      fault_notify_ready: "{{ io_varsel_ved_feil and (pushover_destination | string | trim) != '' and io_fault_notified in (states.input_datetime | map(attribute='entity_id') | list) }}"
+      ts_fault_notified: "{{ as_timestamp(states(io_fault_notified), 0) | float(0) }}"
+      hours_since_fault_notified: "{{ ((now().timestamp() - (ts_fault_notified | float(0))) / 3600) | round(1) }}"
+      fault_notify_allowed: "{{ fault_notify_ready and (hours_since_fault_notified | float(0)) >= (io_feilvarsel_timer | float(24)) }}"
+
+  - alias: Steg 3 – Har automasjonen stoppet (ingen fullført kjøring på over 2,5 timer)
+    variables:
+      last_success_exists: "{{ io_last_success in (states.input_datetime | map(attribute='entity_id') | list) }}"
+      ts_last_success: "{{ as_timestamp(states(io_last_success), 0) | float(0) }}"
+      hours_since_last_success: "{{ ((now().timestamp() - (ts_last_success | float(0))) / 3600) | round(1) }}"
+      run_stalled: >-
+        {# Klokkeslett 00:00:00 er verdien en ny hjelper får – da har automasjonen aldri fullført, og det er ikke en stopp #}
+        {{ last_success_exists and (ts_last_success | float(0)) > 0
+           and ((ts_last_success | float(0)) | timestamp_custom('%H%M%S')) != '000000'
+           and (hours_since_last_success | float(0)) > 2.5
+           and trigger_id != 'ha_start' }}
+
+  - alias: Steg 4 – Varsle hvis automasjonen har stoppet (sendes før resten, i tilfelle den stopper igjen)
+    if:
+      - condition: template
+        value_template: "{{ run_stalled and fault_notify_allowed }}"
+    then:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "{{ io_fault_notified }}"
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "⚠️ Snøsmelt - Hent data har stoppet"
+          message: >-
+            Automasjonen har ikke fullført en kjøring siden
+            {{ (ts_last_success | float(0)) | timestamp_custom('%d.%m. kl. %H:%M') }}
+            ({{ hours_since_last_success }} timer). Sjekk sporloggen. Anlegget starter ikke
+            automatisk så lenge dette står. Varselet gjentas etter {{ io_feilvarsel_timer | int }} timer hvis feilen står.
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
+
+  - alias: Steg 5 – Knapp for manuell kjøring (start/stopp), deretter avslutt
     if:
       - condition: template
         value_template: "{{ trigger_id == 'manual_button' and trigger.from_state is not none }}"
@@ -322,7 +408,7 @@ actions:
       # Endringen i hjelperen trigger automasjonen på nytt (manual_changed), som gjør selve beregningen.
       - stop: Manuell kjøring er slått av/på. Ny beregning startes av endringen i hjelperen.
 
-  - alias: Steg 3 – Forsinket start etter omstart av Home Assistant
+  - alias: Steg 6 – Forsinket start etter omstart av Home Assistant
     if:
       - condition: template
         value_template: "{{ trigger_id == 'ha_start' }}"
@@ -330,13 +416,13 @@ actions:
       - delay:
           minutes: 3
 
-  - alias: Steg 4 – Vent på værvarselet hvis det er utilgjengelig (maks 5 minutter)
+  - alias: Steg 7 – Vent på værvarselet hvis det er utilgjengelig (maks 5 minutter)
     wait_template: "{{ states(io_weather) not in ['unavailable', 'unknown'] }}"
     timeout:
       minutes: 5
     continue_on_timeout: true
 
-  - alias: Steg 5 – Hent timevarsel
+  - alias: Steg 8 – Hent timevarsel
     action: weather.get_forecasts
     target:
       entity_id: "{{ io_weather }}"
@@ -345,7 +431,7 @@ actions:
     response_variable: wf
     continue_on_error: true
 
-  - alias: Steg 6 – Hent døgnvarsel (brukes bare til å spå neste start)
+  - alias: Steg 9 – Hent døgnvarsel (brukes bare til å spå neste start)
     action: weather.get_forecasts
     target:
       entity_id: "{{ io_weather }}"
@@ -354,7 +440,7 @@ actions:
     response_variable: wf_daily
     continue_on_error: true
 
-  - alias: Steg 7 – Lag timetabell med bare det vi trenger (tid, temperatur, nedbør, fukt)
+  - alias: Steg 10 – Lag timetabell med bare det vi trenger (tid, temperatur, nedbør, fukt)
     variables:
       hourly_table: >-
         {% set raw = wf[io_weather].forecast if (wf is defined and wf is mapping and io_weather in wf) else [] %}
@@ -372,7 +458,7 @@ actions:
         {% endfor %}
         {{ ns.rows }}
 
-  - alias: Steg 8 – Avgjør kaldt/varmt ut fra laveste temperatur i «kaldt»-vinduet
+  - alias: Steg 11 – Avgjør kaldt/varmt ut fra laveste temperatur i «kaldt»-vinduet
     variables:
       temp_list_cold: "{{ hourly_table[:(sp_hours_check_cold | int(6))] | map(attribute='temp') | select('number') | list }}"
       min_temp_cold_window: "{{ (temp_list_cold | min) if (temp_list_cold | length > 0) else 0 }}"
@@ -380,7 +466,7 @@ actions:
       hours_to_check: "{{ (sp_hours_check_cold if is_cold_mode else sp_hours_check_warm) | int(3) }}"
       afterrun_hours: "{{ (sp_hours_afterrun_cold if is_cold_mode else sp_hours_afterrun_warm) | float(4) }}"
 
-  - alias: Steg 9 – Vurderingstabell – timene som avgjør behovet akkurat nå
+  - alias: Steg 12 – Vurderingstabell – timene som avgjør behovet akkurat nå
     variables:
       window_table: "{{ hourly_table[:(hours_to_check | int(3))] }}"
       temp_list: "{{ window_table | map(attribute='temp') | select('number') | list }}"
@@ -388,7 +474,7 @@ actions:
       hum_list: "{{ window_table | map(attribute='fukt') | select('number') | list }}"
       has_data: "{{ (prec_list | length > 0) and (temp_list | length > 0) and (hum_list | length > 0) }}"
 
-  - alias: Steg 10 – Beregn nøkkelverdier for vinduet
+  - alias: Steg 13 – Beregn nøkkelverdier for vinduet
     variables:
       precip_sum: "{{ (prec_list | sum | float(0) | round(2)) if has_data else 0 }}"
       min_temp: "{{ (temp_list | min | float(0)) if has_data else 0 }}"
@@ -397,7 +483,7 @@ actions:
       temp_now: "{{ (temp_list[0] | float(0)) if has_data else 0 }}"
       hum_now: "{{ (hum_list[0] | float(0)) if has_data else 0 }}"
 
-  - alias: Steg 11 – Duggpunkt nå (Magnus-formel)
+  - alias: Steg 14 – Duggpunkt nå (Magnus-formel)
     variables:
       dew_point: >-
         {% if has_data and (hum_now | float(0)) > 0 %}
@@ -410,14 +496,14 @@ actions:
           0
         {% endif %}
 
-  - alias: Steg 12 – Avgjør snø nå
+  - alias: Steg 15 – Avgjør snø nå
     variables:
       too_warm: "{{ has_data and (min_temp | float(0)) > (sp_temp_stop_warm | float(2)) }}"
       too_cold: "{{ has_data and (max_temp | float(0)) < (sp_temp_stop_cold | float(-10)) }}"
       precip_expected: "{{ has_data and (precip_sum | float(0)) >= (sp_precip_threshold | float(0.1)) }}"
       snow_detected: "{{ has_data and not too_warm and not too_cold and precip_expected }}"
 
-  - alias: Steg 13 – Avgjør rim nå
+  - alias: Steg 16 – Avgjør rim nå
     variables:
       dew_point_margin: "{{ ((temp_now | float(0)) - (dew_point | float(0))) | round(1) }}"
       frost_near_dew_point: "{{ has_data and (hum_now | float(0)) > 0 and ((temp_now | float(0)) - (dew_point | float(0))) < (sp_frost_margin | float(1.5)) }}"
@@ -425,7 +511,7 @@ actions:
       frost_detected: "{{ frost_near_dew_point and frost_cold_enough }}"
       frost_was_detected: "{{ is_state(io_frost_detected, 'on') }}"
 
-  - alias: Steg 14 – Spådomstabell – samme regler time for time fremover, til første treff
+  - alias: Steg 17 – Spådomstabell – samme regler time for time fremover, til første treff
     variables:
       prediction_table: >-
         {% set warm = sp_temp_stop_warm | float(2) %}
@@ -476,13 +562,13 @@ actions:
         {% endfor %}
         {{ ns.rows }}
 
-  - alias: Steg 15 – Neste start fra spådomstabellen (siste rad er treffet, hvis det finnes)
+  - alias: Steg 18 – Neste start fra spådomstabellen (siste rad er treffet, hvis det finnes)
     variables:
       prediction_last_row: "{{ (prediction_table | last) if (prediction_table | length > 0) else none }}"
       prediction_hit: "{{ prediction_last_row is not none and (prediction_last_row.sno or prediction_last_row.rim) }}"
       next_start_hourly: "{{ (('snow' if prediction_last_row.sno else 'frost') ~ '|' ~ wf[io_weather].forecast[prediction_last_row.i].datetime) if prediction_hit else '' }}"
 
-  - alias: Steg 16 – Døgntabell – dagene etter timevarselet (kun snø)
+  - alias: Steg 19 – Døgntabell – dagene etter timevarselet (kun snø)
     variables:
       daily_table: >-
         {% set raw = wf_daily[io_weather].forecast if (wf_daily is defined and wf_daily is mapping and io_weather in wf_daily) else [] %}
@@ -513,13 +599,13 @@ actions:
         {% endfor %}
         {{ ns.rows }}
 
-  - alias: Steg 17 – Neste start fra døgntabellen
+  - alias: Steg 20 – Neste start fra døgntabellen
     variables:
       daily_hits: "{{ daily_table | selectattr('sno') | list }}"
       next_start_daily: "{{ ('snow|' ~ wf_daily[io_weather].forecast[(daily_hits | first).i].datetime) if (daily_hits | length > 0) else '' }}"
       forecast_days: "{{ [((daily_table | last).dager_frem if (daily_table | length > 0) else 2), 1] | max }}"
 
-  - alias: Steg 18 – Lagre «snø sist aktiv» når snø er detektert
+  - alias: Steg 21 – Lagre «snø sist aktiv» når snø er detektert
     if:
       - condition: template
         value_template: "{{ snow_detected }}"
@@ -530,7 +616,7 @@ actions:
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
 
-  - alias: Steg 19 – Lagre «rim sist aktivert» bare når rimfare går fra AV til PÅ
+  - alias: Steg 22 – Lagre «rim sist aktivert» bare når rimfare går fra AV til PÅ
     if:
       - condition: template
         value_template: "{{ frost_detected and not frost_was_detected }}"
@@ -541,7 +627,7 @@ actions:
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
 
-  - alias: Steg 20 – Skriv snø/rim detektert til hjelpere
+  - alias: Steg 23 – Skriv snø/rim detektert til hjelpere
     sequence:
       - action: "input_boolean.turn_{{ 'on' if snow_detected else 'off' }}"
         target:
@@ -550,7 +636,7 @@ actions:
         target:
           entity_id: "{{ io_frost_detected }}"
 
-  - alias: Steg 21 – Etterdrift
+  - alias: Steg 24 – Etterdrift
     variables:
       ts_snow_last: "{{ as_timestamp(states(io_snow_last), 0) | float(0) }}"
       ts_frost_last: "{{ as_timestamp(states(io_frost_last), 0) | float(0) }}"
@@ -561,17 +647,17 @@ actions:
            and (seconds_since_last | float(0)) < ((afterrun_hours | float(0)) * 3600) }}
       afterrun_remaining_h: "{{ [((afterrun_hours | float(0)) - ((seconds_since_last | float(0)) / 3600)), 0] | max | round(1) }}"
 
-  - alias: Steg 22 – Manuell kjøring
+  - alias: Steg 25 – Manuell kjøring
     variables:
       ts_manual_until: "{{ as_timestamp(states(io_manual_until), 0) | float(0) }}"
       manual_active: "{{ (ts_manual_until | float(0)) > now().timestamp() }}"
       manual_remaining_h: "{{ [(((ts_manual_until | float(0)) - now().timestamp()) / 3600), 0] | max | round(1) }}"
 
-  - alias: Steg 23 – Samlet behov
+  - alias: Steg 26 – Samlet behov
     variables:
       demand: "{{ snow_detected or frost_detected or afterrun_active or manual_active }}"
 
-  - alias: Steg 24 – Årsak (hovedstatus) ut fra været
+  - alias: Steg 27 – Årsak (hovedstatus) ut fra været
     variables:
       reason_weather: >-
         {% set h = hours_to_check | int(3) %}
@@ -591,7 +677,7 @@ actions:
           Stopp. Lite/ingen nedbør og ingen fare for rim de neste {{ h }} timene.
         {% endif %}
 
-  - alias: Steg 25 – Årsak (hovedstatus) med manuell kjøring
+  - alias: Steg 28 – Årsak (hovedstatus) med manuell kjøring
     variables:
       weather_demand: "{{ snow_detected or frost_detected or afterrun_active }}"
       manual_until_text: "{{ (ts_manual_until | float(0)) | timestamp_custom('%H:%M') }}"
@@ -602,7 +688,7 @@ actions:
           {{ reason_weather | trim }}
         {% endif %}
 
-  - alias: Steg 26 – Forklaring (ekstrastatus) ut fra været
+  - alias: Steg 29 – Forklaring (ekstrastatus) ut fra været
     variables:
       explanation_weather: >-
         {% macro num(v, d=1) %}{{ (v | float(0) | round(d) | string).replace('.', ',').replace('-', '−') }}{% endmacro %}
@@ -622,7 +708,7 @@ actions:
           Det er {{ temp(max_temp) }} eller kaldere. Anlegget starter ikke på snøfall når det er så kaldt.
         {% endif %}
 
-  - alias: Steg 27 – Setning om neste start
+  - alias: Steg 30 – Setning om neste start
     variables:
       next_start_text: >-
         {% set wd = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'] %}
@@ -642,7 +728,7 @@ actions:
           De neste {{ forecast_days | int(2) }} dagene ser det ikke ut til å bli behov for snøsmelting.
         {% endif %}
 
-  - alias: Steg 28 – Samlet forklaring (ekstrastatus)
+  - alias: Steg 31 – Samlet forklaring (ekstrastatus)
     variables:
       explanation_text: >-
         {% if manual_active and weather_demand %}
@@ -655,7 +741,7 @@ actions:
           {{ explanation_weather | trim }}
         {% endif %}
 
-  - alias: Steg 29 – Værdata som tekst
+  - alias: Steg 32 – Værdata som tekst
     variables:
       details_text: >-
         {% if has_data %}
@@ -664,7 +750,7 @@ actions:
           Ingen gyldige værdata.
         {% endif %}
 
-  - alias: Steg 30 – Skriv årsak, forklaring og detaljer til hjelpere
+  - alias: Steg 33 – Skriv årsak, forklaring og detaljer til hjelpere
     sequence:
       - action: input_text.set_value
         target:
@@ -690,7 +776,7 @@ actions:
             data:
               value: "{{ (details_text | trim)[:255] }}"
 
-  - alias: Steg 31 – Skriv samlet behov til hjelper (kun ved endring)
+  - alias: Steg 34 – Skriv samlet behov til hjelper (kun ved endring)
     choose:
       - conditions:
           - condition: template
@@ -707,7 +793,7 @@ actions:
             target:
               entity_id: "{{ io_demand }}"
 
-  - alias: Steg 32 – Send hendelse med alle verdier (for egne sensorer/feilsøking)
+  - alias: Steg 35 – Send hendelse med alle verdier (for egne sensorer/feilsøking)
     event: webhome_snosmelt_update
     event_data:
       demand_entity: "{{ io_demand }}"
@@ -729,7 +815,7 @@ actions:
       dew_point: "{{ dew_point }}"
       min_temp_cold_window: "{{ min_temp_cold_window }}"
 
-  - alias: Steg 33 – Varsel når snøsmelting starter (valgfri)
+  - alias: Steg 36 – Varsel når snøsmelting starter (valgfri)
     if:
       - condition: template
         value_template: >-
@@ -744,7 +830,7 @@ actions:
           priority: "{{ pushover_priority | int(0) }}"
           ttl_hours: "{{ pushover_ttl_hours }}"
 
-  - alias: Steg 34 – Varsling ved manuell kjøring (valgfri)
+  - alias: Steg 37 – Varsling ved manuell kjøring (valgfri)
     if:
       - condition: template
         value_template: >-
@@ -763,3 +849,58 @@ actions:
           destination: "{{ pushover_destination }}"
           priority: "{{ pushover_priority | int(0) }}"
           ttl_hours: "{{ pushover_ttl_hours }}"
+
+  - alias: Steg 38 – Hvilke feil står nå (fellesfeil og manglende værvarsel)
+    variables:
+      stalled_notified: "{{ run_stalled and fault_notify_allowed }}"
+      common_fault_active: "{{ is_state(io_common_fault, 'on') }}"
+      common_fault_reason: "{{ states(io_common_fault_reason) if io_common_fault_reason in (states.sensor | map(attribute='entity_id') | list) else '' }}"
+      fault_lines: >-
+        {% set ns = namespace(l=[]) %}
+        {% if common_fault_active %}{% set ns.l = ns.l + [(common_fault_reason | string | trim) if (common_fault_reason | string | trim) not in ['', 'Ingen feil', 'unknown', 'unavailable'] else 'Fellesfeil er aktiv.'] %}{% endif %}
+        {% if not has_data %}{% set ns.l = ns.l + ['Værvarselet er ikke tilgjengelig. Anlegget starter ikke på vær før det er tilbake.'] %}{% endif %}
+        {{ ns.l }}
+      fault_active: "{{ (fault_lines | length) > 0 }}"
+
+  - alias: Steg 39 – Send feilvarsel (første gang, og på nytt når det har gått lenge nok)
+    if:
+      - condition: template
+        value_template: "{{ fault_active and fault_notify_allowed and not stalled_notified }}"
+    then:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "{{ io_fault_notified }}"
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "⚠️ Snøsmelt - Fellesfeil"
+          message: |-
+            {{ fault_lines | join('\n') }}
+            Snøsmeltingen er {{ 'PÅ' if demand else 'AV' }}. {{ reason_combined | trim }}
+            Varselet gjentas etter {{ io_feilvarsel_timer | int }} timer hvis feilen står.
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
+
+  - alias: Steg 40 – Ingen feil – nullstill «feil sist varslet», så en ny feil varsles med en gang
+    if:
+      - condition: template
+        value_template: "{{ not fault_active and fault_notify_ready and (ts_fault_notified | float(0)) > as_timestamp('2000-01-02 00:00:00') }}"
+    then:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "{{ io_fault_notified }}"
+        data:
+          datetime: "2000-01-01 00:00:00"
+
+  - alias: Steg 41 – Lagre tidspunktet for fullført kjøring
+    if:
+      - condition: template
+        value_template: "{{ last_success_exists }}"
+    then:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "{{ io_last_success }}"
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"

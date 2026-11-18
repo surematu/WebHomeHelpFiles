@@ -14,7 +14,7 @@
 # Alternativt kan de samme hjelperne opprettes manuelt under
 # Innstillinger → Enheter og tjenester → Hjelpere (se README_snosmelt_hent_data.md).
 #
-# Versjon: 2026.11.04
+# Versjon: 2026.11.05
 
 input_boolean:
   snosmelt_behov:
@@ -52,6 +52,15 @@ input_datetime:
     has_time: true
   snosmelt_manuell_til:
     name: Snøsmelt - Manuellkjøring til
+    has_date: true
+    has_time: true
+
+  snosmelt_sist_fullfort:
+    name: Snøsmelt - Sist fullført
+    has_date: true
+    has_time: true
+  snosmelt_feil_sist_varslet:
+    name: Snøsmelt - Feil sist varslet
     has_date: true
     has_time: true
 

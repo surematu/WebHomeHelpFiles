@@ -46,7 +46,7 @@ Nei. Hjelperne er hardkodet, så det kan bare være én «Snøsmelt - Hent data�
 ## 4. Hva slags info trengs
 
 - En weather-entitet med timevarsel (f.eks. Met.no).
-- Åtte hjelpere (to valgfrie i tillegg) med faste entitets-ID-er, se §10.1. De er hardkodet i blueprintet og må finnes i Home Assistant. Opprett dem samlet med `packages/snosmelt_hjelpere.yaml`.
+- Åtte hjelpere (fire valgfrie i tillegg) med faste entitets-ID-er, se §10.1. De er hardkodet i blueprintet og må finnes i Home Assistant. Opprett dem samlet med `packages/snosmelt_hjelpere.yaml`.
 - Scriptet `script.varsel_pushover_send_melding_webhome` hvis varsling skal brukes.
 
 ## 5. Innstillinger
@@ -81,6 +81,8 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 | Pushover destination (valgfri) | pushover | Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres slik at den blir sendt ulikt. |
 | Pushover priority | 0 | −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd), 1 (Høy prioritet, rødt varsel, omgår stilleperiode), 2 (nødvarsel som gjentas til det bekreftes). |
 | Levetid varsel (timer) | 168 | Hvor lenge skal varslet være synlig før det forsvinner? |
+| Send varsel ved feil | true | Varsel ved fellesfeil, manglende værvarsel, og hvis automasjonen ikke har fullført på over 2,5 timer |
+| Feilvarsel – levetid og gjentakelse | 24 t | Feilvarselet er synlig så lenge, og sendes på nytt etter så mange timer hvis feilen står |
 | Send varsel når snøsmelting starter | true | Varsel når «Snøsmelt behov» går fra AV til PÅ |
 | Send varsel ved manuell kjøring | true | Sett til true for å sende varsel når automasjonen kjøres manuelt. Sett til false for å ikke sende varsel ved manuell kjøring. |
 
@@ -154,7 +156,19 @@ Statusvarsel når automasjonen kjøres manuelt fra Home Assistant:
 - **Tittel:** `🔔 Snøsmelt - Hent data (manuell kjøring)`
 - **Melding:** behov PÅ/AV, årsak og detaljer.
 
-Begge kan slås av i innstillingene.
+Feilvarsel (krever hjelperen «Snøsmelt - Feil sist varslet»):
+
+| Feil | Tittel | Når |
+|---|---|---|
+| Fellesfeil | `⚠️ Snøsmelt - Fellesfeil` | `binary_sensor.snosmelt_fellesfeil` er aktiv (hvis den finnes). Meldingen starter med årsaken fra `sensor.snosmelt_fellesfeil_arsak` |
+| Værvarsel mangler | `⚠️ Snøsmelt - Fellesfeil` | Værvarselet kunne ikke hentes, heller ikke etter 5 minutters venting |
+| Automasjonen har stoppet | `⚠️ Snøsmelt - Hent data har stoppet` | Ingen fullført kjøring på over 2,5 timer (krever hjelperen «Snøsmelt - Sist fullført»). Sendes helt i starten av neste kjøring, før stegene som kan feile |
+
+Feilvarselet har 24 timers levetid og sendes på nytt hver 24. time så lenge feilen står. Når feilen er borte nullstilles det, slik at en ny feil varsles med en gang. Når fellesfeilen slår inn, kjører automasjonen etter 1 minutt i stedet for å vente til neste time.
+
+Begrensning: en automasjon som er skrudd av, eller som feiler allerede i første steg, kan ikke varsle selv. Det fanges av fellesfeil-lampa (se §9.3), ikke av Pushover.
+
+Alle varslene kan slås av i innstillingene.
 
 ## 9. Annet
 
@@ -185,11 +199,11 @@ Blueprintene lager ingen entiteter selv. Statuslamper for kontaktorer, tavler og
 | Kontaktor | `<bryternavn> Feil` | OK / Problem | Utgangen er på med for lav last i 1 minutt, eller det er behov uten at utgangen er på |
 | Tavle | Snøsmelt - `<tavle>` Feil | OK / Problem | En av kontaktorene på tavla har feil |
 | Tavle | Snøsmelt - `<tavle>` Status | Av / På / Problem | Problem ved feil, På når minst én kontaktor er inne |
-| Anlegg | Snøsmelt - Fellesfeil | OK / Problem | «Hent data» er skrudd av, eller en tavle har feil |
+| Anlegg | Snøsmelt - Fellesfeil | OK / Problem | «Hent data» er skrudd av eller har ikke fullført på over 3 timer, eller en tavle har feil |
 | Anlegg | Snøsmelt - Fellesfeil årsak | Tekst | Hvorfor fellesfeilen er aktiv, eller «Ingen feil» |
 | Anlegg | Snøsmelt - Samlestatus | Av / På / Fellesfeil | Fellesfeil har forrang, ellers følger den «Snøsmelt - Driftsstatus» |
 
-Disse er lamper for dashbordet. Pushover-varsel ved feil sendes av «Snøsmelt - Styr utgang».
+Disse er lamper for dashbordet. Pushover-varsel for den enkelte kontaktor sendes av «Snøsmelt - Styr utgang». Pushover-varsel for fellesfeilen sendes av «Snøsmelt - Hent data» (se §8), som bruker `binary_sensor.snosmelt_fellesfeil` og `sensor.snosmelt_fellesfeil_arsak` hvis de finnes.
 
 **Visning på startsiden (eksempel)**
 
@@ -274,6 +288,8 @@ Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe a
 | Dato og tid (input_datetime) | Snøsmelt - Rim sist aktivert | `input_datetime.snosmelt_rim_sist_aktivert` | Dato og tid |
 | Dato og tid (input_datetime) | Snøsmelt - Manuellkjøring til | `input_datetime.snosmelt_manuell_til` | Dato og tid |
 | Knapp (input_button) | Snøsmelt - Manuellkjøring | `input_button.snosmelt_manuell_kjoring` | |
+| Dato og tid (input_datetime) | Snøsmelt - Sist fullført | `input_datetime.snosmelt_sist_fullfort` | Valgfri. Trengs for varsel hvis automasjonen stopper |
+| Dato og tid (input_datetime) | Snøsmelt - Feil sist varslet | `input_datetime.snosmelt_feil_sist_varslet` | Valgfri. Trengs for feilvarsel |
 
 Alle navn har prefikset «Snøsmelt - ». Om været brukes ordet «rim» (ikke «frost») gjennomgående: anlegget starter på fuktig luft nær duggpunktet, ikke på kuldegrader alene.
 
@@ -317,10 +333,10 @@ Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): h
 
 | Variabel | Steg | Innhold |
 |---|---|---|
-| `hourly_table` | 7 | Én rad per time i timevarselet: `i`, `tid` (f.eks. «ons 07:00»), `temp`, `nedbor`, `fukt` |
-| `window_table` | 9 | Radene fra `hourly_table` som avgjør behovet akkurat nå (3 eller 6 timer) |
-| `prediction_table` | 14 | Én rad per fremtidig time, til og med første treff: `tid`, `modus` (kaldt/varmt), `timer`, `nedbor_sum`, `temp_min`, `temp_maks`, `temp`, `duggpunkt`, `sno`, `rim` |
-| `daily_table` | 16 | Én rad per døgn: `dato`, `dager_frem`, `temp_hoy`, `temp_lav`, `nedbor`, `etter_timevarsel`, `sno` |
+| `hourly_table` | 10 | Én rad per time i timevarselet: `i`, `tid` (f.eks. «ons 07:00»), `temp`, `nedbor`, `fukt` |
+| `window_table` | 12 | Radene fra `hourly_table` som avgjør behovet akkurat nå (3 eller 6 timer) |
+| `prediction_table` | 17 | Én rad per fremtidig time, til og med første treff: `tid`, `modus` (kaldt/varmt), `timer`, `nedbor_sum`, `temp_min`, `temp_maks`, `temp`, `duggpunkt`, `sno`, `rim` |
+| `daily_table` | 19 | Én rad per døgn: `dato`, `dager_frem`, `temp_hoy`, `temp_lav`, `nedbor`, `etter_timevarsel`, `sno` |
 
 **Vurdering nå**
 
@@ -375,12 +391,13 @@ Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjo
 
 | Spørsmål | Se på steg | Variabel |
 |---|---|---|
-| Hvilke værdata ble brukt? | 9 – Vurderingstabell | `window_table` |
-| Hvorfor ble det (ikke) snø? | 10 og 12 | `precip_sum`, `min_temp`, `max_temp`, `too_warm`, `too_cold`, `precip_expected`, `snow_detected` |
-| Hvorfor ble det (ikke) rim? | 11 og 13 | `dew_point`, `dew_point_margin`, `frost_near_dew_point`, `frost_cold_enough`, `frost_detected` |
-| Hvorfor står det at neste start er da? | 14 – Spådomstabell | Siste rad i `prediction_table` er treffet. Radene over viser hvorfor timene før ikke ga start |
-| Hvorfor er en dag med, eller ikke med? | 16 – Døgntabell | `daily_table` |
-| Hvorfor er behovet på? | 21, 22 og 23 | `afterrun_active`, `manual_active`, `demand` |
+| Hvilke værdata ble brukt? | 12 – Vurderingstabell | `window_table` |
+| Hvorfor ble det (ikke) snø? | 13 og 15 | `precip_sum`, `min_temp`, `max_temp`, `too_warm`, `too_cold`, `precip_expected`, `snow_detected` |
+| Hvorfor ble det (ikke) rim? | 14 og 16 | `dew_point`, `dew_point_margin`, `frost_near_dew_point`, `frost_cold_enough`, `frost_detected` |
+| Hvorfor står det at neste start er da? | 17 – Spådomstabell | Siste rad i `prediction_table` er treffet. Radene over viser hvorfor timene før ikke ga start |
+| Hvorfor er en dag med, eller ikke med? | 19 – Døgntabell | `daily_table` |
+| Hvorfor er behovet på? | 24, 25 og 26 | `afterrun_active`, `manual_active`, `demand` |
+| Hvorfor ble det (ikke) sendt feilvarsel? | 2, 3, 38 og 39 | `fault_notify_allowed`, `hours_since_fault_notified`, `run_stalled`, `fault_lines`, `fault_active` |
 
 Kjør automasjonen manuelt for å få gjeldende status tilsendt på Pushover.
 
