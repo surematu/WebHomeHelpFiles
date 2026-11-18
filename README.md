@@ -183,7 +183,10 @@ Detaljert funksjonsbeskrivelse:
 
 Overordnet automasjon for et snøsmelteanlegg. Henter timevarsel fra en weather-entitet, avgjør om det er behov for snøsmelting (snø, rim/is, etterdrift eller manuell kjøring) og skriver resultatet til hjelpere som kan vises i et dashbord. Resultatet «Snøsmelt behov» brukes av én eller flere «Snøsmelt - Styr utgang»-automasjoner, én per kontaktor.
 
-Hjelperne kan opprettes samlet med [packages/snosmelt_hjelpere.yaml](./packages/snosmelt_hjelpere.yaml). Eksempel på feilsensorer per kontaktor og tavle, fellesfeil og samlestatus ligger i [packages/snosmelt_fellesfeil_eksempel.yaml](./packages/snosmelt_fellesfeil_eksempel.yaml).
+Hjelperne kan opprettes samlet med [packages/snosmelt_hjelpere.yaml](./packages/snosmelt_hjelpere.yaml). Eksempel på feilsensorer per kontaktor og tavle, fellesfeil og samlestatus ligger i [packages/snosmelt_fellesfeil_eksempel.yaml](./packages/snosmelt_fellesfeil_eksempel.yaml). Eksempel på dashbord ligger i [dashboards/snosmelt_dashbord_eksempel.yaml](./dashboards/snosmelt_dashbord_eksempel.yaml).
+
+Installasjon på et nytt anlegg, steg for steg:
+- [README_snosmelt_installasjon.md](./README_snosmelt_installasjon.md)
 
 Detaljert funksjonsbeskrivelse:
 - [README_snosmelt_hent_data.md](./README_snosmelt_hent_data.md)
@@ -196,6 +199,9 @@ Styrer én utgang (f.eks. en kontaktor for varmekabel) ut fra «Snøsmelt behov�
 
 Detaljert funksjonsbeskrivelse:
 - [README_snosmelt_styr_utgang.md](./README_snosmelt_styr_utgang.md)
+
+Installasjon på et nytt anlegg, steg for steg:
+- [README_snosmelt_installasjon.md](./README_snosmelt_installasjon.md)
 
 ---
 

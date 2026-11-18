@@ -269,3 +269,5 @@ Ved pådrag under 100 % kjører automasjonen hvert minutt, og de fleste kjøring
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_styr_utgang.yaml
 - Overordnet: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 - Template-trigger: https://www.home-assistant.io/docs/automation/trigger/#template-trigger
+- Installasjon på nytt anlegg: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_installasjon.md
+- Eksempel på dashbord: https://github.com/surematu/WebHomeHelpFiles/blob/main/dashboards/snosmelt_dashbord_eksempel.yaml

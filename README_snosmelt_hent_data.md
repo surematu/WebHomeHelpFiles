@@ -174,7 +174,9 @@ Alle varslene kan slås av i innstillingene.
 
 ### 9.1 Visning i dashbord
 
-Hjelperne kan vises direkte: «Snøsmelt behov» som hovedknapp, «Snø detektert» og «Rim/is detektert» som underknapper, «Årsak» og «Detaljer» som tekst, og «Snøsmelt manuell kjøring» som trykknapp.
+Et komplett eksempel med startside, feilsøkingsside og tavleside ligger i [dashboards/snosmelt_dashbord_eksempel.yaml](./dashboards/snosmelt_dashbord_eksempel.yaml). Utdrag og forklaring står i §9.3.
+
+Hele oppsettet på et nytt anlegg, fra hjelpere til ferdig testet dashbord, er beskrevet steg for steg i [README_snosmelt_installasjon.md](./README_snosmelt_installasjon.md).
 
 ### 9.2 Neste start
 
@@ -205,46 +207,28 @@ Blueprintene lager ingen entiteter selv. Statuslamper for kontaktorer, tavler og
 
 Disse er lamper for dashbordet. Pushover-varsel for den enkelte kontaktor sendes av «Snøsmelt - Styr utgang». Pushover-varsel for fellesfeilen sendes av «Snøsmelt - Hent data» (se §8), som bruker `binary_sensor.snosmelt_fellesfeil` og `sensor.snosmelt_fellesfeil_arsak` hvis de finnes.
 
-**Visning på startsiden (eksempel)**
+**Visning på startsiden (utdrag)**
 
-Samlestatus vises som en flis med en statusboks under, laget med standardkortene i Home Assistant.
+Hele dashbordet ligger i [dashboards/snosmelt_dashbord_eksempel.yaml](./dashboards/snosmelt_dashbord_eksempel.yaml). Her er de to viktigste kortene.
 
-Flisa er tre like fliser der bare den som stemmer er synlig: grå for Av, gul for På og rød for Fellesfeil.
-
-```yaml
-- type: tile
-  entity: sensor.snosmelt_samlestatus
-  name: Snøsmelting
-  icon: mdi:snowflake-melt        # mdi:bell-alert for Fellesfeil
-  color: grey                     # amber for På, red for Fellesfeil
-  tap_action:
-    action: none
-  icon_tap_action:
-    action: none
-  visibility:
-    - condition: state
-      entity: sensor.snosmelt_samlestatus
-      state: Av                   # På / Fellesfeil
-```
-
-Statusboksen viser årsaken og den utvidede forklaringen. Ved fellesfeil kommer årsaken til feilen først.
+Statusboksen viser årsaken og den utvidede forklaringen, og er laget med standardkortene i Home Assistant: grå når anlegget er av, grønn når snøsmelting pågår og rød ved fellesfeil. Ved fellesfeil kommer årsaken til feilen først.
 
 ```yaml
 - type: markdown
   text_only: true
-  content: >-
+  content: |-
     {% set arsak = states('input_text.snosmelt_arsak') %}
     {% set forklaring = states('input_text.snosmelt_forklaring') %}
     {% if is_state('sensor.snosmelt_samlestatus', 'Fellesfeil') %}
-    <ha-alert alert-type="error" title="Fellesfeil">{{ states('sensor.snosmelt_fellesfeil_arsak') }}<br><br>Snøsmeltingen er {{ 'PÅ' if is_state('input_boolean.snosmelt_behov', 'on') else 'AV' }}. {{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    <ha-alert alert-type="error" title="Fellesfeil">{{ states('sensor.snosmelt_fellesfeil_arsak') }}<br><br>{{ 'Snøsmelting pågår.' if is_state('input_boolean.snosmelt_behov', 'on') else 'Snøsmeltingen er AV.' }} {{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
     {% elif is_state('sensor.snosmelt_samlestatus', 'På') %}
-    <ha-alert alert-type="warning" title="Snøsmeltingen er PÅ">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    <ha-alert alert-type="success" title="Snøsmelting pågår">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
     {% else %}
     <ha-alert alert-type="info" title="Snøsmeltingen er AV">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
     {% endif %}
 ```
 
-Ikonet i statusboksen følger typen (info, varsel eller feil) og kan ikke byttes ut.
+Ikonet i statusboksen følger typen (info, vellykket eller feil) og kan ikke byttes ut.
 
 Tavlene vises med `sensor.snosmelt_<tavle>_status` som tre like fliser der bare den som stemmer er synlig (Av grå, På gul, Problem rød), med navigering til tavlesiden ved trykk:
 
@@ -416,3 +400,5 @@ Kjør automasjonen manuelt for å få gjeldende status tilsendt på Pushover.
 - Eksempel på feilsensorer og fellesfeil: https://github.com/surematu/WebHomeHelpFiles/blob/main/packages/snosmelt_fellesfeil_eksempel.yaml
 - Home Assistant packages: https://www.home-assistant.io/docs/configuration/packages/
 - weather.get_forecasts: https://www.home-assistant.io/integrations/weather/#action-weatherget_forecasts
+- Installasjon på nytt anlegg: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_installasjon.md
+- Eksempel på dashbord: https://github.com/surematu/WebHomeHelpFiles/blob/main/dashboards/snosmelt_dashbord_eksempel.yaml
