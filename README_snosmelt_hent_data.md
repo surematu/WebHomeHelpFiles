@@ -193,42 +193,71 @@ Disse er lamper for dashbordet. Pushover-varsel ved feil sendes av «Snøsmelt -
 
 **Visning på startsiden (eksempel)**
 
-Samlestatus vises som tre like fliser der bare den som stemmer er synlig: grå for Av, gul for På og rød for Fellesfeil.
+Samlestatus vises som én boks som skifter farge: grå for Av, gul for På og rød for Fellesfeil. Ikonet er snøsmelt-symbolet, og en bjelle ved fellesfeil. I boksen står årsaken og den utvidede forklaringen. Ved fellesfeil kommer årsaken til feilen først.
+
+Eksempelet bruker [Bubble Card](https://github.com/Clooos/Bubble-Card) (HACS), fordi standardkortene ikke kan skifte bakgrunnsfarge etter tilstand.
+
+```yaml
+- type: custom:bubble-card
+  card_type: button
+  button_type: state
+  entity: sensor.snosmelt_samlestatus
+  name: Snøsmelting
+  icon: mdi:snowflake-melt
+  show_state: true
+  scrolling_effect: false
+  button_action:
+    tap_action:
+      action: none
+  tap_action:
+    action: none
+  grid_options:
+    columns: 12
+    rows: auto
+  styles: |-
+    ${(() => {
+      const st = hass.states['sensor.snosmelt_samlestatus']?.state;
+      const arsak = hass.states['input_text.snosmelt_arsak']?.state ?? '';
+      const forkl = hass.states['input_text.snosmelt_forklaring']?.state ?? '';
+      const feil = hass.states['sensor.snosmelt_fellesfeil_arsak']?.state ?? '';
+      const paa = hass.states['input_boolean.snosmelt_behov']?.state === 'on';
+      const tittel = st === 'Fellesfeil' ? 'Fellesfeil' : (st === 'På' ? 'Snøsmeltingen er PÅ' : 'Snøsmeltingen er AV');
+      const tekst = st === 'Fellesfeil' ? feil + '\n\nSnøsmeltingen er ' + (paa ? 'PÅ' : 'AV') + '. ' + arsak + '\n\n' + forkl : arsak + '\n\n' + forkl;
+      const n = card.querySelector('.bubble-name'); if (n && n.innerText !== tittel) n.innerText = tittel;
+      const s = card.querySelector('.bubble-state'); if (s && s.innerText !== tekst) s.innerText = tekst;
+      if (icon) icon.setAttribute('icon', st === 'Fellesfeil' ? 'mdi:bell-alert' : 'mdi:snowflake-melt');
+      return '';
+    })()}
+    .bubble-button-background {
+      opacity: 1 !important;
+      background-color: ${hass.states['sensor.snosmelt_samlestatus']?.state === 'Fellesfeil' ? 'rgba(219, 68, 55, 0.25)' : (hass.states['sensor.snosmelt_samlestatus']?.state === 'På' ? 'rgba(255, 193, 7, 0.35)' : 'rgba(158, 158, 158, 0.25)')} !important;
+    }
+    .bubble-icon { color: ${hass.states['sensor.snosmelt_samlestatus']?.state === 'Fellesfeil' ? '#db4437' : (hass.states['sensor.snosmelt_samlestatus']?.state === 'På' ? '#ffa600' : '#9e9e9e')} !important; }
+    ha-card, .card-content { height: auto !important; }
+    .bubble-button-card-container { height: auto !important; min-height: 56px; overflow: hidden !important; }
+    .bubble-button-card { position: relative !important; height: auto !important; min-height: 56px; align-items: flex-start !important; }
+    .bubble-main-icon-container { margin-top: 8px; }
+    .bubble-name-container { height: auto !important; overflow: visible !important; white-space: normal !important; margin: 10px 14px 12px 4px !important; justify-content: flex-start !important; }
+    .bubble-name { white-space: normal !important; -webkit-line-clamp: unset !important; display: block !important; overflow: visible !important; margin-bottom: 4px; }
+    .bubble-state { white-space: pre-line !important; -webkit-line-clamp: unset !important; display: block !important; overflow: visible !important; text-overflow: clip !important; opacity: 1 !important; line-height: 1.35; }
+```
+
+Tavlene vises med `sensor.snosmelt_<tavle>_status` som tre like fliser der bare den som stemmer er synlig (Av grå, På gul, Problem rød), med navigering til tavlesiden ved trykk:
 
 ```yaml
 - type: tile
-  entity: sensor.snosmelt_samlestatus
-  name: Snøsmelting
-  icon: mdi:snowflake-melt        # mdi:bell-alert for Fellesfeil
-  color: grey                     # amber for På, red for Fellesfeil
+  entity: sensor.snosmelt_tavle_a_status
+  name: Tavle A
+  icon: mdi:snowflake-melt        # mdi:bell-alert for Problem
+  color: grey                     # amber for På, red for Problem
   tap_action:
-    action: none
+    action: navigate
+    navigation_path: /dashboard-snosmelting/tavle-a
   visibility:
     - condition: state
-      entity: sensor.snosmelt_samlestatus
-      state: Av                   # På / Fellesfeil
+      entity: sensor.snosmelt_tavle_a_status
+      state: Av                   # På / Problem
 ```
-
-Under flisa står årsaken og den utvidede forklaringen. Ved fellesfeil kommer årsaken til feilen først:
-
-```yaml
-- type: markdown
-  text_only: true
-  visibility:
-    - condition: state
-      entity: sensor.snosmelt_samlestatus
-      state_not: Av
-  content: >-
-    {% set arsak = states('input_text.snosmelt_arsak') %}
-    {% set forklaring = states('input_text.snosmelt_forklaring') %}
-    {% if is_state('sensor.snosmelt_samlestatus', 'Fellesfeil') %}
-    <ha-alert alert-type="error" title="Fellesfeil">{{ states('sensor.snosmelt_fellesfeil_arsak') }}<br><br>Snøsmeltingen er {{ 'PÅ' if is_state('input_boolean.snosmelt_behov', 'on') else 'AV' }}. {{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
-    {% else %}
-    <ha-alert alert-type="warning" title="Snøsmeltingen er PÅ">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
-    {% endif %}
-```
-
-Tavlene vises på samme måte med `sensor.snosmelt_<tavle>_status` (Av grå, På gul, Problem rød) og navigering til tavlesiden ved trykk.
 
 ### 9.4 Kjøring sammen med en eldre løsning
 
