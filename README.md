@@ -183,7 +183,7 @@ Detaljert funksjonsbeskrivelse:
 
 Overordnet automasjon for et snøsmelteanlegg. Henter timevarsel fra en weather-entitet, avgjør om det er behov for snøsmelting (snø, rim/is, etterdrift eller manuell kjøring) og skriver resultatet til hjelpere som kan vises i et dashbord. Resultatet «Snøsmelt behov» brukes av én eller flere «Snøsmelt - Styr utgang»-automasjoner, én per kontaktor.
 
-Hjelperne kan opprettes samlet med [packages/snosmelt_hjelpere.yaml](./packages/snosmelt_hjelpere.yaml).
+Hjelperne kan opprettes samlet med [packages/snosmelt_hjelpere.yaml](./packages/snosmelt_hjelpere.yaml). Eksempel på feilsensorer per kontaktor og tavle, fellesfeil og samlestatus ligger i [packages/snosmelt_fellesfeil_eksempel.yaml](./packages/snosmelt_fellesfeil_eksempel.yaml).
 
 Detaljert funksjonsbeskrivelse:
 - [README_snosmelt_hent_data.md](./README_snosmelt_hent_data.md)

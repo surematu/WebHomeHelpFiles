@@ -1,0 +1,99 @@
+# Snøsmelt – eksempel på feilsensorer, tavlestatus, fellesfeil og samlestatus
+#
+# Hører til blueprintene
+#   blueprints/automation/snosmelt_hent_data.yaml
+#   blueprints/automation/snosmelt_styr_utgang.yaml
+#
+# Dette er et EKSEMPEL som må tilpasses anlegget: bytt ut entitetene merket
+# «TILPASS» med anleggets egne brytere, effektmålere og automasjoner, og lag
+# én blokk per kontaktor og per tavle. Entitets-ID-ene her (snosmelt_*) er de
+# samme som brukes i eksempel-dashbordet i README_snosmelt_hent_data.md.
+#
+# Kjeden er:  kontaktor (Feil)  →  tavle (Feil + Status)  →  Fellesfeil + Samlestatus
+#
+# Bruk:
+#   1. Kopier filen til /config/packages/ og tilpass den.
+#   2. Sørg for at packages er aktivert i configuration.yaml:
+#        homeassistant:
+#          packages: !include_dir_named packages
+#   3. Start Home Assistant på nytt.
+#
+# De samme sensorene kan også lages som mal-hjelpere og gruppe-hjelpere i
+# brukergrensesnittet, med de samme malene.
+#
+# Versjon: 2026.11.00
+
+template:
+  - binary_sensor:
+      # --- Én per kontaktor -------------------------------------------------
+      # Feil når utgangen er på med for lav last, eller når det er behov for
+      # snøsmelting uten at utgangen er på (f.eks. automatikken er av).
+      - name: "Snøsmelt - Tavle A Kontaktor 1 Feil"
+        unique_id: snosmelt_tavle_a_kontaktor_1_feil
+        device_class: problem
+        icon: mdi:bell-alert
+        delay_on: "00:01:00"
+        state: >-
+          {% set sw = 'switch.tavle_a_kontaktor_1' %}                  {# TILPASS #}
+          {% set last = states('sensor.tavle_a_kontaktor_1_effekt') | float(-1) %}  {# TILPASS #}
+          {% set grense = 4500 %}                                       {# TILPASS: ca. 70 % av normal last #}
+          {% set lav_last = is_state(sw, 'on') and 0 <= last < grense %}
+          {% set ikke_paa = is_state('input_boolean.snosmelt_behov', 'on') and is_state(sw, 'off') %}
+          {{ lav_last or ikke_paa }}
+
+      # --- Én per tavle -----------------------------------------------------
+      - name: "Snøsmelt - Tavle A Feil"
+        unique_id: snosmelt_tavle_a_feil
+        device_class: problem
+        icon: mdi:bell-alert
+        state: >-
+          {{ [
+            'binary_sensor.snosmelt_tavle_a_kontaktor_1_feil'
+          ] | select('is_state', 'on') | list | count > 0 }}            {# TILPASS: alle kontaktorene på tavla #}
+
+      # --- Én for hele anlegget ---------------------------------------------
+      # Fellesfeil når snøsmeltingen er skrudd av, eller en tavle har feil.
+      - name: "Snøsmelt - Fellesfeil"
+        unique_id: snosmelt_fellesfeil
+        device_class: problem
+        icon: mdi:bell-alert
+        state: >-
+          {% set snosmelt_av = not is_state('automation.snosmelt_hent_data', 'on') %}   {# TILPASS #}
+          {% set tavlefeil = [
+            'binary_sensor.snosmelt_tavle_a_feil'
+          ] | select('is_state', 'on') | list | count > 0 %}             {# TILPASS: alle tavlene #}
+          {{ snosmelt_av or tavlefeil }}
+
+  - sensor:
+      # --- Én per tavle: Av / På / Problem ----------------------------------
+      - name: "Snøsmelt - Tavle A Status"
+        unique_id: snosmelt_tavle_a_status
+        icon: mdi:snowflake-melt
+        state: >-
+          {% set brytere = ['switch.tavle_a_kontaktor_1'] %}             {# TILPASS #}
+          {% if is_state('binary_sensor.snosmelt_tavle_a_feil', 'on') %}Problem
+          {% elif brytere | select('is_state', 'on') | list | count > 0 %}På
+          {% else %}Av{% endif %}
+
+      # --- Årsaken til fellesfeilen i klartekst -----------------------------
+      - name: "Snøsmelt - Fellesfeil årsak"
+        unique_id: snosmelt_fellesfeil_arsak
+        icon: mdi:bell-alert
+        state: >-
+          {% set ns = namespace(a=[]) %}
+          {% if not is_state('automation.snosmelt_hent_data', 'on') %}   {# TILPASS #}
+            {% set ns.a = ns.a + ['Snøsmeltingen er skrudd av (automasjonen «Hent data» kjører ikke).'] %}
+          {% endif %}
+          {% for navn, ent in [('Tavle A', 'binary_sensor.snosmelt_tavle_a_feil')] %}   {# TILPASS #}
+            {% if is_state(ent, 'on') %}{% set ns.a = ns.a + ['Feil på ' ~ navn ~ '.'] %}{% endif %}
+          {% endfor %}
+          {{ (ns.a | join(' ')) if (ns.a | length > 0) else 'Ingen feil' }}
+
+      # --- Hele anlegget: Av / På / Fellesfeil ------------------------------
+      - name: "Snøsmelt - Samlestatus"
+        unique_id: snosmelt_samlestatus
+        icon: mdi:snowflake-melt
+        state: >-
+          {% if is_state('binary_sensor.snosmelt_fellesfeil', 'on') %}Fellesfeil
+          {% elif is_state('input_boolean.snosmelt_behov', 'on') %}På
+          {% else %}Av{% endif %}

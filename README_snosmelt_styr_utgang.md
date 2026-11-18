@@ -16,7 +16,7 @@ Skru av automasjonen for den ene kontaktoren. Da røres ikke utgangen, og den ka
 
 ### 2.3 Varsel om feil
 
-Kontaktoren er PÅ, forventet last er 6500 W, men det måles 0 W i 2 minutter. Du får varselet «⚠️ Snøsmelt feil - Snø Q1-2» med målt verdi og hva som bør sjekkes.
+Kontaktoren er PÅ, forventet last er 6500 W, men det måles 0 W i 2 minutter. Du får varselet «⚠️ Snøsmelt feil - Tavle A Kontaktor 1» med målt verdi og hva som bør sjekkes.
 
 ### 2.4 Redusert pådrag
 
@@ -186,21 +186,21 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) kontrolleres det om en 
 - «Snøsmelt - Hent data» satt opp, med hjelperen «Snøsmelt behov» (`input_boolean.snosmelt_behov`).
 - En switch-entitet for utgangen.
 - `script.varsel_pushover_send_melding_webhome` (fra `blueprints/scripts/varsel_pushover.yaml`) hvis varsling brukes.
-- Valgfritt: én input_boolean per utgang som «Feil-hjelper», f.eks. `input_boolean.snosmelt_q1_2_feil`.
+- Valgfritt: én input_boolean per utgang som «Feil-hjelper», f.eks. `input_boolean.snosmelt_tavle_a_kontaktor_1_feil`.
 
 ### 10.2 Eksempler
 
 **Automasjon fra blueprint (YAML):**
 ```yaml
-alias: Snøsmelt - Styr utgang - Q1-2
+alias: Snøsmelt - Styr utgang - Tavle A Kontaktor 1
 use_blueprint:
   path: surematu/snosmelt_styr_utgang.yaml
   input:
     demand_entity: input_boolean.snosmelt_behov
-    output_switch: switch.tavle_rs52_sno_q1_2_rs52_433_002_xo01_1
-    power_sensor: sensor.tavle_rs52_rs52_433_002_xi1_sno_q1_2_effekt_kalkulert_1
+    output_switch: switch.tavle_a_kontaktor_1
+    power_sensor: sensor.tavle_a_kontaktor_1_effekt
     power_expected: 6500
-    coil_sensor: sensor.tavle_rs52_sno_q1_2_rs52_433_002_xo01_1_kontaktor_effekt
+    coil_sensor: sensor.tavle_a_kontaktor_1_spole_effekt
     coil_expected: 2.5
 ```
 

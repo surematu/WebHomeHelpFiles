@@ -176,7 +176,61 @@ Når anlegget er av og det finnes værdata, legges det til en setning om når de
 
 Klokkeslettet er når anlegget ville startet, altså opptil «timer å sjekke» før selve nedbøren. Spådommen brukes bare i teksten. Start og stopp følger fortsatt bare de vanlige timene i §5.
 
-### 9.3 Kjøring sammen med en eldre løsning
+### 9.3 Feilsensorer, fellesfeil og samlestatus
+
+Blueprintene lager ingen entiteter selv. Statuslamper for kontaktorer, tavler og hele anlegget lages som mal-sensorer ved siden av, enten med pakkefila [packages/snosmelt_fellesfeil_eksempel.yaml](./packages/snosmelt_fellesfeil_eksempel.yaml) eller som hjelpere i brukergrensesnittet.
+
+| Nivå | Navn | Tilstand | Når |
+|---|---|---|---|
+| Kontaktor | `<bryternavn> Feil` | OK / Problem | Utgangen er på med for lav last i 1 minutt, eller det er behov uten at utgangen er på |
+| Tavle | Snøsmelt - `<tavle>` Feil | OK / Problem | En av kontaktorene på tavla har feil |
+| Tavle | Snøsmelt - `<tavle>` Status | Av / På / Problem | Problem ved feil, På når minst én kontaktor er inne |
+| Anlegg | Snøsmelt - Fellesfeil | OK / Problem | «Hent data» er skrudd av, eller en tavle har feil |
+| Anlegg | Snøsmelt - Fellesfeil årsak | Tekst | Hvorfor fellesfeilen er aktiv, eller «Ingen feil» |
+| Anlegg | Snøsmelt - Samlestatus | Av / På / Fellesfeil | Fellesfeil har forrang, ellers følger den «Snøsmelt - Driftsstatus» |
+
+Disse er lamper for dashbordet. Pushover-varsel ved feil sendes av «Snøsmelt - Styr utgang».
+
+**Visning på startsiden (eksempel)**
+
+Samlestatus vises som tre like fliser der bare den som stemmer er synlig: grå for Av, gul for På og rød for Fellesfeil.
+
+```yaml
+- type: tile
+  entity: sensor.snosmelt_samlestatus
+  name: Snøsmelting
+  icon: mdi:snowflake-melt        # mdi:bell-alert for Fellesfeil
+  color: grey                     # amber for På, red for Fellesfeil
+  tap_action:
+    action: none
+  visibility:
+    - condition: state
+      entity: sensor.snosmelt_samlestatus
+      state: Av                   # På / Fellesfeil
+```
+
+Under flisa står årsaken og den utvidede forklaringen. Ved fellesfeil kommer årsaken til feilen først:
+
+```yaml
+- type: markdown
+  text_only: true
+  visibility:
+    - condition: state
+      entity: sensor.snosmelt_samlestatus
+      state_not: Av
+  content: >-
+    {% set arsak = states('input_text.snosmelt_arsak') %}
+    {% set forklaring = states('input_text.snosmelt_forklaring') %}
+    {% if is_state('sensor.snosmelt_samlestatus', 'Fellesfeil') %}
+    <ha-alert alert-type="error" title="Fellesfeil">{{ states('sensor.snosmelt_fellesfeil_arsak') }}<br><br>Snøsmeltingen er {{ 'PÅ' if is_state('input_boolean.snosmelt_behov', 'on') else 'AV' }}. {{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    {% else %}
+    <ha-alert alert-type="warning" title="Snøsmeltingen er PÅ">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    {% endif %}
+```
+
+Tavlene vises på samme måte med `sensor.snosmelt_<tavle>_status` (Av grå, På gul, Problem rød) og navigering til tavlesiden ved trykk.
+
+### 9.4 Kjøring sammen med en eldre løsning
 
 Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe annet. Det kan derfor kjøres side om side med en eksisterende snøsmelt-løsning mens det testes.
 
@@ -323,5 +377,6 @@ Kjør automasjonen manuelt for å få gjeldende status tilsendt på Pushover.
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
 - Hjelpere: https://github.com/surematu/WebHomeHelpFiles/blob/main/packages/snosmelt_hjelpere.yaml
+- Eksempel på feilsensorer og fellesfeil: https://github.com/surematu/WebHomeHelpFiles/blob/main/packages/snosmelt_fellesfeil_eksempel.yaml
 - Home Assistant packages: https://www.home-assistant.io/docs/configuration/packages/
 - weather.get_forecasts: https://www.home-assistant.io/integrations/weather/#action-weatherget_forecasts
