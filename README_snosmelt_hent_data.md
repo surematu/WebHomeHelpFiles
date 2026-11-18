@@ -193,120 +193,44 @@ Disse er lamper for dashbordet. Pushover-varsel ved feil sendes av «Snøsmelt -
 
 **Visning på startsiden (eksempel)**
 
-Samlestatus vises som en boks som er grå når anlegget er av, gul når det er på og rød ved fellesfeil. Under overskriften står årsaken og den utvidede forklaringen som egne linjer. Ved fellesfeil kommer årsaken til feilen først.
+Samlestatus vises som en flis med en statusboks under, laget med standardkortene i Home Assistant.
 
-Eksempelet bruker [Bubble Card](https://github.com/Clooos/Bubble-Card) 3.1 eller nyere (HACS), med kortets egne funksjoner: underknapper i bunnseksjonen (`bottom`) stablet i rader, og kortets egen farge for «på». Det eneste som settes i `styles` er fargevariabelen `--bubble-button-accent-color`. Det er to kort, og bare ett av dem er synlig om gangen.
-
-`rows` må settes som tall når YAML brukes: ca. 2,4 for to tekstlinjer og 3,8 for fire. Legges underknappene til i kortets redigeringsvindu, regner Bubble Card ut høyden selv.
+Flisa er tre like fliser der bare den som stemmer er synlig: grå for Av, gul for På og rød for Fellesfeil.
 
 ```yaml
-# Vanlig drift: grå når av, gul når på
-- type: custom:bubble-card
-  card_type: button
-  button_type: switch
-  card_layout: large
-  rows: 2.4
-  entity: input_boolean.snosmelt_behov
+- type: tile
+  entity: sensor.snosmelt_samlestatus
   name: Snøsmelting
-  icon: mdi:snowflake-melt
-  show_state: true
-  scrolling_effect: false
-  tap_action: { action: none }
-  double_tap_action: { action: none }
-  hold_action: { action: none }
-  button_action:
-    tap_action: { action: none }
-    double_tap_action: { action: none }
-    hold_action: { action: none }
-  sub_button:
-    main: []
-    bottom_layout: rows
-    bottom:
-      - name: Årsak
-        buttons_layout: inline
-        justify_content: start
-        group:
-          - entity: input_text.snosmelt_arsak
-            show_state: true
-            show_name: false
-            show_icon: false
-            show_background: false
-            tap_action: { action: more-info }
-      - name: Utvidet forklaring
-        buttons_layout: inline
-        justify_content: start
-        group:
-          - entity: input_text.snosmelt_forklaring
-            show_state: true
-            show_name: false
-            show_icon: false
-            show_background: false
-            tap_action: { action: more-info }
-  styles: "ha-card { --bubble-button-accent-color: #ffd54f; }"
-  grid_options:
-    columns: 12
+  icon: mdi:snowflake-melt        # mdi:bell-alert for Fellesfeil
+  color: grey                     # amber for På, red for Fellesfeil
+  tap_action:
+    action: none
+  icon_tap_action:
+    action: none
   visibility:
     - condition: state
-      entity: binary_sensor.snosmelt_fellesfeil
-      state_not: "on"
-
-# Fellesfeil: rød, med feilårsaken som første linje
-- type: custom:bubble-card
-  card_type: button
-  button_type: switch
-  card_layout: large
-  rows: 3.8
-  entity: binary_sensor.snosmelt_fellesfeil
-  name: Fellesfeil
-  icon: mdi:bell-alert
-  show_state: false
-  scrolling_effect: false
-  tap_action: { action: none }
-  button_action:
-    tap_action: { action: none }
-  sub_button:
-    main: []
-    bottom_layout: rows
-    bottom:
-      - name: Feilårsak
-        group:
-          - entity: sensor.snosmelt_fellesfeil_arsak
-            show_state: true
-            show_name: false
-            show_icon: false
-            show_background: false
-      - name: Snøsmelting
-        group:
-          - entity: input_boolean.snosmelt_behov
-            name: Snøsmelting
-            show_state: true
-            show_name: true
-            show_icon: false
-            show_background: false
-      - name: Årsak
-        group:
-          - entity: input_text.snosmelt_arsak
-            show_state: true
-            show_name: false
-            show_icon: false
-            show_background: false
-      - name: Utvidet forklaring
-        group:
-          - entity: input_text.snosmelt_forklaring
-            show_state: true
-            show_name: false
-            show_icon: false
-            show_background: false
-  styles: "ha-card { --bubble-button-accent-color: #ef9a9a; }"
-  grid_options:
-    columns: 12
-  visibility:
-    - condition: state
-      entity: binary_sensor.snosmelt_fellesfeil
-      state: "on"
+      entity: sensor.snosmelt_samlestatus
+      state: Av                   # På / Fellesfeil
 ```
 
-Lange tekster vises på én linje i en underknapp og brytes ikke over flere linjer.
+Statusboksen viser årsaken og den utvidede forklaringen. Ved fellesfeil kommer årsaken til feilen først.
+
+```yaml
+- type: markdown
+  text_only: true
+  content: >-
+    {% set arsak = states('input_text.snosmelt_arsak') %}
+    {% set forklaring = states('input_text.snosmelt_forklaring') %}
+    {% if is_state('sensor.snosmelt_samlestatus', 'Fellesfeil') %}
+    <ha-alert alert-type="error" title="Fellesfeil">{{ states('sensor.snosmelt_fellesfeil_arsak') }}<br><br>Snøsmeltingen er {{ 'PÅ' if is_state('input_boolean.snosmelt_behov', 'on') else 'AV' }}. {{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    {% elif is_state('sensor.snosmelt_samlestatus', 'På') %}
+    <ha-alert alert-type="warning" title="Snøsmeltingen er PÅ">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    {% else %}
+    <ha-alert alert-type="info" title="Snøsmeltingen er AV">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    {% endif %}
+```
+
+Ikonet i statusboksen følger typen (info, varsel eller feil) og kan ikke byttes ut.
 
 Tavlene vises med `sensor.snosmelt_<tavle>_status` som tre like fliser der bare den som stemmer er synlig (Av grå, På gul, Problem rød), med navigering til tavlesiden ved trykk:
 
