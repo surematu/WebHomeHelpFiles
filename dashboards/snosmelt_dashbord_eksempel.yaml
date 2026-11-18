@@ -31,7 +31,7 @@
 #       - user: <bruker-ID>            # Innstillinger → Personer → Brukere → ID
 # og fjern det når løsningen er godkjent.
 #
-# Versjon: 2026.11.01
+# Versjon: 2026.11.02
 
 views:
   # ===========================================================================
@@ -95,7 +95,10 @@ views:
           # --- Manuell kjøring -----------------------------------------------
           # Ett trykk starter, nytt trykk stopper. Antall timer settes i
           # «Snøsmelt - Hent data» (Manuell kjøring, timer).
+          # Hold inne åpner «Snøsmelt - Manuellkjøring til», der sluttiden kan
+          # velges fritt. Et tidspunkt frem i tid starter, et som er passert stopper.
           - type: button
+            entity: input_datetime.snosmelt_manuell_til
             name: Manuell kjøring 6 timer            # TILPASS: samme antall timer som i blueprintet
             icon: mdi:gesture-tap-button
             show_name: true
@@ -107,7 +110,7 @@ views:
               target:
                 entity_id: input_button.snosmelt_manuell_kjoring
             hold_action:
-              action: none
+              action: more-info
             grid_options:
               columns: 12
               rows: 2
@@ -118,7 +121,7 @@ views:
               {% if til > as_timestamp(now()) %}
               <ha-alert alert-type="warning" title="Manuell kjøring er PÅ til kl. {{ til | timestamp_custom('%H:%M') }}">Trykk på knappen over for å stoppe.</ha-alert>
               {% else %}
-              <ha-alert alert-type="info" title="Manuell kjøring er AV">Trykk på knappen over for å kjøre anlegget i 6 timer uansett vær.</ha-alert>
+              <ha-alert alert-type="info" title="Manuell kjøring er AV">Trykk på knappen over for å kjøre anlegget i 6 timer uansett vær. Hold knappen inne for å velge sluttid selv.</ha-alert>
               {% endif %}
 
           # --- Tavler --------------------------------------------------------

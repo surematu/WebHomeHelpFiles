@@ -184,6 +184,7 @@ Valg som er gjort, og som bør beholdes for at anleggene skal se like ut:
 | Tekst i statusboksen | «Snøsmelt - Årsak» først, «Snøsmelt - Årsak - Utvidet forklaring» med liten skrift under | Hovedstatus er kort og endres sjelden, forklaringen gir tilleggsinformasjon |
 | Tavle-fliser | Tre like `tile`-kort med `visibility`, grå / gul / rød | Standardkort kan ikke bytte farge etter tekst-tilstand |
 | Feil på kontaktor | Underknapp med rød bjelle som bare vises ved feil | Ingen støy i normal drift |
+| Manuell kjøring | Standard `button`-kort: trykk starter og stopper, hold inne åpner «Snøsmelt - Manuellkjøring til» for å velge sluttid selv | Samme knapp dekker både fast varighet og egen sluttid |
 | Automatikk per kontaktor | Underknapp med robot som åpner automasjonen | Viser om automatikken er på. Slås den av, gir det feil og varsel |
 | Merknader for admin | Egen seksjon som bare admin ser, med overskrift som slutter på «(Admin)» | Brukeren ser bare det som er relevant |
 
