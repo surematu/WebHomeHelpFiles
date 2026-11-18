@@ -41,7 +41,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.09
+    Blueprint versjon: 2026.11.10
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -200,6 +200,7 @@ blueprint:
         pushover_priority:
           name: Pushover priority
           description: >
+            Gjelder varsel ved start og ved manuell kjøring. Feilvarsel har egen prioritet.
             −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd),
             1 (Høy prioritet, rødt varsel, omgår stilleperiode),
             2 (nødvarsel som gjentas til det bekreftes).
@@ -233,6 +234,21 @@ blueprint:
           default: true
           selector:
             boolean:
+
+        feilvarsel_priority:
+          name: Feilvarsel – Pushover priority
+          description: >
+            Prioritet for feilvarsel (fellesfeil, manglende værvarsel, automasjonen har stoppet).
+            −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd),
+            1 (Høy prioritet, rødt varsel, omgår stilleperiode),
+            2 (nødvarsel som gjentas til det bekreftes).
+          default: 1
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
 
         feilvarsel_timer:
           name: Feilvarsel – levetid og gjentakelse (timer)
@@ -341,6 +357,7 @@ actions:
       io_varsel_ved_start: !input varsel_ved_start
       io_varsel_ved_feil: !input varsel_ved_feil
       io_feilvarsel_timer: !input feilvarsel_timer
+      io_feilvarsel_priority: !input feilvarsel_priority
       io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
       is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'homeassistant', 'state', 'time'] }}"
       trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
@@ -384,7 +401,7 @@ actions:
             ({{ hours_since_last_success }} timer). Sjekk sporloggen. Anlegget starter ikke
             automatisk så lenge dette står. Varselet gjentas etter {{ io_feilvarsel_timer | int }} timer hvis feilen står.
           destination: "{{ pushover_destination }}"
-          priority: "{{ pushover_priority | int(0) }}"
+          priority: "{{ io_feilvarsel_priority | int(1) }}"
           ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
 
   - alias: Steg 5 – Knapp for manuell kjøring (start/stopp), deretter avslutt
@@ -880,7 +897,7 @@ actions:
             Snøsmeltingen er {{ 'PÅ' if demand else 'AV' }}. {{ reason_combined | trim }}
             Varselet gjentas etter {{ io_feilvarsel_timer | int }} timer hvis feilen står.
           destination: "{{ pushover_destination }}"
-          priority: "{{ pushover_priority | int(0) }}"
+          priority: "{{ io_feilvarsel_priority | int(1) }}"
           ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
 
   - alias: Steg 40 – Ingen feil – nullstill «feil sist varslet», så en ny feil varsles med en gang
