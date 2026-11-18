@@ -89,7 +89,7 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 ## 6. Funksjonsbeskrivelse
 
 1. **Knapp for manuell kjøring:** Ved trykk settes «Manuell kjøring til» til nå + varighet. Er manuell kjøring allerede aktiv, settes tidspunktet til nå (stopp). Endringen starter en ny beregning.
-2. **Hent timevarsel** fra weather-entiteten.
+2. **Hent timevarsel** fra weather-entiteten. Er den utilgjengelig, ventes det i opptil 5 minutter på at den kommer tilbake. Døgnvarselet hentes også, men brukes bare til å spå neste start.
 3. **Kaldt eller varmt:** Laveste temperatur i «kaldt»-vinduet (standard 6 timer) sammenlignes med grensen (−5 °C). Dette bestemmer hvor mange timer som sjekkes og hvor lang etterdriften er.
 4. **Nøkkelverdier** for valgt vindu: sum nedbør, laveste/høyeste temperatur, høyeste fukt, og temperatur/fukt for første time.
 5. **Duggpunkt** for første time beregnes med Magnus-formelen.
@@ -109,7 +109,7 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 | Snø detektert | PÅ/AV |
 | Rim/is detektert | PÅ/AV |
 | Årsak for driftsmodus | Kort status i fast form, f.eks. «Stopp. Lite/ingen nedbør. (Varmt, sjekk de neste 3 timene.)» |
-| Forklaring (valgfri) | Forklaring i klarspråk med tall, f.eks. «Det er meldt 0,6 mm nedbør de neste 3 timene, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø.» |
+| Forklaring (valgfri) | Forklaring i klarspråk med tall, f.eks. «Det er meldt snø de neste 3 timene (0,6 mm), og det er −2,0 °C. Anlegget går for å holde bakken fri for snø.» |
 | Detaljer (valgfri) | Tekst, f.eks. «Nedbør 0.4 mm · Temp -2.5 til -1.0 °C · Fukt maks 87 % · Duggpunkt -4.2 °C» |
 | Snø sist aktiv | Tidspunkt for siste kjøring med snø detektert |
 | Rim sist aktivert | Tidspunkt da rimfare sist slo inn |
@@ -141,16 +141,28 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 
 | Situasjon | Årsak (kort status) | Forklaring (klarspråk) |
 |---|---|---|
-| Snø | Start snøsmelt, nedbør detektert. | Det er meldt 0,6 mm nedbør de neste 3 timene, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
+| Snø | Start snøsmelt, nedbør detektert. | Det er meldt snø de neste 3 timene (0,6 mm), og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
 | Rim/is | Start snøsmelt, rim/frost detektert. | Det er −1,0 °C og fuktig luft, bare 0,4 °C over duggpunktet. Da kan det danne seg rim eller is, så anlegget går for å holde bakken tørr. |
 | Etterdrift | Etterdrift for 4 timer aktiv. Timer igjen; 2. | Snøfallet er over. Anlegget går i 2 timer til for å smelte og tørke opp det som ligger igjen. |
 | Manuell | Manuell aktivering 6t igjen. - … | Anlegget er startet manuelt og går til kl. 05:58. |
 | For varmt | Stopp. For varmt. | Det er +4,0 °C eller varmere de neste 3 timene, så snøen smelter av seg selv. |
 | For kaldt | Stopp. For kaldt. | Det er −12,0 °C eller kaldere de neste 6 timene. Anlegget starter ikke på snøfall når det er så kaldt. |
-| Ingen nedbør | Stopp. Lite/ingen nedbør. | Det er ikke meldt nedbør de neste 3 timene, og det er ingen fare for rim. |
+| Ingen nedbør | Stopp. Lite/ingen nedbør. | Det er ikke meldt snø de neste 3 timene, og det er ingen fare for rim. |
 | Ingen værdata | Ingen gyldige værdata. | Værvarselet er ikke tilgjengelig akkurat nå. Anlegget starter ikke på vær før det er tilbake. |
 
-Årsaken er ment for feilsøking og historikk. Forklaringen er ment for brukeren.
+Årsaken er ment for feilsøking og historikk. Forklaringen er ment for brukeren. I forklaringen kalles nedbør innenfor temperaturgrensene «snø».
+
+**Neste start**
+
+Når anlegget er av og det finnes værdata, legges det til en setning om når det ser ut til å starte neste gang:
+
+| Kilde | Rekkevidde | Hva som spås | Eksempel |
+|---|---|---|---|
+| Timevarsel | Så langt timevarselet rekker (Met.no: 48 timer) | Snø og rim, med klokkeslett. De vanlige reglene kjøres time for time fremover | «I morgen rundt kl. 18 er det meldt snø, som vil starte snøsmeltingen.» |
+| Døgnvarsel | Dagene etter timevarselet (Met.no: til og med dag 5) | Kun snø, uten klokkeslett: nedbør over grensen, laveste temperatur ikke over «for varmt» og høyeste ikke under «for kaldt» | «Lørdag 21. nov. er det meldt snø, som trolig vil starte snøsmeltingen.» |
+| Ingen treff | – | – | «De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting.» |
+
+Klokkeslettet er når anlegget ville startet, altså opptil «timer å sjekke» før selve nedbøren. Spådommen brukes bare i teksten. Start og stopp følger fortsatt bare de vanlige timene i §5.
 
 ### 9.3 Kjøring sammen med en eldre løsning
 
@@ -227,14 +239,19 @@ template:
 | `demand` | Samlet behov |
 | `reason_combined`, `details_text` | Tekstene som skrives til hjelperne |
 | `explanation_weather`, `explanation_text` | Forklaringen i klarspråk, uten og med manuell kjøring |
+| `fc_daily` | Døgnvarselet fra weather-entiteten |
+| `next_start_hourly`, `next_start_daily` | Første spådde start som `snow\|tidspunkt` eller `frost\|tidspunkt`, tom hvis ingen |
+| `forecast_days`, `next_start_text` | Antall dager varselet dekker, og setningen om neste start |
 
-Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reason`, `snow_detected`, `frost_detected`, `afterrun_active`, `manual_active`, `has_data`, `is_cold_mode`, `precip_sum`, `min_temp`, `max_temp`, `max_hum`, `dew_point`, `min_temp_cold_window`.
+Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reason`, `snow_detected`, `frost_detected`, `afterrun_active`, `manual_active`, `has_data`, `is_cold_mode`, `precip_sum`, `min_temp`, `max_temp`, `max_hum`, `dew_point`, `min_temp_cold_window`, `explanation`, `next_start_hourly`, `next_start_daily`.
 
 ### 10.5 Feilhåndtering
 
 | Scenario | Håndtering |
 |---|---|
+| Weather-entiteten er utilgjengelig | Automasjonen venter i opptil 5 minutter på at den kommer tilbake før varselet hentes |
 | Værvarselet feiler eller er tomt | `has_data` = false. Snø og rim settes AV. Etterdrift og manuell kjøring virker fortsatt |
+| Døgnvarsel mangler | Neste start spås bare fra timevarselet |
 | Varselet mangler fukt eller nedbør | Verdier som ikke er tall filtreres bort. Mangler en hel liste, blir `has_data` false |
 | Omstart av Home Assistant | Beregningen kjøres 3 minutter etter oppstart |
 | Knappen får ny tilstand ved oppstart | Triggeren ignorerer overganger fra `unavailable`, til `unknown`/`unavailable`, og kjøringer uten forrige tilstand, så manuell kjøring startes ikke av en omstart. Første trykk på en helt ny knapp (fra `unknown`) virker |

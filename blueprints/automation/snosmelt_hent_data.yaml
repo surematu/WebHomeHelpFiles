@@ -15,6 +15,8 @@ blueprint:
     - Rim/is: temperatur nær duggpunkt (Magnus-formel) og under «for varmt»-grensen.
     - Etterdrift: behov holdes i N timer etter siste snø / siste rim-start.
     - Manuell kjøring: knapp (input_button) starter/stopper manuell kjøring i N timer.
+    - Neste start: når anlegget er av, sier forklaringen når det ser ut til å starte
+      neste gang (timevarsel for snø og rim, døgnvarsel for snø). Påvirker ikke start.
 
     Forutsetter at disse hjelperne finnes i Home Assistant med nøyaktig disse
     entitets-ID-ene (de er hardkodet og velges ikke i automasjonen).
@@ -33,7 +35,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.04
+    Blueprint versjon: 2026.11.05
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -328,6 +330,12 @@ actions:
       - delay:
           minutes: 3
 
+  - alias: Steg 3-B – Vent på værvarselet hvis det er utilgjengelig (maks 5 minutter)
+    wait_template: "{{ states(io_weather) not in ['unavailable', 'unknown'] }}"
+    timeout:
+      minutes: 5
+    continue_on_timeout: true
+
   - alias: Steg 4 – Hent timevarsel
     action: weather.get_forecasts
     target:
@@ -337,9 +345,19 @@ actions:
     response_variable: wf
     continue_on_error: true
 
-  - alias: Steg 5 – Hent ut varsellisten
+  - alias: Steg 4-B – Hent døgnvarsel (brukes bare til å spå neste start)
+    action: weather.get_forecasts
+    target:
+      entity_id: "{{ io_weather }}"
+    data:
+      type: daily
+    response_variable: wf_daily
+    continue_on_error: true
+
+  - alias: Steg 5 – Hent ut varsellistene
     variables:
       fc_list: "{{ wf[io_weather].forecast if (wf is defined and wf is mapping and io_weather in wf) else [] }}"
+      fc_daily: "{{ wf_daily[io_weather].forecast if (wf_daily is defined and wf_daily is mapping and io_weather in wf_daily) else [] }}"
 
   - alias: Steg 6 – Avgjør kaldt/varmt ut fra laveste temperatur i «kaldt»-vinduet
     variables:
@@ -392,6 +410,69 @@ actions:
            and ((temp_now | float(0)) - (dew_point | float(0))) < (sp_frost_margin | float(1.5))
            and (temp_now | float(0)) < (sp_temp_stop_warm | float(2)) }}
       frost_was_detected: "{{ is_state(io_frost_detected, 'on') }}"
+
+  - alias: Steg 10-B – Spå neste start fra timevarselet (samme regler, time for time)
+    variables:
+      next_start_hourly: >-
+        {% set ns = namespace(found='') %}
+        {% set warm = sp_temp_stop_warm | float(2) %}
+        {% set coldstop = sp_temp_stop_cold | float(-10) %}
+        {% set thr = sp_precip_threshold | float(0.1) %}
+        {% set margin = sp_frost_margin | float(1.5) %}
+        {% for i in range(1, fc_list | length) %}
+          {% if ns.found == '' %}
+            {% set cw = fc_list[i:i + (sp_hours_check_cold | int(6))] | map(attribute='temperature') | select('number') | list %}
+            {% if cw | length > 0 %}
+              {% set cold = (cw | min) <= (sp_temp_cold_mode | float(-5)) %}
+              {% set hh = (sp_hours_check_cold if cold else sp_hours_check_warm) | int(3) %}
+              {% set win = fc_list[i:i + hh] %}
+              {% set t = win | map(attribute='temperature') | select('number') | list %}
+              {% set p = win | map(attribute='precipitation') | select('number') | list %}
+              {% set rh = win | map(attribute='humidity') | select('number') | list %}
+              {% if t | length > 0 and p | length > 0 and rh | length > 0 %}
+                {% set snow = not ((t | min) > warm) and not ((t | max) < coldstop) and (p | sum) >= thr %}
+                {% set frost = false %}
+                {% if rh[0] > 0 %}
+                  {% set a = 17.625 %}
+                  {% set b = 243.04 %}
+                  {% set alpha = ((a * t[0]) / (b + t[0])) + log(rh[0] / 100) %}
+                  {% set dp = ((b * alpha) / (a - alpha)) | round(1) %}
+                  {% set frost = (t[0] - dp) < margin and t[0] < warm %}
+                {% endif %}
+                {% if snow or frost %}
+                  {% set ns.found = ('snow' if snow else 'frost') ~ '|' ~ fc_list[i].datetime %}
+                {% endif %}
+              {% endif %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.found }}
+
+  - alias: Steg 10-C – Spå neste start fra døgnvarselet (kun snø, dagene etter timevarselet)
+    variables:
+      next_start_daily: >-
+        {% set ns = namespace(found='') %}
+        {% set warm = sp_temp_stop_warm | float(2) %}
+        {% set coldstop = sp_temp_stop_cold | float(-10) %}
+        {% set thr = sp_precip_threshold | float(0.1) %}
+        {% set last_hourly = ((fc_list | last).datetime | as_datetime | as_local) if (fc_list | length > 0) else now() %}
+        {% for d in fc_daily %}
+          {% set dt = d.datetime | as_datetime | as_local %}
+          {% if ns.found == '' and dt.date() > last_hourly.date() %}
+            {% set hi = d.temperature %}
+            {% set lo = d.templow if d.templow is number else d.temperature %}
+            {% if hi is number and d.precipitation is number and d.precipitation >= thr and not (lo > warm) and not (hi < coldstop) %}
+              {% set ns.found = 'snow|' ~ d.datetime %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.found }}
+      forecast_days: >-
+        {% if fc_daily | length > 0 %}
+          {{ [(((fc_daily | last).datetime | as_datetime | as_local).date() - now().date()).days, 1] | max }}
+        {% else %}
+          2
+        {% endif %}
 
   - alias: Steg 11 – Lagre «snø sist aktiv» når snø er detektert
     if:
@@ -477,7 +558,7 @@ actions:
         {% if not has_data %}
           Værvarselet er ikke tilgjengelig akkurat nå. Anlegget starter ikke på vær før det er tilbake.
         {% elif snow_detected %}
-          Det er meldt {{ num(precip_sum) }} mm nedbør de neste {{ h }} timene, og det er {{ temp(temp_now) }}. Anlegget går for å holde bakken fri for snø.
+          Det er meldt snø de neste {{ h }} timene ({{ num(precip_sum) }} mm), og det er {{ temp(temp_now) }}. Anlegget går for å holde bakken fri for snø.
         {% elif frost_detected %}
           Det er {{ temp(temp_now) }} og fuktig luft, bare {{ num((temp_now | float(0)) - (dew_point | float(0))) }} °C over duggpunktet. Da kan det danne seg rim eller is, så anlegget går for å holde bakken tørr.
         {% elif afterrun_active %}
@@ -488,7 +569,24 @@ actions:
         {% elif too_cold %}
           Det er {{ temp(max_temp) }} eller kaldere de neste {{ h }} timene. Anlegget starter ikke på snøfall når det er så kaldt.
         {% else %}
-          Det er ikke meldt nedbør de neste {{ h }} timene, og det er ingen fare for rim.
+          Det er ikke meldt snø de neste {{ h }} timene, og det er ingen fare for rim.
+        {% endif %}
+      next_start_text: >-
+        {% set wd = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'] %}
+        {% set mo = ['jan.', 'feb.', 'mars', 'apr.', 'mai', 'juni', 'juli', 'aug.', 'sep.', 'okt.', 'nov.', 'des.'] %}
+        {% set found = next_start_hourly if (next_start_hourly | string) != '' else next_start_daily %}
+        {% if (found | string) != '' %}
+          {% set kind = (found | string).split('|')[0] %}
+          {% set dt = (found | string).split('|')[1] | as_datetime | as_local %}
+          {% set days = (dt.date() - now().date()).days %}
+          {% set day_text = 'I dag' if days == 0 else ('I morgen' if days == 1 else (wd[dt.weekday()] ~ ' ' ~ dt.day ~ '. ' ~ mo[dt.month - 1])) %}
+          {% if (next_start_hourly | string) != '' %}
+            {{ day_text }} rundt kl. {{ dt.strftime('%H') }} er det meldt {{ 'snø' if kind == 'snow' else 'fare for rim' }}, som vil starte snøsmeltingen.
+          {% else %}
+            {{ day_text }} er det meldt snø, som trolig vil starte snøsmeltingen.
+          {% endif %}
+        {% else %}
+          De neste {{ forecast_days | int(2) }} dagene ser det ikke ut til å bli behov for snøsmelting.
         {% endif %}
       explanation_text: >-
         {% set until = (ts_manual_until | float(0)) | timestamp_custom('%H:%M') %}
@@ -496,6 +594,8 @@ actions:
           {{ explanation_weather | trim }} Anlegget er også startet manuelt og går til kl. {{ until }}.
         {% elif manual_active %}
           Anlegget er startet manuelt og går til kl. {{ until }}.
+        {% elif has_data and not demand %}
+          {{ explanation_weather | trim }} {{ next_start_text | trim }}
         {% else %}
           {{ explanation_weather | trim }}
         {% endif %}
@@ -556,6 +656,8 @@ actions:
       demand: "{{ demand }}"
       reason: "{{ reason_combined | trim }}"
       explanation: "{{ explanation_text | trim }}"
+      next_start_hourly: "{{ next_start_hourly }}"
+      next_start_daily: "{{ next_start_daily }}"
       snow_detected: "{{ snow_detected }}"
       frost_detected: "{{ frost_detected }}"
       afterrun_active: "{{ afterrun_active }}"
