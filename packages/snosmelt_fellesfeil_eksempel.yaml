@@ -21,13 +21,16 @@
 # De samme sensorene kan også lages som mal-hjelpere og gruppe-hjelpere i
 # brukergrensesnittet, med de samme malene.
 #
-# Versjon: 2026.11.01
+# Versjon: 2026.11.02
 
 template:
   - binary_sensor:
       # --- Én per kontaktor -------------------------------------------------
-      # Feil når utgangen er på med for lav last, eller når det er behov for
-      # snøsmelting uten at utgangen er på (f.eks. automatikken er av).
+      # Feil når utgangen er på med for lav last, når det er behov for
+      # snøsmelting uten at utgangen er på, eller når automatikken for
+      # kontaktoren («Styr utgang») er av. En kontaktor skal ikke stå i manuell.
+      # De to siste reglene skal bare brukes på kontaktorer som styres av
+      # «Snøsmelt - Styr utgang».
       - name: "Snøsmelt - Tavle A Kontaktor 1 Feil"
         unique_id: snosmelt_tavle_a_kontaktor_1_feil
         device_class: problem
@@ -39,7 +42,8 @@ template:
           {% set grense = 4500 %}                                       {# TILPASS: ca. 70 % av normal last #}
           {% set lav_last = is_state(sw, 'on') and 0 <= last < grense %}
           {% set ikke_paa = is_state('input_boolean.snosmelt_behov', 'on') and is_state(sw, 'off') %}
-          {{ lav_last or ikke_paa }}
+          {% set automatikk_av = not is_state('automation.snosmelt_styr_utgang_tavle_a_kontaktor_1', 'on') %}   {# TILPASS #}
+          {{ lav_last or ikke_paa or automatikk_av }}
 
       # --- Én per tavle -----------------------------------------------------
       - name: "Snøsmelt - Tavle A Feil"
@@ -91,6 +95,9 @@ template:
           {% if sist > 0 and (as_timestamp(now()) - sist) > 3 * 3600 %}
             {% set ns.a = ns.a + ['Automasjonen «Hent data» har ikke fullført en kjøring siden ' ~ (sist | timestamp_custom('%d.%m. kl. %H:%M')) ~ '.'] %}
           {% endif %}
+          {% for navn, ent in [('Tavle A Kontaktor 1', 'automation.snosmelt_styr_utgang_tavle_a_kontaktor_1')] %}   {# TILPASS: alle «Styr utgang» #}
+            {% if not is_state(ent, 'on') %}{% set ns.a = ns.a + ['Automatikken for ' ~ navn ~ ' er av.'] %}{% endif %}
+          {% endfor %}
           {% for navn, ent in [('Tavle A', 'binary_sensor.snosmelt_tavle_a_feil')] %}   {# TILPASS #}
             {% if is_state(ent, 'on') %}{% set ns.a = ns.a + ['Feil på ' ~ navn ~ '.'] %}{% endif %}
           {% endfor %}

@@ -24,7 +24,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_styr_utgang.md
 
-    Blueprint versjon: 2026.11.04
+    Blueprint versjon: 2026.11.05
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_styr_utgang.yaml
@@ -659,7 +659,7 @@ actions:
         then:
           - action: script.varsel_pushover_send_melding_webhome
             data:
-              title: "⚠️ Snøsmelt feil - {{ output_name | trim }}"
+              title: "🔔 Snøsmelt feil - {{ output_name | trim }}"
               message: "{{ fault_message | trim }}"
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(0) }}"
@@ -672,7 +672,7 @@ actions:
     then:
       - action: script.varsel_pushover_send_melding_webhome
         data:
-          title: "⚠️ Snøsmelt feil (påminnelse) - {{ output_name | trim }}"
+          title: "🔔 Snøsmelt feil (påminnelse) - {{ output_name | trim }}"
           message: "{{ fault_now_lines | join('\n') }}"
           destination: "{{ pushover_destination }}"
           priority: "{{ pushover_priority | int(0) }}"
@@ -707,7 +707,7 @@ actions:
     then:
       - action: script.varsel_pushover_send_melding_webhome
         data:
-          title: "🔔 Snøsmelt - Styr utgang (manuell kjøring)"
+          title: "❄️ Snøsmelt - Styr utgang (manuell kjøring)"
           message: |-
             {{ output_name | trim }}
             Behov: {{ 'PÅ' if demand_on else 'AV' }} · Pådrag: {{ duty | int }} %

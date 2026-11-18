@@ -4,7 +4,7 @@ Oppskrift for å sette opp hele snøsmelt-løsningen på en ny Home Assistant-in
 
 Oppskriften er skrevet slik at den kan følges både for hånd og av en AI-assistent som jobber i nettleseren (se §9).
 
-Versjon: 2026.11.01
+Versjon: 2026.11.03
 
 ## 1. Hva løsningen består av
 
@@ -150,7 +150,7 @@ Bruk [packages/snosmelt_fellesfeil_eksempel.yaml](./packages/snosmelt_fellesfeil
 
 | Nivå | Entitet (eksempel) | Navn | Regel |
 |---|---|---|---|
-| Kontaktor | `binary_sensor.<bryter-ID>_feil` (i eksempelfila: `binary_sensor.snosmelt_tavle_a_kontaktor_1_feil`) | `<bryternavn> Feil` | Problem når bryteren er på og lasten er under grensen i 1 minutt, eller driftsstatus er PÅ og bryteren er av |
+| Kontaktor | `binary_sensor.<bryter-ID>_feil` (i eksempelfila: `binary_sensor.snosmelt_tavle_a_kontaktor_1_feil`) | `<bryternavn> Feil` | Problem etter 1 minutt når bryteren er på og lasten er under grensen, når driftsstatus er PÅ og bryteren er av, eller når automatikken for kontaktoren er av |
 | Tavle | `binary_sensor.snosmelt_<tavle>_feil` | Snøsmelt - `<tavle>` Feil | Problem når én av kontaktorene har feil |
 | Tavle | `sensor.snosmelt_<tavle>_status` | Snøsmelt - `<tavle>` Status | Av / På / Problem |
 | Anlegg | `binary_sensor.snosmelt_fellesfeil` | Snøsmelt - Fellesfeil | «Hent data» er av, har ikke fullført på over 3 timer, eller en tavle har feil |
@@ -161,9 +161,10 @@ Bruk [packages/snosmelt_fellesfeil_eksempel.yaml](./packages/snosmelt_fellesfeil
 - **Navn:** feilsensoren til en kontaktor følger navnet til bryteren med « Feil» bak. Alt annet har prefikset «Snøsmelt - ».
 - **Ikon:** `mdi:bell-alert` på alle feilsensorer, `device_class: problem`.
 - **Faste ID-er:** `binary_sensor.snosmelt_fellesfeil` og `sensor.snosmelt_fellesfeil_arsak` leses av «Hent data» og må hete nøyaktig dette. Uten dem sendes ikke Pushover ved fellesfeil.
-- **Regelen «driftsstatus PÅ og bryteren av»** skal bare ligge på kontaktorer som styres av «Styr utgang». Ellers gir kontaktorer som ennå styres av en eldre løsning falsk feil.
+- **Reglene «driftsstatus PÅ og bryteren av» og «automatikken er av»** skal bare ligge på kontaktorer som styres av «Styr utgang». Ellers gir kontaktorer som ennå styres av en eldre løsning falsk feil.
+- **Automatikk av gir feil.** En kontaktor skal ikke stå i manuell. Slås automatikken av, blir bjella rød etter 1 minutt, fellesfeilen slår inn med årsak «Automatikken for … er av.», og det sendes Pushover hver 24. time til den er slått på igjen.
 
-**Kontroll:** alle sensorene viser OK / Av / «Ingen feil» i normal drift. Slå av automasjonen for én kontaktor mens driftsstatus er AV, og start deretter manuell kjøring: kontaktoren går ikke inn, og kontaktorens Feil skal gå til Problem etter 1 minutt, deretter tavla, Fellesfeil og Samlestatus.
+**Kontroll:** alle sensorene viser OK / Av / «Ingen feil» i normal drift. Slå av automasjonen for én kontaktor: kontaktorens Feil skal gå til Problem etter 1 minutt, deretter tavla, Fellesfeil og Samlestatus.
 
 ## 8. Dashbord
 
@@ -183,7 +184,7 @@ Valg som er gjort, og som bør beholdes for at anleggene skal se like ut:
 | Tekst i statusboksen | «Snøsmelt - Årsak» først, «Snøsmelt - Årsak - Utvidet forklaring» med liten skrift under | Hovedstatus er kort og endres sjelden, forklaringen gir tilleggsinformasjon |
 | Tavle-fliser | Tre like `tile`-kort med `visibility`, grå / gul / rød | Standardkort kan ikke bytte farge etter tekst-tilstand |
 | Feil på kontaktor | Underknapp med rød bjelle som bare vises ved feil | Ingen støy i normal drift |
-| Automatikk per kontaktor | Underknapp med robot som åpner automasjonen | Én kontaktor settes i manuell ved å slå av sin egen automasjon |
+| Automatikk per kontaktor | Underknapp med robot som åpner automasjonen | Viser om automatikken er på. Slås den av, gir det feil og varsel |
 | Merknader for admin | Egen seksjon som bare admin ser, med overskrift som slutter på «(Admin)» | Brukeren ser bare det som er relevant |
 
 Begrensninger i Home Assistant som styrer utformingen:
@@ -192,7 +193,7 @@ Begrensninger i Home Assistant som styrer utformingen:
 - Mal-hjelpere laget i brukergrensesnittet kan ha forsinkelse (`delay_on`), men ikke egne attributter.
 - I YAML må `rows` og `columns` i `grid_options` være tall, ikke tekst.
 
-**Kontroll:** åpne hver visning som admin og som vanlig bruker. Kontroller grå tilstand (av), grønn (manuell kjøring) og rød (slå av én kontaktor-automasjon og start deretter manuell kjøring).
+**Kontroll:** åpne hver visning som admin og som vanlig bruker. Kontroller grå tilstand (av), grønn (manuell kjøring) og rød (slå av én kontaktor-automasjon).
 
 ## 9. Installasjon gjennom nettleseren (for AI-assistent)
 
@@ -229,13 +230,13 @@ Arbeidsmåte:
 | 2 | Manuell kjøring på | Driftsstatus PÅ, kontaktoren inne innen 30 s, grønn statusboks, tavle-flis gul |
 | 3 | Manuell kjøring av | Driftsstatus følger været igjen, kontaktoren ute |
 | 4 | Slå en kontaktor på for hånd mens driftsstatus er AV | Automasjonen slår den av igjen etter ca. 35 s |
-| 5 | Slå av kontaktorens automasjon mens driftsstatus er AV, og start deretter manuell kjøring | Kontaktoren går ikke inn. Rød bjelle på kontaktoren etter 1 minutt, tavla Problem, Fellesfeil, Pushover «⚠️ Snøsmelt - Fellesfeil» |
-| 6 | Slå automasjonen på igjen | Kontaktoren går inn straks, feilene forsvinner |
+| 5 | Slå av kontaktorens automasjon | Rød bjelle på kontaktoren etter 1 minutt, tavla Problem, Fellesfeil, rødt Pushover-varsel «🔔 Snøsmelt - Fellesfeil» ca. 1 minutt etter det |
+| 6 | Slå automasjonen på igjen | Kontaktoren følger driftsstatusen straks, feilene forsvinner, og etter 1 minutt kommer Pushover «✅ Snøsmelt - Tilbake i normal drift» |
 | 7 | Slå av «Hent data» | Fellesfeil med årsak «Snøsmeltingen er skrudd av». Det sendes ikke Pushover i dette tilfellet |
 | 8 | Vanlig bruker | Ser startside og tavlesider, ikke admin-seksjoner og feilsøking |
 | 9 | Første reelle snøfall eller rim | Start, etterdrift og stopp stemmer med statustekstene |
 
-Testene som gir Pushover (nr. 5) avtales på forhånd med den som mottar varslene.
+Testene som gir Pushover (nr. 5 og 6) avtales på forhånd med den som mottar varslene.
 
 ## 11. Etter godkjenning
 

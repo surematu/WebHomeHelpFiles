@@ -79,10 +79,12 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 | Innstilling | Standard | Forklaring |
 |---|---:|---|
 | Pushover destination (valgfri) | pushover | Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres slik at den blir sendt ulikt. |
-| Pushover priority | 0 | −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd), 1 (Høy prioritet, rødt varsel, omgår stilleperiode), 2 (nødvarsel som gjentas til det bekreftes). |
+| Pushover priority | 0 | Gjelder varsel ved start og ved manuell kjøring. −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd), 1 (Høy prioritet, rødt varsel, omgår stilleperiode), 2 (nødvarsel som gjentas til det bekreftes). |
 | Levetid varsel (timer) | 168 | Hvor lenge skal varslet være synlig før det forsvinner? |
 | Send varsel ved feil | true | Varsel ved fellesfeil, manglende værvarsel, og hvis automasjonen ikke har fullført på over 2,5 timer |
+| Feilvarsel – Pushover priority | 1 | Prioritet for feilvarsel. 1 gir rødt varsel som omgår stilleperiode |
 | Feilvarsel – levetid og gjentakelse | 24 t | Feilvarselet er synlig så lenge, og sendes på nytt etter så mange timer hvis feilen står |
+| Send varsel når feilen er borte | true | Sender «Tilbake i normal drift» når det er sendt et feilvarsel og feilen ikke lenger står. Samme prioritet og levetid som feilvarselet |
 | Send varsel når snøsmelting starter | true | Varsel når «Snøsmelt behov» går fra AV til PÅ |
 | Send varsel ved manuell kjøring | true | Sett til true for å sende varsel når automasjonen kjøres manuelt. Sett til false for å ikke sende varsel ved manuell kjøring. |
 
@@ -102,6 +104,7 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 10. **Manuell kjøring:** aktiv så lenge «Manuell kjøring til» er i fremtiden.
 11. **Samlet behov** = snø ELLER rim ELLER etterdrift ELLER manuell. Skrives til «Snøsmelt behov» kun ved endring.
 12. **Årsak, forklaring og detaljer** skrives til tekst-hjelperne, og hendelsen `webhome_snosmelt_update` sendes med alle verdier.
+13. **Feilvarsel:** står fellesfeilen, eller mangler værvarselet, sendes feilvarsel (se §8). Er feilen borte etter et feilvarsel, sendes «Tilbake i normal drift». Til slutt lagres tidspunktet for fullført kjøring.
 
 ### 6.1 Statustekster
 
@@ -134,15 +137,17 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 
 | Entitet | Hva skrives |
 |---|---|
-| Snøsmelt behov | PÅ/AV – samlet behov |
-| Snø detektert | PÅ/AV |
-| Rim/is detektert | PÅ/AV |
-| Årsak for driftsmodus | Kort og konkret hovedstatus, f.eks. «Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene.» |
-| Forklaring (valgfri) | Ekstra informasjon som ikke gjentar årsaken, f.eks. «De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting.» |
-| Detaljer (valgfri) | Tekst, f.eks. «Nedbør 0.4 mm · Temp -2.5 til -1.0 °C · Fukt maks 87 % · Duggpunkt -4.2 °C» |
-| Snø sist aktiv | Tidspunkt for siste kjøring med snø detektert |
-| Rim sist aktivert | Tidspunkt da rimfare sist slo inn |
-| Manuell kjøring til | Settes av knappen (start/stopp) |
+| Snøsmelt - Driftsstatus | PÅ/AV – samlet behov |
+| Snøsmelt - Snø detektert | PÅ/AV |
+| Snøsmelt - Rim detektert | PÅ/AV |
+| Snøsmelt - Årsak | Kort og konkret hovedstatus, f.eks. «Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene.» |
+| Snøsmelt - Årsak - Utvidet forklaring (valgfri) | Ekstra informasjon som ikke gjentar årsaken, f.eks. «De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting.» |
+| Snøsmelt - Værdata (valgfri) | Tekst, f.eks. «Nedbør 0.4 mm · Temp -2.5 til -1.0 °C · Fukt maks 87 % · Duggpunkt -4.2 °C» |
+| Snøsmelt - Snø sist aktiv | Tidspunkt for siste kjøring med snø detektert |
+| Snøsmelt - Rim sist aktivert | Tidspunkt da rimfare sist slo inn |
+| Snøsmelt - Manuellkjøring til | Settes av knappen (start/stopp) |
+| Snøsmelt - Sist fullført (valgfri) | Tidspunkt for siste fullførte kjøring. Brukes til å oppdage at automasjonen har stoppet |
+| Snøsmelt - Feil sist varslet (valgfri) | Tidspunkt for siste feilvarsel. Nullstilles når feilen er borte |
 
 ## 8. Varsling
 
@@ -153,18 +158,25 @@ Varsel når snøsmelting starter («Snøsmelt behov» går fra AV til PÅ):
 
 Statusvarsel når automasjonen kjøres manuelt fra Home Assistant:
 
-- **Tittel:** `🔔 Snøsmelt - Hent data (manuell kjøring)`
+- **Tittel:** `❄️ Snøsmelt - Hent data (manuell kjøring)`
 - **Melding:** behov PÅ/AV, årsak og detaljer.
 
 Feilvarsel (krever hjelperen «Snøsmelt - Feil sist varslet»):
 
 | Feil | Tittel | Når |
 |---|---|---|
-| Fellesfeil | `⚠️ Snøsmelt - Fellesfeil` | `binary_sensor.snosmelt_fellesfeil` er aktiv (hvis den finnes). Meldingen starter med årsaken fra `sensor.snosmelt_fellesfeil_arsak` |
-| Værvarsel mangler | `⚠️ Snøsmelt - Fellesfeil` | Værvarselet kunne ikke hentes, heller ikke etter 5 minutters venting |
-| Automasjonen har stoppet | `⚠️ Snøsmelt - Hent data har stoppet` | Ingen fullført kjøring på over 2,5 timer (krever hjelperen «Snøsmelt - Sist fullført»). Sendes helt i starten av neste kjøring, før stegene som kan feile |
+| Fellesfeil | `🔔 Snøsmelt - Fellesfeil` | `binary_sensor.snosmelt_fellesfeil` er aktiv (hvis den finnes). Meldingen starter med årsaken fra `sensor.snosmelt_fellesfeil_arsak` |
+| Værvarsel mangler | `🔔 Snøsmelt - Fellesfeil` | Værvarselet kunne ikke hentes, heller ikke etter 5 minutters venting |
+| Automasjonen har stoppet | `🔔 Snøsmelt - Hent data har stoppet` | Ingen fullført kjøring på over 2,5 timer (krever hjelperen «Snøsmelt - Sist fullført»). Sendes helt i starten av neste kjøring, før stegene som kan feile |
 
-Feilvarselet har 24 timers levetid og sendes på nytt hver 24. time så lenge feilen står. Når feilen er borte nullstilles det, slik at en ny feil varsles med en gang. Når fellesfeilen slår inn, kjører automasjonen etter 1 minutt i stedet for å vente til neste time.
+Feilvarselet sendes med høy prioritet (1, rødt varsel), har 24 timers levetid og sendes på nytt hver 24. time så lenge feilen står. Når fellesfeilen slår inn, kjører automasjonen etter 1 minutt i stedet for å vente til neste time.
+
+Varsel når feilen er borte:
+
+- **Tittel:** `✅ Snøsmelt - Tilbake i normal drift`
+- **Melding:** at det ikke er noen feil nå, og om snøsmeltingen er PÅ eller AV med årsak.
+
+Det sendes 1 minutt etter at fellesfeilen er borte, med samme prioritet og levetid som feilvarselet, og bare hvis det først er sendt et feilvarsel. Samtidig nullstilles tellingen, slik at en ny feil varsles med en gang.
 
 Begrensning: en automasjon som er skrudd av, eller som feiler allerede i første steg, kan ikke varsle selv. Det fanges av fellesfeil-lampa (se §9.3), ikke av Pushover.
 
@@ -198,7 +210,7 @@ Blueprintene lager ingen entiteter selv. Statuslamper for kontaktorer, tavler og
 
 | Nivå | Navn | Tilstand | Når |
 |---|---|---|---|
-| Kontaktor | `<bryternavn> Feil` | OK / Problem | Utgangen er på med for lav last i 1 minutt, eller det er behov uten at utgangen er på |
+| Kontaktor | `<bryternavn> Feil` | OK / Problem | Etter 1 minutt når utgangen er på med for lav last, når det er behov uten at utgangen er på, eller når automatikken for kontaktoren («Styr utgang») er av |
 | Tavle | Snøsmelt - `<tavle>` Feil | OK / Problem | En av kontaktorene på tavla har feil |
 | Tavle | Snøsmelt - `<tavle>` Status | Av / På / Problem | Problem ved feil, På når minst én kontaktor er inne |
 | Anlegg | Snøsmelt - Fellesfeil | OK / Problem | «Hent data» er skrudd av eller har ikke fullført på over 3 timer, eller en tavle har feil |
@@ -381,7 +393,7 @@ Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjo
 | Hvorfor står det at neste start er da? | 17 – Spådomstabell | Siste rad i `prediction_table` er treffet. Radene over viser hvorfor timene før ikke ga start |
 | Hvorfor er en dag med, eller ikke med? | 19 – Døgntabell | `daily_table` |
 | Hvorfor er behovet på? | 24, 25 og 26 | `afterrun_active`, `manual_active`, `demand` |
-| Hvorfor ble det (ikke) sendt feilvarsel? | 2, 3, 38 og 39 | `fault_notify_allowed`, `hours_since_fault_notified`, `run_stalled`, `fault_lines`, `fault_active` |
+| Hvorfor ble det (ikke) sendt feilvarsel eller «Tilbake i normal drift»? | 2, 3, 38, 39 og 40 | `fault_notify_allowed`, `hours_since_fault_notified`, `run_stalled`, `fault_lines`, `fault_active` |
 
 Kjør automasjonen manuelt for å få gjeldende status tilsendt på Pushover.
 
