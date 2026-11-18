@@ -394,7 +394,7 @@ actions:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
       - action: script.varsel_pushover_send_melding_webhome
         data:
-          title: "⚠️ Snøsmelt - Hent data har stoppet"
+          title: "🔔 Snøsmelt - Hent data har stoppet"
           message: >-
             Automasjonen har ikke fullført en kjøring siden
             {{ (ts_last_success | float(0)) | timestamp_custom('%d.%m. kl. %H:%M') }}
@@ -856,7 +856,7 @@ actions:
     then:
       - action: script.varsel_pushover_send_melding_webhome
         data:
-          title: "🔔 Snøsmelt - Hent data (manuell kjøring)"
+          title: "❄️ Snøsmelt - Hent data (manuell kjøring)"
           message: |-
             Kjørt manuelt.
             Behov: {{ 'PÅ' if demand else 'AV' }}
@@ -891,7 +891,7 @@ actions:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
       - action: script.varsel_pushover_send_melding_webhome
         data:
-          title: "⚠️ Snøsmelt - Fellesfeil"
+          title: "🔔 Snøsmelt - Fellesfeil"
           message: |-
             {{ fault_lines | join('\n') }}
             Snøsmeltingen er {{ 'PÅ' if demand else 'AV' }}. {{ reason_combined | trim }}

@@ -18,7 +18,7 @@ Dette er ment for kortvarig feilsøking. Er feilsensorene fra [packages/snosmelt
 
 ### 2.3 Varsel om feil
 
-Kontaktoren er PÅ, forventet last er 6500 W, men det måles 0 W i 2 minutter. Du får varselet «⚠️ Snøsmelt feil - Tavle A Kontaktor 1» med målt verdi og hva som bør sjekkes.
+Kontaktoren er PÅ, forventet last er 6500 W, men det måles 0 W i 2 minutter. Du får varselet «🔔 Snøsmelt feil - Tavle A Kontaktor 1» med målt verdi og hva som bør sjekkes.
 
 ### 2.4 Redusert pådrag
 
@@ -153,7 +153,7 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) kontrolleres det om en 
 
 **Feil (aktiv når en målesensor og forventet verdi er lagt inn):**
 
-- **Tittel:** `⚠️ Snøsmelt feil - <navn>`
+- **Tittel:** `🔔 Snøsmelt feil - <navn>`
 - **Melding (lav last):** `Utgangen er PÅ, men lasten er 0 (forventet ca. 6500, grense 4550). Sjekk sikring, kontaktor og varmekabel.`
 - **Melding (lav spoleeffekt):** `Utgangen er PÅ, men spoleeffekten er 0.0 (forventet ca. 2.5, grense 0.8). Sjekk reléutgang og kontaktorspole.`
 - **Melding (henger inne):** `Utgangen er AV, men det måles fortsatt last: 6480 (grense 650). Kontaktoren kan henge inne.`
@@ -161,7 +161,7 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) kontrolleres det om en 
 
 **Påminnelse ved planlagt sjekk (kun når en feil står):**
 
-- **Tittel:** `⚠️ Snøsmelt feil (påminnelse) - <navn>`
+- **Tittel:** `🔔 Snøsmelt feil (påminnelse) - <navn>`
 - **Melding:** én linje per feil som står.
 
 **OK igjen (krever «Feil-hjelper»):**
@@ -170,7 +170,7 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) kontrolleres det om en 
 
 **Manuell kjøring av automasjonen:**
 
-- **Tittel:** `🔔 Snøsmelt - Styr utgang (manuell kjøring)` med behov, pådrag, ønsket utgang og måleverdier.
+- **Tittel:** `❄️ Snøsmelt - Styr utgang (manuell kjøring)` med behov, pådrag, ønsket utgang og måleverdier.
 
 ## 9. Annet
 

@@ -230,7 +230,7 @@ Arbeidsmåte:
 | 2 | Manuell kjøring på | Driftsstatus PÅ, kontaktoren inne innen 30 s, grønn statusboks, tavle-flis gul |
 | 3 | Manuell kjøring av | Driftsstatus følger været igjen, kontaktoren ute |
 | 4 | Slå en kontaktor på for hånd mens driftsstatus er AV | Automasjonen slår den av igjen etter ca. 35 s |
-| 5 | Slå av kontaktorens automasjon | Rød bjelle på kontaktoren etter 1 minutt, tavla Problem, Fellesfeil, Pushover «⚠️ Snøsmelt - Fellesfeil» |
+| 5 | Slå av kontaktorens automasjon | Rød bjelle på kontaktoren etter 1 minutt, tavla Problem, Fellesfeil, Pushover «🔔 Snøsmelt - Fellesfeil» |
 | 6 | Slå automasjonen på igjen | Kontaktoren går inn straks, feilene forsvinner |
 | 7 | Slå av «Hent data» | Fellesfeil med årsak «Snøsmeltingen er skrudd av». Det sendes ikke Pushover i dette tilfellet |
 | 8 | Vanlig bruker | Ser startside og tavlesider, ikke admin-seksjoner og feilsøking |

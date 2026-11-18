@@ -154,16 +154,16 @@ Varsel når snøsmelting starter («Snøsmelt behov» går fra AV til PÅ):
 
 Statusvarsel når automasjonen kjøres manuelt fra Home Assistant:
 
-- **Tittel:** `🔔 Snøsmelt - Hent data (manuell kjøring)`
+- **Tittel:** `❄️ Snøsmelt - Hent data (manuell kjøring)`
 - **Melding:** behov PÅ/AV, årsak og detaljer.
 
 Feilvarsel (krever hjelperen «Snøsmelt - Feil sist varslet»):
 
 | Feil | Tittel | Når |
 |---|---|---|
-| Fellesfeil | `⚠️ Snøsmelt - Fellesfeil` | `binary_sensor.snosmelt_fellesfeil` er aktiv (hvis den finnes). Meldingen starter med årsaken fra `sensor.snosmelt_fellesfeil_arsak` |
-| Værvarsel mangler | `⚠️ Snøsmelt - Fellesfeil` | Værvarselet kunne ikke hentes, heller ikke etter 5 minutters venting |
-| Automasjonen har stoppet | `⚠️ Snøsmelt - Hent data har stoppet` | Ingen fullført kjøring på over 2,5 timer (krever hjelperen «Snøsmelt - Sist fullført»). Sendes helt i starten av neste kjøring, før stegene som kan feile |
+| Fellesfeil | `🔔 Snøsmelt - Fellesfeil` | `binary_sensor.snosmelt_fellesfeil` er aktiv (hvis den finnes). Meldingen starter med årsaken fra `sensor.snosmelt_fellesfeil_arsak` |
+| Værvarsel mangler | `🔔 Snøsmelt - Fellesfeil` | Værvarselet kunne ikke hentes, heller ikke etter 5 minutters venting |
+| Automasjonen har stoppet | `🔔 Snøsmelt - Hent data har stoppet` | Ingen fullført kjøring på over 2,5 timer (krever hjelperen «Snøsmelt - Sist fullført»). Sendes helt i starten av neste kjøring, før stegene som kan feile |
 
 Feilvarselet sendes med høy prioritet (1, rødt varsel), har 24 timers levetid og sendes på nytt hver 24. time så lenge feilen står. Når feilen er borte nullstilles det, slik at en ny feil varsles med en gang. Når fellesfeilen slår inn, kjører automasjonen etter 1 minutt i stedet for å vente til neste time.
 
