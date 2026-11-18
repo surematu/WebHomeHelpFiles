@@ -8,7 +8,8 @@ blueprint:
     Styring:
     - Behov PÅ  → utgangen slås PÅ (eventuelt pulset med pådrag i prosent).
     - Behov AV  → utgangen slås AV.
-    - Tilstanden kontrolleres hvert minutt og rettes hvis den er feil.
+    - Står utgangen feil i forhold til behovet, rettes den etter noen sekunder.
+      I tillegg kjøres en sikkerhetssjekk hvert 15. minutt.
     - Når automasjonen skrus PÅ, settes utgangen riktig med en gang.
     - Når behovet slår inn, ventes et tilfeldig antall sekunder (standard 0–30)
       før innkobling, slik at ikke alle utganger legger inn i samme sekund.
@@ -23,7 +24,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_styr_utgang.md
 
-    Blueprint versjon: 2026.11.03
+    Blueprint versjon: 2026.11.04
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_styr_utgang.yaml
@@ -325,7 +326,7 @@ blueprint:
 mode: queued
 max: 10
 
-# Flere lagrede kjøringer i sporloggen, siden automasjonen sjekker hvert minutt.
+# Flere lagrede kjøringer i sporloggen enn standard (5), så hendelser ikke forsvinner så fort.
 trace:
   stored_traces: 30
 
@@ -333,6 +334,7 @@ trigger_variables:
   tv_switch: !input output_switch
   tv_demand: !input demand_entity
   tv_duty: !input duty_pct
+  tv_start_delay_max_s: !input start_delay_max_s
   tv_check_not_on: !input check_not_on
   tv_power: !input power_sensor
   tv_power_expected: !input power_expected
@@ -343,9 +345,28 @@ trigger_variables:
   tv_coil_min_pct: !input coil_min_pct
 
 triggers:
+  # Pådrag under 100 %: pulsingen trenger en sjekk hvert minutt.
   - trigger: time_pattern
     minutes: /1
-    id: time
+    id: pulse_tick
+    enabled: "{{ (tv_duty | float(100)) < 100 }}"
+
+  # Pådrag 100 %: sikkerhetssjekk hvert 15. minutt (prøver på nytt hvis en kommando har feilet).
+  - trigger: time_pattern
+    minutes: /15
+    id: safety_check
+    enabled: "{{ (tv_duty | float(100)) >= 100 }}"
+
+  # Pådrag 100 %: utgangen står feil i forhold til behovet (f.eks. slått av/på for hånd).
+  # Ventetiden er startforsinkelsen + 5 sekunder, så en vanlig innkobling ikke slår ut her.
+  - trigger: template
+    id: output_mismatch
+    value_template: >-
+      {{ (tv_duty | float(100)) >= 100
+         and states(tv_switch) in ['on', 'off']
+         and (is_state(tv_demand, 'on') != is_state(tv_switch, 'on')) }}
+    for:
+      seconds: "{{ (tv_start_delay_max_s | int(0)) + 5 }}"
 
   - trigger: state
     entity_id: !input demand_entity
@@ -464,7 +485,9 @@ actions:
       trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
       trigger_text: >-
         {{ {
-          'time': 'Minuttsjekk',
+          'pulse_tick': 'Minuttsjekk for pulsing (pådrag under 100 %)',
+          'safety_check': 'Sikkerhetssjekk hvert 15. minutt',
+          'output_mismatch': 'Utgangen sto feil i forhold til behovet',
           'demand_changed': 'Snøsmelt behov endret seg',
           'switch_recovered': 'Utgangen kom tilbake fra utilgjengelig',
           'ha_start': 'Home Assistant startet',

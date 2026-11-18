@@ -36,6 +36,9 @@ Lasten kommer noen sekunder etter innkobling, og små spoleeffekter kan måles s
 **Hva gjør «Feil-hjelper»?**
 Den husker at det er feil. Da får du ett varsel per feil, og et varsel når feilen er borte. Uten den sendes varsel hver gang feilen oppstår på nytt, for eksempel i hver puls når pådrag er under 100 %.
 
+**Kan jeg slå utgangen av eller på for hånd mens automasjonen er på?**
+Nei, den rettes tilbake etter startforsinkelsen + 5 sekunder (35 sekunder som standard). Skru av automasjonen for kontaktoren først.
+
 **Hva skjer hvis «Snøsmelt behov» er utilgjengelig?**
 Det tolkes som AV, og utgangen slås AV.
 
@@ -99,7 +102,19 @@ Utgangen styres ikke, og det sendes ingen varsler for den utgangen – heller ik
 
 ## 6. Funksjonsbeskrivelse
 
-Automasjonen kjøres hvert minutt, med en gang «Snøsmelt behov» endrer seg, når bryteren kommer tilbake fra utilgjengelig, ved omstart av Home Assistant, med en gang automasjonen selv skrus PÅ, når en av overvåkningene slår ut, og ved planlagt sjekk på faste ukedager.
+Automasjonen kjøres bare når noe skjer, slik at hver kjøring i sporloggen betyr noe:
+
+| Når | Trigger |
+|---|---|
+| «Snøsmelt behov» endrer seg | `demand_changed` |
+| Utgangen står feil i forhold til behovet i mer enn startforsinkelsen + 5 sekunder (f.eks. slått av eller på for hånd) | `output_mismatch` |
+| Utgangen kommer tilbake fra utilgjengelig | `switch_recovered` |
+| Home Assistant starter | `ha_start` |
+| Automasjonen skrus PÅ | `automation_enabled` |
+| Hvert 15. minutt, som sikkerhetssjekk (kun ved pådrag 100 %) | `safety_check` |
+| Hvert minutt (kun ved pådrag under 100 %, pulsingen trenger det) | `pulse_tick` |
+| En overvåkning har slått ut, eller utgangen er bekreftet OK | `fault_*`, `ok_verified` |
+| Planlagt sjekk på faste ukedager | `scheduled_check` |
 
 **Styring**
 
@@ -203,7 +218,7 @@ Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): h
 
 | Steg | Variabel | Beskrivelse |
 |---|---|---|
-| 2 | `trigger_id`, `trigger_text` | Hvorfor automasjonen kjørte, som ID og i klartekst (f.eks. «Snøsmelt behov endret seg») |
+| 2 | `trigger_id`, `trigger_text` | Hvorfor automasjonen kjørte, som ID og i klartekst (f.eks. «Snøsmelt behov endret seg», «Utgangen sto feil i forhold til behovet») |
 | 3 | `output_name` | Navn brukt i varsel |
 | 4 | `demand_state`, `demand_on`, `current_switch_state` | Behovet og utgangen slik de sto da kjøringen startet |
 | 5 | `duty`, `period`, `phase`, `on_minutes`, `pulse_on` | Puls-beregning. `pulse_on` er alltid true ved 100 % pådrag |
@@ -231,12 +246,13 @@ Triggeren `automation_enabled` er en template-trigger på automasjonens egen til
 | Utgangen utilgjengelig | Ingen kommando sendes. Riktig tilstand settes når den kommer tilbake |
 | Målesensor utilgjengelig | Ingen feil meldes for lav last/spole (verdien kan ikke vurderes) |
 | Forventet verdi er 0 | Overvåkningen for den målingen er av |
-| Kommando feiler | Feilen logges, og neste minutt-kjøring prøver på nytt |
+| Kommando feiler | Feilen logges. Sikkerhetssjekken prøver på nytt innen 15 minutter (1 minutt ved pådrag under 100 %). «Ikke på ved behov» varsler etter «forsinkelse før feil» |
+| Utgangen slås av eller på for hånd mens automasjonen er på | Rettes etter startforsinkelsen + 5 sekunder |
 | Spoleeffekten faller kort til 0 | Fanges av «forsinkelse før feil». «Bekreftet OK» bruker last når lastmåling finnes |
 
 ### 10.6 Varsling og debug info
 
-Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjonen. Blueprintet lagrer de 30 siste kjøringene (standard i Home Assistant er 5), siden automasjonen sjekker hvert minutt.
+Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjonen. Blueprintet lagrer de 30 siste kjøringene (standard i Home Assistant er 5). Ved pådrag 100 % kjører automasjonen bare når noe skjer, pluss sikkerhetssjekken hvert 15. minutt, så 30 kjøringer dekker flere timer.
 
 | Spørsmål | Se på steg | Variabel |
 |---|---|---|
@@ -246,7 +262,7 @@ Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjo
 | Hva var målt, og hva var grensen? | 11 | `monitor_table` |
 | Hvorfor ble det (ikke) sendt varsel? | 12 og 14 | `can_notify`, `latch_was_on`, `fault_should_notify` |
 
-De fleste kjøringene er minuttsjekker uten endring. Let etter kjøringer der `trigger_text` er noe annet enn «Minuttsjekk» når du feilsøker en hendelse. Kjør automasjonen manuelt for å få status tilsendt på Pushover.
+Ved pådrag under 100 % kjører automasjonen hvert minutt, og de fleste kjøringene er da minuttsjekker. Kjør automasjonen manuelt for å få status tilsendt på Pushover.
 
 ## 11. Dokumentasjon
 
