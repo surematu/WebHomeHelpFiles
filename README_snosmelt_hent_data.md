@@ -111,19 +111,19 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 | Situasjon | Årsak (hovedstatus, kort) | Forklaring (ekstrastatus, lang) |
 |---|---|---|
 | Snø | Start. Meldt snø de neste 3 timene. | Det er meldt 0,6 mm, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
-| Frost | Start. Fare for frost. | Det er −1,0 °C og fuktig luft, bare 0,4 °C over duggpunktet. Anlegget går for å holde bakken tørr. |
+| Rim | Start. Fare for rim. | Det er −1,0 °C og fuktig luft, bare 0,4 °C over duggpunktet. Anlegget går for å holde bakken tørr. |
 | Etterdrift | Etterdrift etter snøfall. | Anlegget går i 2 timer til for å smelte og tørke opp det som ligger igjen. |
-| Manuell kjøring | Manuell kjøring til kl. 05:58. | Uten manuell kjøring: Stopp. Lite/ingen nedbør og ingen fare for frost de neste 3 timene. |
-| Av, ingen snø meldt | Stopp. Lite/ingen nedbør og ingen fare for frost de neste 3 timene. | De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting. |
-| Av, snø senere (innen 48 t) | Stopp. Lite/ingen nedbør og ingen fare for frost de neste 3 timene. | I morgen rundt kl. 18 er det meldt snø, som vil starte snøsmeltingen. |
-| Av, frost senere (innen 48 t) | Stopp. Lite/ingen nedbør og ingen fare for frost de neste 3 timene. | I dag rundt kl. 18 er det meldt fare for rim, som vil starte snøsmeltingen. |
-| Av, snø om flere dager | Stopp. Lite/ingen nedbør og ingen fare for frost de neste 3 timene. | Lørdag 21. nov. er det meldt snø, som trolig vil starte snøsmeltingen. |
+| Manuell kjøring | Manuell kjøring til kl. 05:58. | Uten manuell kjøring: Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. |
+| Av, ingen snø meldt | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting. |
+| Av, snø senere (innen 48 t) | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | I morgen rundt kl. 18 er det meldt snø, som vil starte snøsmeltingen. |
+| Av, rim senere (innen 48 t) | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | I dag rundt kl. 18 er det meldt fare for rim, som vil starte snøsmeltingen. |
+| Av, snø om flere dager | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | Lørdag 21. nov. er det meldt snø, som trolig vil starte snøsmeltingen. |
 | Av, for varmt | Stopp. For varmt de neste 3 timene. | Det er +4,0 °C eller varmere, så snøen smelter av seg selv. De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting. |
 | Av, for kaldt | Stopp. For kaldt de neste 6 timene. | Det er −15,0 °C eller kaldere. Anlegget starter ikke på snøfall når det er så kaldt. I dag rundt kl. 22 er det meldt snø, som vil starte snøsmeltingen. |
 | Ingen værdata | Stopp. Værvarselet er ikke tilgjengelig. | Anlegget starter ikke på vær før varselet er tilbake. |
 
-- Går manuell kjøring samtidig med snø, frost eller etterdrift, viser årsaken været, og forklaringen får tillegget «Anlegget er også startet manuelt og går til kl. 05:58.».
-- Etterdrift etter frost gir årsaken «Etterdrift etter frost.».
+- Går manuell kjøring samtidig med snø, rim eller etterdrift, viser årsaken været, og forklaringen får tillegget «Anlegget er også startet manuelt og går til kl. 05:58.».
+- Etterdrift etter rim gir årsaken «Etterdrift etter rim.».
 - «For varmt» og «for kaldt» kan ha alle tre variantene av neste start (klokkeslett, dag eller ikke behov).
 - I tekstene kalles nedbør innenfor temperaturgrensene «snø».
 - Hvordan neste start spås, står i §9.2.
@@ -135,7 +135,7 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 | Snøsmelt behov | PÅ/AV – samlet behov |
 | Snø detektert | PÅ/AV |
 | Rim/is detektert | PÅ/AV |
-| Årsak for driftsmodus | Kort og konkret hovedstatus, f.eks. «Stopp. Lite/ingen nedbør og ingen fare for frost de neste 3 timene.» |
+| Årsak for driftsmodus | Kort og konkret hovedstatus, f.eks. «Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene.» |
 | Forklaring (valgfri) | Ekstra informasjon som ikke gjentar årsaken, f.eks. «De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting.» |
 | Detaljer (valgfri) | Tekst, f.eks. «Nedbør 0.4 mm · Temp -2.5 til -1.0 °C · Fukt maks 87 % · Duggpunkt -4.2 °C» |
 | Snø sist aktiv | Tidspunkt for siste kjøring med snø detektert |
@@ -189,18 +189,20 @@ Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe a
 - `script.varsel_pushover_send_melding_webhome` (fra `blueprints/scripts/varsel_pushover.yaml`) hvis varsling brukes.
 - Hjelpere med **nøyaktig disse entitets-ID-ene** (hardkodet i blueprintet). Enklest: kopier `packages/snosmelt_hjelpere.yaml` til `/config/packages/` og start på nytt. Eller opprett dem manuelt under Innstillinger → Enheter og tjenester → Hjelpere, og kontroller at entitets-ID-en blir lik tabellen:
 
-| Type | Foreslått navn | Entitets-ID (må være lik) | Merknad |
+| Type | Navn | Entitets-ID (må være lik) | Merknad |
 |---|---|---|---|
-| Bryter (input_boolean) | Snøsmelt behov | `input_boolean.snosmelt_behov` | |
-| Bryter (input_boolean) | Snøsmelt snø detektert | `input_boolean.snosmelt_sno_detektert` | |
-| Bryter (input_boolean) | Snøsmelt rim detektert | `input_boolean.snosmelt_rim_detektert` | |
-| Tekst (input_text) | Status snøsmelt | `input_text.snosmelt_arsak` | Maks lengde 255 |
-| Tekst (input_text) | Status snøsmelt - Utvidet forklaring | `input_text.snosmelt_forklaring` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
-| Tekst (input_text) | Snøsmelt detaljer | `input_text.snosmelt_detaljer` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
-| Dato og tid (input_datetime) | Snøsmelt snø sist aktiv | `input_datetime.snosmelt_sno_sist_aktiv` | Dato og tid |
-| Dato og tid (input_datetime) | Snøsmelt rim sist aktivert | `input_datetime.snosmelt_rim_sist_aktivert` | Dato og tid |
-| Dato og tid (input_datetime) | Snøsmelt manuell kjøring til | `input_datetime.snosmelt_manuell_til` | Dato og tid. Opprettet manuelt blir ID-en `…_manuell_kjoring_til` – endre den til `…_manuell_til` |
-| Knapp (input_button) | Snøsmelt manuell kjøring | `input_button.snosmelt_manuell_kjoring` | |
+| Bryter (input_boolean) | Snøsmelt - Driftsstatus | `input_boolean.snosmelt_behov` | Samlet start/stopp: PÅ når anlegget skal gå |
+| Bryter (input_boolean) | Snøsmelt - Snø detektert | `input_boolean.snosmelt_sno_detektert` | |
+| Bryter (input_boolean) | Snøsmelt - Rim detektert | `input_boolean.snosmelt_rim_detektert` | |
+| Tekst (input_text) | Snøsmelt - Årsak | `input_text.snosmelt_arsak` | Maks lengde 255 |
+| Tekst (input_text) | Snøsmelt - Årsak - Utvidet forklaring | `input_text.snosmelt_forklaring` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
+| Tekst (input_text) | Snøsmelt - Værdata | `input_text.snosmelt_detaljer` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
+| Dato og tid (input_datetime) | Snøsmelt - Snø sist aktiv | `input_datetime.snosmelt_sno_sist_aktiv` | Dato og tid |
+| Dato og tid (input_datetime) | Snøsmelt - Rim sist aktivert | `input_datetime.snosmelt_rim_sist_aktivert` | Dato og tid |
+| Dato og tid (input_datetime) | Snøsmelt - Manuellkjøring til | `input_datetime.snosmelt_manuell_til` | Dato og tid |
+| Knapp (input_button) | Snøsmelt - Manuellkjøring | `input_button.snosmelt_manuell_kjoring` | |
+
+Alle navn har prefikset «Snøsmelt - ». Om været brukes ordet «rim» (ikke «frost») gjennomgående: anlegget starter på fuktig luft nær duggpunktet, ikke på kuldegrader alene.
 
 > Opprettes hjelperne manuelt med disse navnene, blir entitets-ID-en en annen enn i tabellen. Endre ID-en etterpå slik at den er lik tabellen.
 
@@ -244,7 +246,7 @@ Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): h
 |---|---|---|
 | `hourly_table` | 7 | Én rad per time i timevarselet: `i`, `tid` (f.eks. «ons 07:00»), `temp`, `nedbor`, `fukt` |
 | `window_table` | 9 | Radene fra `hourly_table` som avgjør behovet akkurat nå (3 eller 6 timer) |
-| `prediction_table` | 14 | Én rad per fremtidig time, til og med første treff: `tid`, `modus` (kaldt/varmt), `timer`, `nedbor_sum`, `temp_min`, `temp_maks`, `temp`, `duggpunkt`, `sno`, `frost` |
+| `prediction_table` | 14 | Én rad per fremtidig time, til og med første treff: `tid`, `modus` (kaldt/varmt), `timer`, `nedbor_sum`, `temp_min`, `temp_maks`, `temp`, `duggpunkt`, `sno`, `rim` |
 | `daily_table` | 16 | Én rad per døgn: `dato`, `dager_frem`, `temp_hoy`, `temp_lav`, `nedbor`, `etter_timevarsel`, `sno` |
 
 **Vurdering nå**

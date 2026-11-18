@@ -21,21 +21,21 @@ blueprint:
     Forutsetter at disse hjelperne finnes i Home Assistant med nøyaktig disse
     entitets-ID-ene (de er hardkodet og velges ikke i automasjonen).
     Opprett dem med packages/snosmelt_hjelpere.yaml, eller manuelt (se README):
-    - input_boolean.snosmelt_behov              (Snøsmelt behov – hovedresultatet)
-    - input_boolean.snosmelt_sno_detektert      (Snø detektert)
-    - input_boolean.snosmelt_rim_detektert      (Rim/is detektert)
-    - input_text.snosmelt_arsak                 (Status snøsmelt – kort hovedstatus, maks 255 tegn)
-    - input_text.snosmelt_forklaring            (Status snøsmelt - Utvidet forklaring, maks 255 tegn, valgfri)
-    - input_text.snosmelt_detaljer              (Værdata, maks 255 tegn, valgfri)
-    - input_datetime.snosmelt_sno_sist_aktiv    (Snø sist aktiv, dato + tid)
-    - input_datetime.snosmelt_rim_sist_aktivert (Rim sist aktivert, dato + tid)
-    - input_datetime.snosmelt_manuell_til       (Manuell kjøring til, dato + tid)
-    - input_button.snosmelt_manuell_kjoring     (Knapp for manuell kjøring)
+    - input_boolean.snosmelt_behov              (Snøsmelt - Driftsstatus – hovedresultatet)
+    - input_boolean.snosmelt_sno_detektert      (Snøsmelt - Snø detektert)
+    - input_boolean.snosmelt_rim_detektert      (Snøsmelt - Rim detektert)
+    - input_text.snosmelt_arsak                 (Snøsmelt - Årsak – kort hovedstatus, maks 255 tegn)
+    - input_text.snosmelt_forklaring            (Snøsmelt - Årsak - Utvidet forklaring, maks 255 tegn, valgfri)
+    - input_text.snosmelt_detaljer              (Snøsmelt - Værdata, maks 255 tegn, valgfri)
+    - input_datetime.snosmelt_sno_sist_aktiv    (Snøsmelt - Snø sist aktiv, dato + tid)
+    - input_datetime.snosmelt_rim_sist_aktivert (Snøsmelt - Rim sist aktivert, dato + tid)
+    - input_datetime.snosmelt_manuell_til       (Snøsmelt - Manuellkjøring til, dato + tid)
+    - input_button.snosmelt_manuell_kjoring     (Snøsmelt - Manuellkjøring)
 
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.07
+    Blueprint versjon: 2026.11.08
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -417,7 +417,7 @@ actions:
       precip_expected: "{{ has_data and (precip_sum | float(0)) >= (sp_precip_threshold | float(0.1)) }}"
       snow_detected: "{{ has_data and not too_warm and not too_cold and precip_expected }}"
 
-  - alias: Steg 13 – Avgjør rim/frost nå
+  - alias: Steg 13 – Avgjør rim nå
     variables:
       dew_point_margin: "{{ ((temp_now | float(0)) - (dew_point | float(0))) | round(1) }}"
       frost_near_dew_point: "{{ has_data and (hum_now | float(0)) > 0 and ((temp_now | float(0)) - (dew_point | float(0))) < (sp_frost_margin | float(1.5)) }}"
@@ -465,7 +465,7 @@ actions:
                   'temp': t[0],
                   'duggpunkt': dp,
                   'sno': snow,
-                  'frost': frost
+                  'rim': frost
                 }] %}
                 {% if snow or frost %}
                   {% set ns.hit = true %}
@@ -479,7 +479,7 @@ actions:
   - alias: Steg 15 – Neste start fra spådomstabellen (siste rad er treffet, hvis det finnes)
     variables:
       prediction_last_row: "{{ (prediction_table | last) if (prediction_table | length > 0) else none }}"
-      prediction_hit: "{{ prediction_last_row is not none and (prediction_last_row.sno or prediction_last_row.frost) }}"
+      prediction_hit: "{{ prediction_last_row is not none and (prediction_last_row.sno or prediction_last_row.rim) }}"
       next_start_hourly: "{{ (('snow' if prediction_last_row.sno else 'frost') ~ '|' ~ wf[io_weather].forecast[prediction_last_row.i].datetime) if prediction_hit else '' }}"
 
   - alias: Steg 16 – Døgntabell – dagene etter timevarselet (kun snø)
@@ -580,15 +580,15 @@ actions:
         {% elif snow_detected %}
           Start. Meldt snø de neste {{ h }} timene.
         {% elif frost_detected %}
-          Start. Fare for frost.
+          Start. Fare for rim.
         {% elif afterrun_active %}
-          Etterdrift etter {{ 'snøfall' if (ts_snow_last | float(0)) >= (ts_frost_last | float(0)) else 'frost' }}.
+          Etterdrift etter {{ 'snøfall' if (ts_snow_last | float(0)) >= (ts_frost_last | float(0)) else 'rim' }}.
         {% elif too_warm %}
           Stopp. For varmt de neste {{ h }} timene.
         {% elif too_cold %}
           Stopp. For kaldt de neste {{ h }} timene.
         {% else %}
-          Stopp. Lite/ingen nedbør og ingen fare for frost de neste {{ h }} timene.
+          Stopp. Lite/ingen nedbør og ingen fare for rim de neste {{ h }} timene.
         {% endif %}
 
   - alias: Steg 25 – Årsak (hovedstatus) med manuell kjøring
