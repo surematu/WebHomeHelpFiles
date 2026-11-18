@@ -199,22 +199,27 @@ use_blueprint:
 
 ### 10.4 Beregnede verdier og variabler
 
-| Variabel | Beskrivelse |
-|---|---|
-| `trigger_id` | Hvilken trigger som startet kjøringen (`time`, `demand_changed`, `fault_power_low` …) |
-| `output_name` | Navn brukt i varsel |
-| `demand_on` | true når «Snøsmelt behov» er PÅ |
-| `duty`, `period`, `phase`, `on_minutes` | Puls-beregning |
-| `should_be_on` | Ønsket tilstand på utgangen |
-| `start_delay_s` | Tilfeldig ventetid før innkobling i denne kjøringen (0 når den ikke brukes) |
-| `current_switch_state` | Tilstanden til utgangen før kjøringen |
-| `power_now`, `coil_now` | Måleverdier |
-| `power_limit`, `coil_limit`, `stuck_limit` | Grenser regnet ut fra forventet verdi og prosent |
-| `latch_configured`, `latch_was_on` | Om «Feil-hjelper» er valgt, og om den var PÅ |
-| `fault_message`, `fault_should_notify` | Feiltekst og om varsel skal sendes |
-| `fault_now_*`, `fault_now_lines` | Hvilke feil som står akkurat nå (brukes av planlagt sjekk) |
+Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): hvert steg gjør én ting, og de viktigste stegene har en tekst eller tabell som oppsummerer vurderingen.
 
-Overvåkningen bruker template-triggere med `trigger_variables` (`tv_*`), slik at vilkårene må være sanne sammenhengende i «forsinkelse før feil».
+| Steg | Variabel | Beskrivelse |
+|---|---|---|
+| 2 | `trigger_id`, `trigger_text` | Hvorfor automasjonen kjørte, som ID og i klartekst (f.eks. «Snøsmelt behov endret seg») |
+| 3 | `output_name` | Navn brukt i varsel |
+| 4 | `demand_state`, `demand_on`, `current_switch_state` | Behovet og utgangen slik de sto da kjøringen startet |
+| 5 | `duty`, `period`, `phase`, `on_minutes`, `pulse_on` | Puls-beregning. `pulse_on` er alltid true ved 100 % pådrag |
+| 6 | `should_be_on`, `planned_action`, `decision_text` | Ønsket tilstand, hva som gjøres («slå på», «slå av» eller «ingen endring»), og hele vurderingen i én setning |
+| 7 | `start_delay_s` | Tilfeldig ventetid før innkobling i denne kjøringen (0 når den ikke brukes) |
+| 8 | `switch_state_now`, `power_now`, `coil_now`, `power_limit`, `coil_limit`, `stuck_limit` | Måleverdier etter at utgangen er satt, og grensene regnet ut fra forventet verdi og prosent |
+| 9 | `has_power`, `has_coil`, `has_not_on_check` | Hvilke overvåkninger som er i bruk |
+| 10 | `fault_now_not_on`, `fault_now_power_low`, `fault_now_coil_low`, `fault_now_stuck` | Hvilke feil som står akkurat nå |
+| 11 | `monitor_table` | Én rad per sjekk: `sjekk`, `i_bruk`, `malt`, `grense`, `feil_na` |
+| 12 | `latch_configured`, `latch_was_on`, `can_notify` | Feil-hjelper, og om varsel kan sendes |
+| 13 | `fault_now_lines` | Feiltekstene som brukes av planlagt sjekk |
+| 14 | `fault_message`, `fault_should_notify` | Feiltekst og om varsel skal sendes, når en overvåkning har slått ut |
+
+Eksempel på `decision_text`: «Behov PÅ (on), pådrag 100 % → utgangen skal være PÅ. Utgangen er off → slå på.»
+
+Overvåkningen bruker template-triggere med `trigger_variables` (`tv_*`), slik at vilkårene må være sanne sammenhengende i «forsinkelse før feil». Selve ventetiden vises ikke i sporloggen. `trigger_text` sier hvilken overvåkning som slo ut, og `monitor_table` viser verdiene i det kjøringen startet.
 
 Triggeren `automation_enabled` er en template-trigger på automasjonens egen tilstand (`this.entity_id`). Den slår til i det automasjonen skrus PÅ.
 
@@ -231,7 +236,17 @@ Triggeren `automation_enabled` er en template-trigger på automasjonens egen til
 
 ### 10.6 Varsling og debug info
 
-Ingen egne debug-varsler. Alle mellomverdier er synlige i sporloggen (Trace). Kjør automasjonen manuelt for å få status tilsendt på Pushover.
+Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjonen. Blueprintet lagrer de 30 siste kjøringene (standard i Home Assistant er 5), siden automasjonen sjekker hvert minutt.
+
+| Spørsmål | Se på steg | Variabel |
+|---|---|---|
+| Hvorfor kjørte den nå? | 2 | `trigger_text` |
+| Hvorfor ble utgangen slått på eller av, eller ikke rørt? | 6 | `decision_text` |
+| Hvor lenge ventet den før innkobling? | 7-A | `start_delay_s` |
+| Hva var målt, og hva var grensen? | 11 | `monitor_table` |
+| Hvorfor ble det (ikke) sendt varsel? | 12 og 14 | `can_notify`, `latch_was_on`, `fault_should_notify` |
+
+De fleste kjøringene er minuttsjekker uten endring. Let etter kjøringer der `trigger_text` er noe annet enn «Minuttsjekk» når du feilsøker en hendelse. Kjør automasjonen manuelt for å få status tilsendt på Pushover.
 
 ## 11. Dokumentasjon
 

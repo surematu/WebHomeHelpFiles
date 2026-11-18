@@ -23,7 +23,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_styr_utgang.md
 
-    Blueprint versjon: 2026.11.02
+    Blueprint versjon: 2026.11.03
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_styr_utgang.yaml
@@ -325,6 +325,10 @@ blueprint:
 mode: queued
 max: 10
 
+# Flere lagrede kjøringer i sporloggen, siden automasjonen sjekker hvert minutt.
+trace:
+  stored_traces: 30
+
 trigger_variables:
   tv_switch: !input output_switch
   tv_demand: !input demand_entity
@@ -453,10 +457,28 @@ actions:
       pushover_ttl_hours: !input pushover_ttl_hours
       io_varsel_ved_ok: !input varsel_ved_ok
       io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
+
+  - alias: Steg 2 – Hvorfor kjører automasjonen nå
+    variables:
       is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'state', 'homeassistant', 'template', 'time'] }}"
       trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
+      trigger_text: >-
+        {{ {
+          'time': 'Minuttsjekk',
+          'demand_changed': 'Snøsmelt behov endret seg',
+          'switch_recovered': 'Utgangen kom tilbake fra utilgjengelig',
+          'ha_start': 'Home Assistant startet',
+          'automation_enabled': 'Automasjonen ble skrudd på',
+          'fault_power_low': 'Overvåkning: lav last i hele forsinkelsen',
+          'fault_coil_low': 'Overvåkning: lav spoleeffekt i hele forsinkelsen',
+          'fault_stuck_on': 'Overvåkning: last mens utgangen er av i hele forsinkelsen',
+          'fault_not_on': 'Overvåkning: behov, men utgangen ikke på i hele forsinkelsen',
+          'ok_verified': 'Overvåkning: utgangen på og målingene normale i hele forsinkelsen',
+          'scheduled_check': 'Planlagt sjekk',
+          'manual_run': 'Kjørt manuelt'
+        }.get(trigger_id, trigger_id) }}
 
-  - alias: Steg 2 – Navn på utgangen
+  - alias: Steg 3 – Navn på utgangen
     variables:
       output_name: >-
         {% if io_output_name is string and (io_output_name | trim) != '' %}
@@ -465,38 +487,55 @@ actions:
           {{ state_attr(io_switch, 'friendly_name') or io_switch }}
         {% endif %}
 
-  - alias: Steg 3 – Les behov og beregn fase i puls-syklusen
+  - alias: Steg 4 – Les behov og utgang
     variables:
+      demand_state: "{{ states(io_demand) }}"
       demand_on: "{{ is_state(io_demand, 'on') }}"
+      current_switch_state: "{{ states(io_switch) }}"
+
+  - alias: Steg 5 – Pådrag og fase i puls-syklusen
+    variables:
       duty: "{{ io_duty_pct | float(100) }}"
       period: "{{ [io_period_min | int(10), 1] | max }}"
       current_minute: "{{ now().hour * 60 + now().minute }}"
       phase: "{{ ((current_minute | int) + (io_offset_min | int(0))) % (period | int) }}"
       on_minutes: "{{ ((duty | float(100)) / 100 * (period | int)) | round(0) | int }}"
+      pulse_on: "{{ (duty | float(100)) >= 100 or (phase | int) < (on_minutes | int) }}"
 
-  - alias: Steg 4 – Avgjør ønsket tilstand på utgangen
+  - alias: Steg 6 – Avgjør ønsket tilstand og hva som skal gjøres
     variables:
-      should_be_on: "{{ demand_on and ((duty | float(100)) >= 100 or (phase | int) < (on_minutes | int)) }}"
-      current_switch_state: "{{ states(io_switch) }}"
+      should_be_on: "{{ demand_on and pulse_on }}"
+      planned_action: >-
+        {% if should_be_on and current_switch_state == 'off' %}
+          slå på
+        {% elif not should_be_on and current_switch_state == 'on' %}
+          slå av
+        {% else %}
+          ingen endring
+        {% endif %}
+      decision_text: >-
+        Behov {{ 'PÅ' if demand_on else 'AV' }} ({{ demand_state }}), pådrag {{ duty | int }} %{{ '' if (duty | float(100)) >= 100 else (' (fase ' ~ phase ~ ' av ' ~ period ~ ' min, på i ' ~ on_minutes ~ ' min)') }}
+        → utgangen skal være {{ 'PÅ' if should_be_on else 'AV' }}. Utgangen er {{ current_switch_state }} → {{ planned_action | trim }}.
 
-  - alias: Steg 5 – Sett utgangen hvis den står feil
+  - alias: Steg 7 – Sett utgangen hvis den står feil
     choose:
       - conditions:
           - condition: template
             value_template: "{{ should_be_on and current_switch_state == 'off' }}"
         sequence:
-          - alias: Steg 5-A – Tilfeldig startforsinkelse (kun når behovet slår inn eller HA starter)
+          - alias: Steg 7-A – Tilfeldig startforsinkelse (kun når behovet slår inn eller HA starter)
             variables:
               start_delay_s: >-
                 {% set mx = io_start_delay_max_s | int(0) %}
                 {{ (range(0, mx + 1) | random) if (mx > 0 and trigger_id in ['demand_changed', 'ha_start']) else 0 }}
-          - if:
+          - alias: Steg 7-B – Vent startforsinkelsen
+            if:
               - condition: template
                 value_template: "{{ (start_delay_s | int(0)) > 0 }}"
             then:
               - delay:
                   seconds: "{{ start_delay_s | int(0) }}"
-          - alias: Steg 5-B – Slå PÅ hvis det fortsatt er behov etter ventetiden
+          - alias: Steg 7-C – Slå PÅ hvis det fortsatt er behov etter ventetiden
             if:
               - condition: template
                 value_template: "{{ is_state(io_demand, 'on') and not is_state(io_switch, 'on') }}"
@@ -509,31 +548,52 @@ actions:
           - condition: template
             value_template: "{{ not should_be_on and current_switch_state == 'on' }}"
         sequence:
-          - action: switch.turn_off
+          - alias: Steg 7-D – Slå AV
+            action: switch.turn_off
             target:
               entity_id: "{{ io_switch }}"
             continue_on_error: true
 
-  - alias: Steg 6 – Les måleverdier og grenser for overvåkning
+  - alias: Steg 8 – Les måleverdier og regn ut grenser
     variables:
+      switch_state_now: "{{ states(io_switch) }}"
       power_now: "{{ states(io_power) | float(0) | round(0) | int if (io_power is string and io_power != '') else 0 }}"
       coil_now: "{{ states(io_coil) | float(0) | round(1) if (io_coil is string and io_coil != '') else 0 }}"
       power_limit: "{{ ((io_power_expected | float(0)) * (io_power_min_pct | float(70)) / 100) | round(0) | int }}"
       coil_limit: "{{ ((io_coil_expected | float(0)) * (io_coil_min_pct | float(30)) / 100) | round(1) }}"
       stuck_limit: "{{ ((io_power_expected | float(0)) * (io_stuck_pct | float(10)) / 100) | round(0) | int }}"
+
+  - alias: Steg 9 – Hvilke overvåkninger er i bruk
+    variables:
+      has_power: "{{ io_power is string and io_power != '' and (io_power_expected | float(0)) > 0 and (states(io_power) | float(-1)) >= 0 }}"
+      has_coil: "{{ io_coil is string and io_coil != '' and (io_coil_expected | float(0)) > 0 and (states(io_coil) | float(-1)) >= 0 }}"
+      has_not_on_check: "{{ io_check_not_on and (duty | float(100)) >= 100 }}"
+
+  - alias: Steg 10 – Hvilke feil står akkurat nå
+    variables:
+      fault_now_not_on: "{{ has_not_on_check and demand_on and switch_state_now != 'on' }}"
+      fault_now_power_low: "{{ has_power and switch_state_now == 'on' and (power_now | float(0)) < (power_limit | float(0)) }}"
+      fault_now_coil_low: "{{ has_coil and switch_state_now == 'on' and (coil_now | float(0)) < (coil_limit | float(0)) }}"
+      fault_now_stuck: "{{ has_power and switch_state_now == 'off' and (power_now | float(0)) > (stuck_limit | float(0)) }}"
+
+  - alias: Steg 11 – Overvåkningstabell – målt verdi mot grense for hver sjekk
+    variables:
+      monitor_table: >-
+        {{ [
+          {'sjekk': 'Ikke på ved behov', 'i_bruk': has_not_on_check, 'malt': 'utgang ' ~ switch_state_now, 'grense': 'on når behov', 'feil_na': fault_now_not_on},
+          {'sjekk': 'Lav last', 'i_bruk': has_power, 'malt': power_now, 'grense': 'minst ' ~ power_limit, 'feil_na': fault_now_power_low},
+          {'sjekk': 'Lav spoleeffekt', 'i_bruk': has_coil, 'malt': coil_now, 'grense': 'minst ' ~ coil_limit, 'feil_na': fault_now_coil_low},
+          {'sjekk': 'Henger inne', 'i_bruk': has_power, 'malt': power_now, 'grense': 'maks ' ~ stuck_limit ~ ' når av', 'feil_na': fault_now_stuck}
+        ] }}
+
+  - alias: Steg 12 – Feil-hjelper og om varsel kan sendes
+    variables:
       latch_configured: "{{ io_fault_latch is string and (io_fault_latch | trim) != '' }}"
       latch_was_on: "{{ (io_fault_latch is string and (io_fault_latch | trim) != '') and is_state(io_fault_latch, 'on') }}"
       can_notify: "{{ (pushover_destination | string | trim) != '' }}"
 
-  - alias: Steg 6-B – Hvilke feil står akkurat nå (brukes av planlagt sjekk)
+  - alias: Steg 13 – Feiltekster for feilene som står nå (brukes av planlagt sjekk)
     variables:
-      switch_state_now: "{{ states(io_switch) }}"
-      has_power: "{{ io_power is string and io_power != '' and (io_power_expected | float(0)) > 0 and (states(io_power) | float(-1)) >= 0 }}"
-      has_coil: "{{ io_coil is string and io_coil != '' and (io_coil_expected | float(0)) > 0 and (states(io_coil) | float(-1)) >= 0 }}"
-      fault_now_power_low: "{{ has_power and switch_state_now == 'on' and (power_now | float(0)) < (power_limit | float(0)) }}"
-      fault_now_coil_low: "{{ has_coil and switch_state_now == 'on' and (coil_now | float(0)) < (coil_limit | float(0)) }}"
-      fault_now_stuck: "{{ has_power and switch_state_now == 'off' and (power_now | float(0)) > (stuck_limit | float(0)) }}"
-      fault_now_not_on: "{{ io_check_not_on and (duty | float(100)) >= 100 and demand_on and switch_state_now != 'on' }}"
       fault_now_lines: >-
         {% set ns = namespace(l=[]) %}
         {% if fault_now_not_on %}{% set ns.l = ns.l + ['Behov for snøsmelting, men utgangen er ikke PÅ (' ~ switch_state_now ~ ').'] %}{% endif %}
@@ -543,12 +603,12 @@ actions:
         {% if latch_was_on and ns.l | length == 0 %}{% set ns.l = ns.l + ['Feil er registrert tidligere og utgangen er ikke bekreftet OK siden.'] %}{% endif %}
         {{ ns.l }}
 
-  - alias: Steg 7 – Feil oppdaget
+  - alias: Steg 14 – Feil oppdaget av overvåkningen
     if:
       - condition: template
         value_template: "{{ trigger_id in ['fault_power_low', 'fault_coil_low', 'fault_stuck_on', 'fault_not_on'] }}"
     then:
-      - alias: Steg 7-A – Bygg feiltekst
+      - alias: Steg 14-A – Bygg feiltekst
         variables:
           fault_message: >-
             {% if trigger_id == 'fault_power_low' %}
@@ -561,7 +621,7 @@ actions:
               Utgangen er AV, men det måles fortsatt last: {{ power_now }} (grense {{ stuck_limit }}). Kontaktoren kan henge inne.
             {% endif %}
           fault_should_notify: "{{ can_notify and (not latch_configured or not latch_was_on) }}"
-      - alias: Steg 7-B – Slå på feil-hjelper (valgfri)
+      - alias: Steg 14-B – Slå på feil-hjelper (valgfri)
         if:
           - condition: template
             value_template: "{{ latch_configured and not latch_was_on }}"
@@ -569,7 +629,7 @@ actions:
           - action: input_boolean.turn_on
             target:
               entity_id: "{{ io_fault_latch }}"
-      - alias: Steg 7-C – Send feilvarsel
+      - alias: Steg 14-C – Send feilvarsel
         if:
           - condition: template
             value_template: "{{ fault_should_notify }}"
@@ -582,7 +642,7 @@ actions:
               priority: "{{ pushover_priority | int(0) }}"
               ttl_hours: "{{ pushover_ttl_hours }}"
 
-  - alias: Steg 8 – Planlagt sjekk på faste ukedager (påminnelse hvis feil står)
+  - alias: Steg 15 – Planlagt sjekk på faste ukedager (påminnelse hvis feil står)
     if:
       - condition: template
         value_template: "{{ trigger_id == 'scheduled_check' and (fault_now_lines | length) > 0 and can_notify }}"
@@ -595,15 +655,17 @@ actions:
           priority: "{{ pushover_priority | int(0) }}"
           ttl_hours: "{{ pushover_ttl_hours }}"
 
-  - alias: Steg 9 – Bekreftet OK igjen (kun med feil-hjelper)
+  - alias: Steg 16 – Bekreftet OK igjen (kun med feil-hjelper)
     if:
       - condition: template
         value_template: "{{ trigger_id == 'ok_verified' and latch_configured and latch_was_on }}"
     then:
-      - action: input_boolean.turn_off
+      - alias: Steg 16-A – Slå av feil-hjelper
+        action: input_boolean.turn_off
         target:
           entity_id: "{{ io_fault_latch }}"
-      - if:
+      - alias: Steg 16-B – Send varsel om at feilen er borte (valgfri)
+        if:
           - condition: template
             value_template: "{{ io_varsel_ved_ok and can_notify }}"
         then:
@@ -615,7 +677,7 @@ actions:
               priority: 0
               ttl_hours: "{{ pushover_ttl_hours }}"
 
-  - alias: Steg 10 – Varsling ved manuell kjøring (valgfri)
+  - alias: Steg 17 – Varsling ved manuell kjøring (valgfri)
     if:
       - condition: template
         value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring and can_notify }}"
