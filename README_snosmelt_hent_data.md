@@ -104,6 +104,7 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 10. **Manuell kjøring:** aktiv så lenge «Manuell kjøring til» er i fremtiden.
 11. **Samlet behov** = snø ELLER rim ELLER etterdrift ELLER manuell. Skrives til «Snøsmelt behov» kun ved endring.
 12. **Årsak, forklaring og detaljer** skrives til tekst-hjelperne, og hendelsen `webhome_snosmelt_update` sendes med alle verdier.
+13. **Feilvarsel:** står fellesfeilen, eller mangler værvarselet, sendes feilvarsel (se §8). Er feilen borte etter et feilvarsel, sendes «Tilbake i normal drift». Til slutt lagres tidspunktet for fullført kjøring.
 
 ### 6.1 Statustekster
 
@@ -136,15 +137,17 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 
 | Entitet | Hva skrives |
 |---|---|
-| Snøsmelt behov | PÅ/AV – samlet behov |
-| Snø detektert | PÅ/AV |
-| Rim/is detektert | PÅ/AV |
-| Årsak for driftsmodus | Kort og konkret hovedstatus, f.eks. «Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene.» |
-| Forklaring (valgfri) | Ekstra informasjon som ikke gjentar årsaken, f.eks. «De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting.» |
-| Detaljer (valgfri) | Tekst, f.eks. «Nedbør 0.4 mm · Temp -2.5 til -1.0 °C · Fukt maks 87 % · Duggpunkt -4.2 °C» |
-| Snø sist aktiv | Tidspunkt for siste kjøring med snø detektert |
-| Rim sist aktivert | Tidspunkt da rimfare sist slo inn |
-| Manuell kjøring til | Settes av knappen (start/stopp) |
+| Snøsmelt - Driftsstatus | PÅ/AV – samlet behov |
+| Snøsmelt - Snø detektert | PÅ/AV |
+| Snøsmelt - Rim detektert | PÅ/AV |
+| Snøsmelt - Årsak | Kort og konkret hovedstatus, f.eks. «Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene.» |
+| Snøsmelt - Årsak - Utvidet forklaring (valgfri) | Ekstra informasjon som ikke gjentar årsaken, f.eks. «De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting.» |
+| Snøsmelt - Værdata (valgfri) | Tekst, f.eks. «Nedbør 0.4 mm · Temp -2.5 til -1.0 °C · Fukt maks 87 % · Duggpunkt -4.2 °C» |
+| Snøsmelt - Snø sist aktiv | Tidspunkt for siste kjøring med snø detektert |
+| Snøsmelt - Rim sist aktivert | Tidspunkt da rimfare sist slo inn |
+| Snøsmelt - Manuellkjøring til | Settes av knappen (start/stopp) |
+| Snøsmelt - Sist fullført (valgfri) | Tidspunkt for siste fullførte kjøring. Brukes til å oppdage at automasjonen har stoppet |
+| Snøsmelt - Feil sist varslet (valgfri) | Tidspunkt for siste feilvarsel. Nullstilles når feilen er borte |
 
 ## 8. Varsling
 
@@ -390,7 +393,7 @@ Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjo
 | Hvorfor står det at neste start er da? | 17 – Spådomstabell | Siste rad i `prediction_table` er treffet. Radene over viser hvorfor timene før ikke ga start |
 | Hvorfor er en dag med, eller ikke med? | 19 – Døgntabell | `daily_table` |
 | Hvorfor er behovet på? | 24, 25 og 26 | `afterrun_active`, `manual_active`, `demand` |
-| Hvorfor ble det (ikke) sendt feilvarsel? | 2, 3, 38 og 39 | `fault_notify_allowed`, `hours_since_fault_notified`, `run_stalled`, `fault_lines`, `fault_active` |
+| Hvorfor ble det (ikke) sendt feilvarsel eller «Tilbake i normal drift»? | 2, 3, 38, 39 og 40 | `fault_notify_allowed`, `hours_since_fault_notified`, `run_stalled`, `fault_lines`, `fault_active` |
 
 Kjør automasjonen manuelt for å få gjeldende status tilsendt på Pushover.
 
