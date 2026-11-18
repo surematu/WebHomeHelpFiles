@@ -198,7 +198,7 @@ Blueprintene lager ingen entiteter selv. Statuslamper for kontaktorer, tavler og
 
 | Nivå | Navn | Tilstand | Når |
 |---|---|---|---|
-| Kontaktor | `<bryternavn> Feil` | OK / Problem | Utgangen er på med for lav last i 1 minutt, eller det er behov uten at utgangen er på |
+| Kontaktor | `<bryternavn> Feil` | OK / Problem | Etter 1 minutt når utgangen er på med for lav last, når det er behov uten at utgangen er på, eller når automatikken for kontaktoren («Styr utgang») er av |
 | Tavle | Snøsmelt - `<tavle>` Feil | OK / Problem | En av kontaktorene på tavla har feil |
 | Tavle | Snøsmelt - `<tavle>` Status | Av / På / Problem | Problem ved feil, På når minst én kontaktor er inne |
 | Anlegg | Snøsmelt - Fellesfeil | OK / Problem | «Hent data» er skrudd av eller har ikke fullført på over 3 timer, eller en tavle har feil |

@@ -14,6 +14,8 @@ Styrer én utgang (f.eks. en kontaktor for varmekabel) ut fra «Snøsmelt behov�
 
 Skru av automasjonen for den ene kontaktoren. Da røres ikke utgangen, og den kan styres for hånd. De andre kontaktorene går som normalt.
 
+Dette er ment for kortvarig feilsøking. Er feilsensorene fra [packages/snosmelt_fellesfeil_eksempel.yaml](./packages/snosmelt_fellesfeil_eksempel.yaml) i bruk, gir en avslått automasjon feil på kontaktoren etter 1 minutt, fellesfeil og Pushover hver 24. time til den er slått på igjen.
+
 ### 2.3 Varsel om feil
 
 Kontaktoren er PÅ, forventet last er 6500 W, men det måles 0 W i 2 minutter. Du får varselet «⚠️ Snøsmelt feil - Tavle A Kontaktor 1» med målt verdi og hva som bør sjekkes.
