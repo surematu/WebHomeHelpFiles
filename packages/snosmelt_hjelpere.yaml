@@ -14,48 +14,57 @@
 # Alternativt kan de samme hjelperne opprettes manuelt under
 # Innstillinger → Enheter og tjenester → Hjelpere (se README_snosmelt_hent_data.md).
 #
-# Versjon: 2026.11.02
+# Versjon: 2026.11.05
 
 input_boolean:
   snosmelt_behov:
-    name: Snøsmelt behov
+    name: Snøsmelt - Driftsstatus
     icon: mdi:snowflake-melt
   snosmelt_sno_detektert:
-    name: Snøsmelt snø detektert
+    name: Snøsmelt - Snø detektert
     icon: mdi:weather-snowy-heavy
   snosmelt_rim_detektert:
-    name: Snøsmelt rim detektert
+    name: Snøsmelt - Rim detektert
     icon: mdi:snowflake-alert
 
 input_text:
   snosmelt_arsak:
-    name: Snøsmelt årsak
+    name: Snøsmelt - Årsak
     icon: mdi:information-outline
     max: 255
   snosmelt_forklaring:
-    name: Snøsmelt forklaring
+    name: Snøsmelt - Årsak - Utvidet forklaring
     icon: mdi:comment-text-outline
     max: 255
   snosmelt_detaljer:
-    name: Snøsmelt detaljer
+    name: Snøsmelt - Værdata
     icon: mdi:thermometer-lines
     max: 255
 
 input_datetime:
   snosmelt_sno_sist_aktiv:
-    name: Snøsmelt snø sist aktiv
+    name: Snøsmelt - Snø sist aktiv
     has_date: true
     has_time: true
   snosmelt_rim_sist_aktivert:
-    name: Snøsmelt rim sist aktivert
+    name: Snøsmelt - Rim sist aktivert
     has_date: true
     has_time: true
   snosmelt_manuell_til:
-    name: Snøsmelt manuell kjøring til
+    name: Snøsmelt - Manuellkjøring til
+    has_date: true
+    has_time: true
+
+  snosmelt_sist_fullfort:
+    name: Snøsmelt - Sist fullført
+    has_date: true
+    has_time: true
+  snosmelt_feil_sist_varslet:
+    name: Snøsmelt - Feil sist varslet
     has_date: true
     has_time: true
 
 input_button:
   snosmelt_manuell_kjoring:
-    name: Snøsmelt manuell kjøring
+    name: Snøsmelt - Manuellkjøring
     icon: mdi:gesture-tap-button

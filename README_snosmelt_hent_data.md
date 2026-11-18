@@ -10,7 +10,7 @@ Det trengs bare én slik automasjon per anlegg.
 
 ### 2.1 Snøfall i vente
 
-Det er −2 °C og meldt 0,6 mm nedbør de neste 3 timene. «Snø detektert» og «Snøsmelt behov» slås PÅ, og årsaken blir «Start snøsmelt, nedbør detektert. (Varmt, sjekk de neste 3 timene.)».
+Det er −2 °C og meldt 0,6 mm nedbør de neste 3 timene. «Snø detektert» og «Snøsmelt behov» slås PÅ, og årsaken blir «Start. Meldt snø de neste 3 timene.».
 
 ### 2.2 Etterdrift
 
@@ -46,7 +46,7 @@ Nei. Hjelperne er hardkodet, så det kan bare være én «Snøsmelt - Hent data�
 ## 4. Hva slags info trengs
 
 - En weather-entitet med timevarsel (f.eks. Met.no).
-- Åtte hjelpere (to valgfrie i tillegg) med faste entitets-ID-er, se §10.1. De er hardkodet i blueprintet og må finnes i Home Assistant. Opprett dem samlet med `packages/snosmelt_hjelpere.yaml`.
+- Åtte hjelpere (fire valgfrie i tillegg) med faste entitets-ID-er, se §10.1. De er hardkodet i blueprintet og må finnes i Home Assistant. Opprett dem samlet med `packages/snosmelt_hjelpere.yaml`.
 - Scriptet `script.varsel_pushover_send_melding_webhome` hvis varsling skal brukes.
 
 ## 5. Innstillinger
@@ -81,6 +81,8 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 | Pushover destination (valgfri) | pushover | Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres slik at den blir sendt ulikt. |
 | Pushover priority | 0 | −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd), 1 (Høy prioritet, rødt varsel, omgår stilleperiode), 2 (nødvarsel som gjentas til det bekreftes). |
 | Levetid varsel (timer) | 168 | Hvor lenge skal varslet være synlig før det forsvinner? |
+| Send varsel ved feil | true | Varsel ved fellesfeil, manglende værvarsel, og hvis automasjonen ikke har fullført på over 2,5 timer |
+| Feilvarsel – levetid og gjentakelse | 24 t | Feilvarselet er synlig så lenge, og sendes på nytt etter så mange timer hvis feilen står |
 | Send varsel når snøsmelting starter | true | Varsel når «Snøsmelt behov» går fra AV til PÅ |
 | Send varsel ved manuell kjøring | true | Sett til true for å sende varsel når automasjonen kjøres manuelt. Sett til false for å ikke sende varsel ved manuell kjøring. |
 
@@ -89,7 +91,7 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 ## 6. Funksjonsbeskrivelse
 
 1. **Knapp for manuell kjøring:** Ved trykk settes «Manuell kjøring til» til nå + varighet. Er manuell kjøring allerede aktiv, settes tidspunktet til nå (stopp). Endringen starter en ny beregning.
-2. **Hent timevarsel** fra weather-entiteten.
+2. **Hent timevarsel** fra weather-entiteten. Er den utilgjengelig, ventes det i opptil 5 minutter på at den kommer tilbake. Døgnvarselet hentes også, men brukes bare til å spå neste start.
 3. **Kaldt eller varmt:** Laveste temperatur i «kaldt»-vinduet (standard 6 timer) sammenlignes med grensen (−5 °C). Dette bestemmer hvor mange timer som sjekkes og hvor lang etterdriften er.
 4. **Nøkkelverdier** for valgt vindu: sum nedbør, laveste/høyeste temperatur, høyeste fukt, og temperatur/fukt for første time.
 5. **Duggpunkt** for første time beregnes med Magnus-formelen.
@@ -101,6 +103,33 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 11. **Samlet behov** = snø ELLER rim ELLER etterdrift ELLER manuell. Skrives til «Snøsmelt behov» kun ved endring.
 12. **Årsak, forklaring og detaljer** skrives til tekst-hjelperne, og hendelsen `webhome_snosmelt_update` sendes med alle verdier.
 
+### 6.1 Statustekster
+
+Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på to måter:
+
+- **Årsak (hovedstatus):** én kort, konkret setning. Den endrer seg bare når situasjonen skifter.
+- **Forklaring (ekstrastatus):** gjentar ikke årsaken, men legger til tall og når anlegget ser ut til å starte neste gang.
+
+| Situasjon | Årsak (hovedstatus, kort) | Forklaring (ekstrastatus, lang) |
+|---|---|---|
+| Snø | Start. Meldt snø de neste 3 timene. | Det er meldt 0,6 mm, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
+| Rim | Start. Fare for rim. | Det er −1,0 °C og fuktig luft, bare 0,4 °C over duggpunktet. Anlegget går for å holde bakken tørr. |
+| Etterdrift | Etterdrift etter snøfall. | Anlegget går i 2 timer til for å smelte og tørke opp det som ligger igjen. |
+| Manuell kjøring | Manuell kjøring til kl. 05:58. | Uten manuell kjøring: Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. |
+| Av, ingen snø meldt | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting. |
+| Av, snø senere (innen 48 t) | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | I morgen rundt kl. 18 er det meldt snø, som vil starte snøsmeltingen. |
+| Av, rim senere (innen 48 t) | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | I dag rundt kl. 18 er det meldt fare for rim, som vil starte snøsmeltingen. |
+| Av, snø om flere dager | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | Lørdag 21. nov. er det meldt snø, som trolig vil starte snøsmeltingen. |
+| Av, for varmt | Stopp. For varmt de neste 3 timene. | Det er +4,0 °C eller varmere, så snøen smelter av seg selv. De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting. |
+| Av, for kaldt | Stopp. For kaldt de neste 6 timene. | Det er −15,0 °C eller kaldere. Anlegget starter ikke på snøfall når det er så kaldt. I dag rundt kl. 22 er det meldt snø, som vil starte snøsmeltingen. |
+| Ingen værdata | Stopp. Værvarselet er ikke tilgjengelig. | Anlegget starter ikke på vær før varselet er tilbake. |
+
+- Går manuell kjøring samtidig med snø, rim eller etterdrift, viser årsaken været, og forklaringen får tillegget «Anlegget er også startet manuelt og går til kl. 05:58.».
+- Etterdrift etter rim gir årsaken «Etterdrift etter rim.».
+- «For varmt» og «for kaldt» kan ha alle tre variantene av neste start (klokkeslett, dag eller ikke behov).
+- I tekstene kalles nedbør innenfor temperaturgrensene «snø».
+- Hvordan neste start spås, står i §9.2.
+
 ## 7. Resultat
 
 | Entitet | Hva skrives |
@@ -108,8 +137,8 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 | Snøsmelt behov | PÅ/AV – samlet behov |
 | Snø detektert | PÅ/AV |
 | Rim/is detektert | PÅ/AV |
-| Årsak for driftsmodus | Kort status i fast form, f.eks. «Stopp. Lite/ingen nedbør. (Varmt, sjekk de neste 3 timene.)» |
-| Forklaring (valgfri) | Forklaring i klarspråk med tall, f.eks. «Det er meldt 0,6 mm nedbør de neste 3 timene, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø.» |
+| Årsak for driftsmodus | Kort og konkret hovedstatus, f.eks. «Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene.» |
+| Forklaring (valgfri) | Ekstra informasjon som ikke gjentar årsaken, f.eks. «De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting.» |
 | Detaljer (valgfri) | Tekst, f.eks. «Nedbør 0.4 mm · Temp -2.5 til -1.0 °C · Fukt maks 87 % · Duggpunkt -4.2 °C» |
 | Snø sist aktiv | Tidspunkt for siste kjøring med snø detektert |
 | Rim sist aktivert | Tidspunkt da rimfare sist slo inn |
@@ -120,39 +149,105 @@ Hjelperne velges ikke her. De er hardkodet, se §10.1.
 Varsel når snøsmelting starter («Snøsmelt behov» går fra AV til PÅ):
 
 - **Tittel:** `❄️ Snøsmelting aktivert`
-- **Melding:** `Årsak: Start snøsmelt, nedbør detektert. (Varmt, sjekk de neste 3 timene.)`
+- **Melding:** `Årsak: Start. Meldt snø de neste 3 timene.`
 
 Statusvarsel når automasjonen kjøres manuelt fra Home Assistant:
 
 - **Tittel:** `🔔 Snøsmelt - Hent data (manuell kjøring)`
 - **Melding:** behov PÅ/AV, årsak og detaljer.
 
-Begge kan slås av i innstillingene.
+Feilvarsel (krever hjelperen «Snøsmelt - Feil sist varslet»):
+
+| Feil | Tittel | Når |
+|---|---|---|
+| Fellesfeil | `⚠️ Snøsmelt - Fellesfeil` | `binary_sensor.snosmelt_fellesfeil` er aktiv (hvis den finnes). Meldingen starter med årsaken fra `sensor.snosmelt_fellesfeil_arsak` |
+| Værvarsel mangler | `⚠️ Snøsmelt - Fellesfeil` | Værvarselet kunne ikke hentes, heller ikke etter 5 minutters venting |
+| Automasjonen har stoppet | `⚠️ Snøsmelt - Hent data har stoppet` | Ingen fullført kjøring på over 2,5 timer (krever hjelperen «Snøsmelt - Sist fullført»). Sendes helt i starten av neste kjøring, før stegene som kan feile |
+
+Feilvarselet har 24 timers levetid og sendes på nytt hver 24. time så lenge feilen står. Når feilen er borte nullstilles det, slik at en ny feil varsles med en gang. Når fellesfeilen slår inn, kjører automasjonen etter 1 minutt i stedet for å vente til neste time.
+
+Begrensning: en automasjon som er skrudd av, eller som feiler allerede i første steg, kan ikke varsle selv. Det fanges av fellesfeil-lampa (se §9.3), ikke av Pushover.
+
+Alle varslene kan slås av i innstillingene.
 
 ## 9. Annet
 
 ### 9.1 Visning i dashbord
 
-Hjelperne kan vises direkte: «Snøsmelt behov» som hovedknapp, «Snø detektert» og «Rim/is detektert» som underknapper, «Årsak» og «Detaljer» som tekst, og «Snøsmelt manuell kjøring» som trykknapp.
+Et komplett eksempel med startside, feilsøkingsside og tavleside ligger i [dashboards/snosmelt_dashbord_eksempel.yaml](./dashboards/snosmelt_dashbord_eksempel.yaml). Utdrag og forklaring står i §9.3.
 
-### 9.2 Årsak og forklaring
+Hele oppsettet på et nytt anlegg, fra hjelpere til ferdig testet dashbord, er beskrevet steg for steg i [README_snosmelt_installasjon.md](./README_snosmelt_installasjon.md).
 
-Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på to måter:
+### 9.2 Neste start
 
-| Situasjon | Årsak (kort status) | Forklaring (klarspråk) |
-|---|---|---|
-| Snø | Start snøsmelt, nedbør detektert. | Det er meldt 0,6 mm nedbør de neste 3 timene, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
-| Rim/is | Start snøsmelt, rim/frost detektert. | Det er −1,0 °C og fuktig luft, bare 0,4 °C over duggpunktet. Da kan det danne seg rim eller is, så anlegget går for å holde bakken tørr. |
-| Etterdrift | Etterdrift for 4 timer aktiv. Timer igjen; 2. | Snøfallet er over. Anlegget går i 2 timer til for å smelte og tørke opp det som ligger igjen. |
-| Manuell | Manuell aktivering 6t igjen. - … | Anlegget er startet manuelt og går til kl. 05:58. |
-| For varmt | Stopp. For varmt. | Det er +4,0 °C eller varmere de neste 3 timene, så snøen smelter av seg selv. |
-| For kaldt | Stopp. For kaldt. | Det er −12,0 °C eller kaldere de neste 6 timene. Anlegget starter ikke på snøfall når det er så kaldt. |
-| Ingen nedbør | Stopp. Lite/ingen nedbør. | Det er ikke meldt nedbør de neste 3 timene, og det er ingen fare for rim. |
-| Ingen værdata | Ingen gyldige værdata. | Værvarselet er ikke tilgjengelig akkurat nå. Anlegget starter ikke på vær før det er tilbake. |
+Statustekstene er beskrevet i §6.1. Her står det hvordan setningen om neste start lages.
 
-Årsaken er ment for feilsøking og historikk. Forklaringen er ment for brukeren.
+Når anlegget er av og det finnes værdata, legges det til en setning om når det ser ut til å starte neste gang:
 
-### 9.3 Kjøring sammen med en eldre løsning
+| Kilde | Rekkevidde | Hva som spås | Eksempel |
+|---|---|---|---|
+| Timevarsel | Så langt timevarselet rekker (Met.no: 48 timer) | Snø og rim, med klokkeslett. De vanlige reglene kjøres time for time fremover | «I morgen rundt kl. 18 er det meldt snø, som vil starte snøsmeltingen.» |
+| Døgnvarsel | Dagene etter timevarselet (Met.no: til og med dag 5) | Kun snø, uten klokkeslett: nedbør over grensen, laveste temperatur ikke over «for varmt» og høyeste ikke under «for kaldt» | «Lørdag 21. nov. er det meldt snø, som trolig vil starte snøsmeltingen.» |
+| Ingen treff | – | – | «De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting.» |
+
+Klokkeslettet er når anlegget ville startet, altså opptil «timer å sjekke» før selve nedbøren. Spådommen brukes bare i teksten. Start og stopp følger fortsatt bare de vanlige timene i §5.
+
+### 9.3 Feilsensorer, fellesfeil og samlestatus
+
+Blueprintene lager ingen entiteter selv. Statuslamper for kontaktorer, tavler og hele anlegget lages som mal-sensorer ved siden av, enten med pakkefila [packages/snosmelt_fellesfeil_eksempel.yaml](./packages/snosmelt_fellesfeil_eksempel.yaml) eller som hjelpere i brukergrensesnittet.
+
+| Nivå | Navn | Tilstand | Når |
+|---|---|---|---|
+| Kontaktor | `<bryternavn> Feil` | OK / Problem | Utgangen er på med for lav last i 1 minutt, eller det er behov uten at utgangen er på |
+| Tavle | Snøsmelt - `<tavle>` Feil | OK / Problem | En av kontaktorene på tavla har feil |
+| Tavle | Snøsmelt - `<tavle>` Status | Av / På / Problem | Problem ved feil, På når minst én kontaktor er inne |
+| Anlegg | Snøsmelt - Fellesfeil | OK / Problem | «Hent data» er skrudd av eller har ikke fullført på over 3 timer, eller en tavle har feil |
+| Anlegg | Snøsmelt - Fellesfeil årsak | Tekst | Hvorfor fellesfeilen er aktiv, eller «Ingen feil» |
+| Anlegg | Snøsmelt - Samlestatus | Av / På / Fellesfeil | Fellesfeil har forrang, ellers følger den «Snøsmelt - Driftsstatus» |
+
+Disse er lamper for dashbordet. Pushover-varsel for den enkelte kontaktor sendes av «Snøsmelt - Styr utgang». Pushover-varsel for fellesfeilen sendes av «Snøsmelt - Hent data» (se §8), som bruker `binary_sensor.snosmelt_fellesfeil` og `sensor.snosmelt_fellesfeil_arsak` hvis de finnes.
+
+**Visning på startsiden (utdrag)**
+
+Hele dashbordet ligger i [dashboards/snosmelt_dashbord_eksempel.yaml](./dashboards/snosmelt_dashbord_eksempel.yaml). Her er de to viktigste kortene.
+
+Statusboksen viser årsaken og den utvidede forklaringen, og er laget med standardkortene i Home Assistant: grå når anlegget er av, grønn når snøsmelting pågår og rød ved fellesfeil. Ved fellesfeil kommer årsaken til feilen først.
+
+```yaml
+- type: markdown
+  text_only: true
+  content: |-
+    {% set arsak = states('input_text.snosmelt_arsak') %}
+    {% set forklaring = states('input_text.snosmelt_forklaring') %}
+    {% if is_state('sensor.snosmelt_samlestatus', 'Fellesfeil') %}
+    <ha-alert alert-type="error" title="Fellesfeil">{{ states('sensor.snosmelt_fellesfeil_arsak') }}<br><br>{{ 'Snøsmelting pågår.' if is_state('input_boolean.snosmelt_behov', 'on') else 'Snøsmeltingen er AV.' }} {{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    {% elif is_state('sensor.snosmelt_samlestatus', 'På') %}
+    <ha-alert alert-type="success" title="Snøsmelting pågår">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    {% else %}
+    <ha-alert alert-type="info" title="Snøsmeltingen er AV">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+    {% endif %}
+```
+
+Ikonet i statusboksen følger typen (info, vellykket eller feil) og kan ikke byttes ut.
+
+Tavlene vises med `sensor.snosmelt_<tavle>_status` som tre like fliser der bare den som stemmer er synlig (Av grå, På gul, Problem rød), med navigering til tavlesiden ved trykk:
+
+```yaml
+- type: tile
+  entity: sensor.snosmelt_tavle_a_status
+  name: Tavle A
+  icon: mdi:snowflake-melt        # mdi:bell-alert for Problem
+  color: grey                     # amber for På, red for Problem
+  tap_action:
+    action: navigate
+    navigation_path: /dashboard-snosmelting/tavle-a
+  visibility:
+    - condition: state
+      entity: sensor.snosmelt_tavle_a_status
+      state: Av                   # På / Problem
+```
+
+### 9.4 Kjøring sammen med en eldre løsning
 
 Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe annet. Det kan derfor kjøres side om side med en eksisterende snøsmelt-løsning mens det testes.
 
@@ -165,18 +260,24 @@ Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe a
 - `script.varsel_pushover_send_melding_webhome` (fra `blueprints/scripts/varsel_pushover.yaml`) hvis varsling brukes.
 - Hjelpere med **nøyaktig disse entitets-ID-ene** (hardkodet i blueprintet). Enklest: kopier `packages/snosmelt_hjelpere.yaml` til `/config/packages/` og start på nytt. Eller opprett dem manuelt under Innstillinger → Enheter og tjenester → Hjelpere, og kontroller at entitets-ID-en blir lik tabellen:
 
-| Type | Foreslått navn | Entitets-ID (må være lik) | Merknad |
+| Type | Navn | Entitets-ID (må være lik) | Merknad |
 |---|---|---|---|
-| Bryter (input_boolean) | Snøsmelt behov | `input_boolean.snosmelt_behov` | |
-| Bryter (input_boolean) | Snøsmelt snø detektert | `input_boolean.snosmelt_sno_detektert` | |
-| Bryter (input_boolean) | Snøsmelt rim detektert | `input_boolean.snosmelt_rim_detektert` | |
-| Tekst (input_text) | Snøsmelt årsak | `input_text.snosmelt_arsak` | Maks lengde 255 |
-| Tekst (input_text) | Snøsmelt forklaring | `input_text.snosmelt_forklaring` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
-| Tekst (input_text) | Snøsmelt detaljer | `input_text.snosmelt_detaljer` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
-| Dato og tid (input_datetime) | Snøsmelt snø sist aktiv | `input_datetime.snosmelt_sno_sist_aktiv` | Dato og tid |
-| Dato og tid (input_datetime) | Snøsmelt rim sist aktivert | `input_datetime.snosmelt_rim_sist_aktivert` | Dato og tid |
-| Dato og tid (input_datetime) | Snøsmelt manuell kjøring til | `input_datetime.snosmelt_manuell_til` | Dato og tid. Opprettet manuelt blir ID-en `…_manuell_kjoring_til` – endre den til `…_manuell_til` |
-| Knapp (input_button) | Snøsmelt manuell kjøring | `input_button.snosmelt_manuell_kjoring` | |
+| Bryter (input_boolean) | Snøsmelt - Driftsstatus | `input_boolean.snosmelt_behov` | Samlet start/stopp: PÅ når anlegget skal gå |
+| Bryter (input_boolean) | Snøsmelt - Snø detektert | `input_boolean.snosmelt_sno_detektert` | |
+| Bryter (input_boolean) | Snøsmelt - Rim detektert | `input_boolean.snosmelt_rim_detektert` | |
+| Tekst (input_text) | Snøsmelt - Årsak | `input_text.snosmelt_arsak` | Maks lengde 255 |
+| Tekst (input_text) | Snøsmelt - Årsak - Utvidet forklaring | `input_text.snosmelt_forklaring` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
+| Tekst (input_text) | Snøsmelt - Værdata | `input_text.snosmelt_detaljer` | Valgfri (hoppes over hvis den ikke finnes). Maks lengde 255 |
+| Dato og tid (input_datetime) | Snøsmelt - Snø sist aktiv | `input_datetime.snosmelt_sno_sist_aktiv` | Dato og tid |
+| Dato og tid (input_datetime) | Snøsmelt - Rim sist aktivert | `input_datetime.snosmelt_rim_sist_aktivert` | Dato og tid |
+| Dato og tid (input_datetime) | Snøsmelt - Manuellkjøring til | `input_datetime.snosmelt_manuell_til` | Dato og tid |
+| Knapp (input_button) | Snøsmelt - Manuellkjøring | `input_button.snosmelt_manuell_kjoring` | |
+| Dato og tid (input_datetime) | Snøsmelt - Sist fullført | `input_datetime.snosmelt_sist_fullfort` | Valgfri. Trengs for varsel hvis automasjonen stopper |
+| Dato og tid (input_datetime) | Snøsmelt - Feil sist varslet | `input_datetime.snosmelt_feil_sist_varslet` | Valgfri. Trengs for feilvarsel |
+
+Alle navn har prefikset «Snøsmelt - ». Om været brukes ordet «rim» (ikke «frost») gjennomgående: anlegget starter på fuktig luft nær duggpunktet, ikke på kuldegrader alene.
+
+> Opprettes hjelperne manuelt med disse navnene, blir entitets-ID-en en annen enn i tabellen. Endre ID-en etterpå slik at den er lik tabellen.
 
 > Tekst-hjelpere har 100 tegn som standard maks-lengde. Sett den til 255, ellers kan årsaksteksten bli avvist.
 
@@ -210,31 +311,58 @@ template:
 
 ### 10.4 Beregnede verdier og variabler
 
+Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): hvert steg gjør én ting, og værdataene legges i små tabeller med bare de kolonnene som brukes. Rådataene fra værvarselet ligger bare i stegene «Hent timevarsel» og «Hent døgnvarsel».
+
+**Tabeller**
+
+| Variabel | Steg | Innhold |
+|---|---|---|
+| `hourly_table` | 10 | Én rad per time i timevarselet: `i`, `tid` (f.eks. «ons 07:00»), `temp`, `nedbor`, `fukt` |
+| `window_table` | 12 | Radene fra `hourly_table` som avgjør behovet akkurat nå (3 eller 6 timer) |
+| `prediction_table` | 17 | Én rad per fremtidig time, til og med første treff: `tid`, `modus` (kaldt/varmt), `timer`, `nedbor_sum`, `temp_min`, `temp_maks`, `temp`, `duggpunkt`, `sno`, `rim` |
+| `daily_table` | 19 | Én rad per døgn: `dato`, `dager_frem`, `temp_hoy`, `temp_lav`, `nedbor`, `etter_timevarsel`, `sno` |
+
+**Vurdering nå**
+
 | Variabel | Beskrivelse |
 |---|---|
-| `fc_list` | Timevarselet fra weather-entiteten |
-| `min_temp_cold_window` | Laveste temperatur i «kaldt»-vinduet |
-| `is_cold_mode` | true når `min_temp_cold_window` ≤ grense kaldt/varmt |
-| `hours_to_check` / `afterrun_hours` | Valgt vindu og etterdrift for gjeldende modus |
-| `prec_list`, `temp_list`, `hum_list` | Verdier for valgt vindu |
-| `has_data` | true når alle tre listene har verdier |
+| `min_temp_cold_window`, `is_cold_mode` | Laveste temperatur i «kaldt»-vinduet, og om det gir kaldt-modus |
+| `hours_to_check`, `afterrun_hours` | Valgt vindu og etterdrift for gjeldende modus |
+| `temp_list`, `prec_list`, `hum_list`, `has_data` | Kolonnene fra `window_table`, og om alle tre har verdier |
 | `precip_sum`, `min_temp`, `max_temp`, `max_hum` | Nøkkelverdier for vinduet |
-| `temp_now`, `hum_now`, `dew_point` | Første time i varselet og beregnet duggpunkt |
-| `too_warm`, `too_cold`, `precip_expected` | Delvilkår for snø |
-| `snow_detected`, `frost_detected` | Snø og rim nå |
-| `afterrun_active`, `afterrun_remaining_h` | Etterdrift |
-| `manual_active`, `manual_remaining_h` | Manuell kjøring |
-| `demand` | Samlet behov |
-| `reason_combined`, `details_text` | Tekstene som skrives til hjelperne |
-| `explanation_weather`, `explanation_text` | Forklaringen i klarspråk, uten og med manuell kjøring |
+| `temp_now`, `hum_now`, `dew_point` | Første time i vinduet og beregnet duggpunkt |
+| `too_warm`, `too_cold`, `precip_expected`, `snow_detected` | Delvilkår for snø, og resultatet |
+| `dew_point_margin`, `frost_near_dew_point`, `frost_cold_enough`, `frost_detected` | Delvilkår for rim, og resultatet |
 
-Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reason`, `snow_detected`, `frost_detected`, `afterrun_active`, `manual_active`, `has_data`, `is_cold_mode`, `precip_sum`, `min_temp`, `max_temp`, `max_hum`, `dew_point`, `min_temp_cold_window`.
+**Neste start**
+
+| Variabel | Beskrivelse |
+|---|---|
+| `prediction_last_row`, `prediction_hit` | Siste rad i spådomstabellen, og om den er et treff |
+| `daily_hits` | Radene i døgntabellen med snø |
+| `next_start_hourly`, `next_start_daily` | Første spådde start som `snow\|tidspunkt` eller `frost\|tidspunkt`, tom hvis ingen |
+| `forecast_days` | Antall dager frem døgnvarselet dekker |
+
+**Behov og tekster**
+
+| Variabel | Beskrivelse |
+|---|---|
+| `afterrun_active`, `afterrun_remaining_h` | Etterdrift |
+| `manual_active`, `manual_remaining_h`, `manual_until_text` | Manuell kjøring |
+| `weather_demand`, `demand` | Behov fra vær (snø, rim eller etterdrift), og samlet behov |
+| `reason_weather`, `reason_combined` | Årsak ut fra været, og årsaken som skrives til hjelperen |
+| `explanation_weather`, `next_start_text`, `explanation_text` | Delene av forklaringen, og forklaringen som skrives til hjelperen |
+| `details_text` | Værdata som tekst |
+
+Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reason`, `explanation`, `next_start_hourly`, `next_start_daily`, `snow_detected`, `frost_detected`, `afterrun_active`, `manual_active`, `has_data`, `is_cold_mode`, `precip_sum`, `min_temp`, `max_temp`, `max_hum`, `dew_point`, `min_temp_cold_window`.
 
 ### 10.5 Feilhåndtering
 
 | Scenario | Håndtering |
 |---|---|
+| Weather-entiteten er utilgjengelig | Automasjonen venter i opptil 5 minutter på at den kommer tilbake før varselet hentes |
 | Værvarselet feiler eller er tomt | `has_data` = false. Snø og rim settes AV. Etterdrift og manuell kjøring virker fortsatt |
+| Døgnvarsel mangler | Neste start spås bare fra timevarselet |
 | Varselet mangler fukt eller nedbør | Verdier som ikke er tall filtreres bort. Mangler en hel liste, blir `has_data` false |
 | Omstart av Home Assistant | Beregningen kjøres 3 minutter etter oppstart |
 | Knappen får ny tilstand ved oppstart | Triggeren ignorerer overganger fra `unavailable`, til `unknown`/`unavailable`, og kjøringer uten forrige tilstand, så manuell kjøring startes ikke av en omstart. Første trykk på en helt ny knapp (fra `unknown`) virker |
@@ -243,12 +371,25 @@ Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reas
 
 ### 10.6 Varsling og debug info
 
-Ingen egne debug-varsler. Alle mellomverdier er synlige i sporloggen (Trace) til automasjonen, steg for steg. Kjør automasjonen manuelt for å få gjeldende status tilsendt på Pushover.
+Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjonen:
+
+| Spørsmål | Se på steg | Variabel |
+|---|---|---|
+| Hvilke værdata ble brukt? | 12 – Vurderingstabell | `window_table` |
+| Hvorfor ble det (ikke) snø? | 13 og 15 | `precip_sum`, `min_temp`, `max_temp`, `too_warm`, `too_cold`, `precip_expected`, `snow_detected` |
+| Hvorfor ble det (ikke) rim? | 14 og 16 | `dew_point`, `dew_point_margin`, `frost_near_dew_point`, `frost_cold_enough`, `frost_detected` |
+| Hvorfor står det at neste start er da? | 17 – Spådomstabell | Siste rad i `prediction_table` er treffet. Radene over viser hvorfor timene før ikke ga start |
+| Hvorfor er en dag med, eller ikke med? | 19 – Døgntabell | `daily_table` |
+| Hvorfor er behovet på? | 24, 25 og 26 | `afterrun_active`, `manual_active`, `demand` |
+| Hvorfor ble det (ikke) sendt feilvarsel? | 2, 3, 38 og 39 | `fault_notify_allowed`, `hours_since_fault_notified`, `run_stalled`, `fault_lines`, `fault_active` |
+
+Kjør automasjonen manuelt for å få gjeldende status tilsendt på Pushover.
 
 ### 10.7 Forskjeller fra den opprinnelige «Snøsmelt - Hent data»
 
 - Resultatet skrives til hjelpere i stedet for til YAML-definerte template-sensorer.
 - Manuell kjøring styres av en input_button i stedet for et eget script, og utløpet treffes på tidspunktet (ikke først ved neste time).
+- Årsaksteksten er skrevet om til en kort, konkret hovedstatus (se §9.2), og er ikke lenger lik teksten i den opprinnelige automasjonen.
 - Tidspunkter lagres med minutt-presisjon, og etterdrift regnes nøyaktig fra tidspunktet. Den opprinnelige automasjonen rundet ned til hel time og la på én time, slik at «3 og 6 timer» i praksis ga 4 og 7 timer. Standard er derfor 4 og 7 timer her, som gir samme gangtid.
 - Hendelsen heter `webhome_snosmelt_update` (tidligere `metno_next6h_update`).
 
@@ -256,5 +397,8 @@ Ingen egne debug-varsler. Alle mellomverdier er synlige i sporloggen (Trace) til
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
 - Hjelpere: https://github.com/surematu/WebHomeHelpFiles/blob/main/packages/snosmelt_hjelpere.yaml
+- Eksempel på feilsensorer og fellesfeil: https://github.com/surematu/WebHomeHelpFiles/blob/main/packages/snosmelt_fellesfeil_eksempel.yaml
 - Home Assistant packages: https://www.home-assistant.io/docs/configuration/packages/
 - weather.get_forecasts: https://www.home-assistant.io/integrations/weather/#action-weatherget_forecasts
+- Installasjon på nytt anlegg: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_installasjon.md
+- Eksempel på dashbord: https://github.com/surematu/WebHomeHelpFiles/blob/main/dashboards/snosmelt_dashbord_eksempel.yaml

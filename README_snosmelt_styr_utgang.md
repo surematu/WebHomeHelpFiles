@@ -16,7 +16,7 @@ Skru av automasjonen for den ene kontaktoren. Da røres ikke utgangen, og den ka
 
 ### 2.3 Varsel om feil
 
-Kontaktoren er PÅ, forventet last er 6500 W, men det måles 0 W i 2 minutter. Du får varselet «⚠️ Snøsmelt feil - Snø Q1-2» med målt verdi og hva som bør sjekkes.
+Kontaktoren er PÅ, forventet last er 6500 W, men det måles 0 W i 2 minutter. Du får varselet «⚠️ Snøsmelt feil - Tavle A Kontaktor 1» med målt verdi og hva som bør sjekkes.
 
 ### 2.4 Redusert pådrag
 
@@ -35,6 +35,9 @@ Lasten kommer noen sekunder etter innkobling, og små spoleeffekter kan måles s
 
 **Hva gjør «Feil-hjelper»?**
 Den husker at det er feil. Da får du ett varsel per feil, og et varsel når feilen er borte. Uten den sendes varsel hver gang feilen oppstår på nytt, for eksempel i hver puls når pådrag er under 100 %.
+
+**Kan jeg slå utgangen av eller på for hånd mens automasjonen er på?**
+Nei, den rettes tilbake etter startforsinkelsen + 5 sekunder (35 sekunder som standard). Skru av automasjonen for kontaktoren først.
 
 **Hva skjer hvis «Snøsmelt behov» er utilgjengelig?**
 Det tolkes som AV, og utgangen slås AV.
@@ -99,7 +102,19 @@ Utgangen styres ikke, og det sendes ingen varsler for den utgangen – heller ik
 
 ## 6. Funksjonsbeskrivelse
 
-Automasjonen kjøres hvert minutt, med en gang «Snøsmelt behov» endrer seg, når bryteren kommer tilbake fra utilgjengelig, ved omstart av Home Assistant, med en gang automasjonen selv skrus PÅ, når en av overvåkningene slår ut, og ved planlagt sjekk på faste ukedager.
+Automasjonen kjøres bare når noe skjer, slik at hver kjøring i sporloggen betyr noe:
+
+| Når | Trigger |
+|---|---|
+| «Snøsmelt behov» endrer seg | `demand_changed` |
+| Utgangen står feil i forhold til behovet i mer enn startforsinkelsen + 5 sekunder (f.eks. slått av eller på for hånd) | `output_mismatch` |
+| Utgangen kommer tilbake fra utilgjengelig | `switch_recovered` |
+| Home Assistant starter | `ha_start` |
+| Automasjonen skrus PÅ | `automation_enabled` |
+| Hvert 15. minutt, som sikkerhetssjekk (kun ved pådrag 100 %) | `safety_check` |
+| Hvert minutt (kun ved pådrag under 100 %, pulsingen trenger det) | `pulse_tick` |
+| En overvåkning har slått ut, eller utgangen er bekreftet OK | `fault_*`, `ok_verified` |
+| Planlagt sjekk på faste ukedager | `scheduled_check` |
 
 **Styring**
 
@@ -171,21 +186,21 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) kontrolleres det om en 
 - «Snøsmelt - Hent data» satt opp, med hjelperen «Snøsmelt behov» (`input_boolean.snosmelt_behov`).
 - En switch-entitet for utgangen.
 - `script.varsel_pushover_send_melding_webhome` (fra `blueprints/scripts/varsel_pushover.yaml`) hvis varsling brukes.
-- Valgfritt: én input_boolean per utgang som «Feil-hjelper», f.eks. `input_boolean.snosmelt_q1_2_feil`.
+- Valgfritt: én input_boolean per utgang som «Feil-hjelper», f.eks. `input_boolean.snosmelt_tavle_a_kontaktor_1_feil`.
 
 ### 10.2 Eksempler
 
 **Automasjon fra blueprint (YAML):**
 ```yaml
-alias: Snøsmelt - Styr utgang - Q1-2
+alias: Snøsmelt - Styr utgang - Tavle A Kontaktor 1
 use_blueprint:
   path: surematu/snosmelt_styr_utgang.yaml
   input:
     demand_entity: input_boolean.snosmelt_behov
-    output_switch: switch.tavle_rs52_sno_q1_2_rs52_433_002_xo01_1
-    power_sensor: sensor.tavle_rs52_rs52_433_002_xi1_sno_q1_2_effekt_kalkulert_1
+    output_switch: switch.tavle_a_kontaktor_1
+    power_sensor: sensor.tavle_a_kontaktor_1_effekt
     power_expected: 6500
-    coil_sensor: sensor.tavle_rs52_sno_q1_2_rs52_433_002_xo01_1_kontaktor_effekt
+    coil_sensor: sensor.tavle_a_kontaktor_1_spole_effekt
     coil_expected: 2.5
 ```
 
@@ -199,22 +214,27 @@ use_blueprint:
 
 ### 10.4 Beregnede verdier og variabler
 
-| Variabel | Beskrivelse |
-|---|---|
-| `trigger_id` | Hvilken trigger som startet kjøringen (`time`, `demand_changed`, `fault_power_low` …) |
-| `output_name` | Navn brukt i varsel |
-| `demand_on` | true når «Snøsmelt behov» er PÅ |
-| `duty`, `period`, `phase`, `on_minutes` | Puls-beregning |
-| `should_be_on` | Ønsket tilstand på utgangen |
-| `start_delay_s` | Tilfeldig ventetid før innkobling i denne kjøringen (0 når den ikke brukes) |
-| `current_switch_state` | Tilstanden til utgangen før kjøringen |
-| `power_now`, `coil_now` | Måleverdier |
-| `power_limit`, `coil_limit`, `stuck_limit` | Grenser regnet ut fra forventet verdi og prosent |
-| `latch_configured`, `latch_was_on` | Om «Feil-hjelper» er valgt, og om den var PÅ |
-| `fault_message`, `fault_should_notify` | Feiltekst og om varsel skal sendes |
-| `fault_now_*`, `fault_now_lines` | Hvilke feil som står akkurat nå (brukes av planlagt sjekk) |
+Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): hvert steg gjør én ting, og de viktigste stegene har en tekst eller tabell som oppsummerer vurderingen.
 
-Overvåkningen bruker template-triggere med `trigger_variables` (`tv_*`), slik at vilkårene må være sanne sammenhengende i «forsinkelse før feil».
+| Steg | Variabel | Beskrivelse |
+|---|---|---|
+| 2 | `trigger_id`, `trigger_text` | Hvorfor automasjonen kjørte, som ID og i klartekst (f.eks. «Snøsmelt behov endret seg», «Utgangen sto feil i forhold til behovet») |
+| 3 | `output_name` | Navn brukt i varsel |
+| 4 | `demand_state`, `demand_on`, `current_switch_state` | Behovet og utgangen slik de sto da kjøringen startet |
+| 5 | `duty`, `period`, `phase`, `on_minutes`, `pulse_on` | Puls-beregning. `pulse_on` er alltid true ved 100 % pådrag |
+| 6 | `should_be_on`, `planned_action`, `decision_text` | Ønsket tilstand, hva som gjøres («slå på», «slå av» eller «ingen endring»), og hele vurderingen i én setning |
+| 7 | `start_delay_s` | Tilfeldig ventetid før innkobling i denne kjøringen (0 når den ikke brukes) |
+| 8 | `switch_state_now`, `power_now`, `coil_now`, `power_limit`, `coil_limit`, `stuck_limit` | Måleverdier etter at utgangen er satt, og grensene regnet ut fra forventet verdi og prosent |
+| 9 | `has_power`, `has_coil`, `has_not_on_check` | Hvilke overvåkninger som er i bruk |
+| 10 | `fault_now_not_on`, `fault_now_power_low`, `fault_now_coil_low`, `fault_now_stuck` | Hvilke feil som står akkurat nå |
+| 11 | `monitor_table` | Én rad per sjekk: `sjekk`, `i_bruk`, `malt`, `grense`, `feil_na` |
+| 12 | `latch_configured`, `latch_was_on`, `can_notify` | Feil-hjelper, og om varsel kan sendes |
+| 13 | `fault_now_lines` | Feiltekstene som brukes av planlagt sjekk |
+| 14 | `fault_message`, `fault_should_notify` | Feiltekst og om varsel skal sendes, når en overvåkning har slått ut |
+
+Eksempel på `decision_text`: «Behov PÅ (on), pådrag 100 % → utgangen skal være PÅ. Utgangen er off → slå på.»
+
+Overvåkningen bruker template-triggere med `trigger_variables` (`tv_*`), slik at vilkårene må være sanne sammenhengende i «forsinkelse før feil». Selve ventetiden vises ikke i sporloggen. `trigger_text` sier hvilken overvåkning som slo ut, og `monitor_table` viser verdiene i det kjøringen startet.
 
 Triggeren `automation_enabled` er en template-trigger på automasjonens egen tilstand (`this.entity_id`). Den slår til i det automasjonen skrus PÅ.
 
@@ -226,15 +246,28 @@ Triggeren `automation_enabled` er en template-trigger på automasjonens egen til
 | Utgangen utilgjengelig | Ingen kommando sendes. Riktig tilstand settes når den kommer tilbake |
 | Målesensor utilgjengelig | Ingen feil meldes for lav last/spole (verdien kan ikke vurderes) |
 | Forventet verdi er 0 | Overvåkningen for den målingen er av |
-| Kommando feiler | Feilen logges, og neste minutt-kjøring prøver på nytt |
+| Kommando feiler | Feilen logges. Sikkerhetssjekken prøver på nytt innen 15 minutter (1 minutt ved pådrag under 100 %). «Ikke på ved behov» varsler etter «forsinkelse før feil» |
+| Utgangen slås av eller på for hånd mens automasjonen er på | Rettes etter startforsinkelsen + 5 sekunder |
 | Spoleeffekten faller kort til 0 | Fanges av «forsinkelse før feil». «Bekreftet OK» bruker last når lastmåling finnes |
 
 ### 10.6 Varsling og debug info
 
-Ingen egne debug-varsler. Alle mellomverdier er synlige i sporloggen (Trace). Kjør automasjonen manuelt for å få status tilsendt på Pushover.
+Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjonen. Blueprintet lagrer de 30 siste kjøringene (standard i Home Assistant er 5). Ved pådrag 100 % kjører automasjonen bare når noe skjer, pluss sikkerhetssjekken hvert 15. minutt, så 30 kjøringer dekker flere timer.
+
+| Spørsmål | Se på steg | Variabel |
+|---|---|---|
+| Hvorfor kjørte den nå? | 2 | `trigger_text` |
+| Hvorfor ble utgangen slått på eller av, eller ikke rørt? | 6 | `decision_text` |
+| Hvor lenge ventet den før innkobling? | 7-A | `start_delay_s` |
+| Hva var målt, og hva var grensen? | 11 | `monitor_table` |
+| Hvorfor ble det (ikke) sendt varsel? | 12 og 14 | `can_notify`, `latch_was_on`, `fault_should_notify` |
+
+Ved pådrag under 100 % kjører automasjonen hvert minutt, og de fleste kjøringene er da minuttsjekker. Kjør automasjonen manuelt for å få status tilsendt på Pushover.
 
 ## 11. Dokumentasjon
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_styr_utgang.yaml
 - Overordnet: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 - Template-trigger: https://www.home-assistant.io/docs/automation/trigger/#template-trigger
+- Installasjon på nytt anlegg: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_installasjon.md
+- Eksempel på dashbord: https://github.com/surematu/WebHomeHelpFiles/blob/main/dashboards/snosmelt_dashbord_eksempel.yaml

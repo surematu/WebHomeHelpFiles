@@ -1,0 +1,581 @@
+# Snøsmelt – eksempel på dashbord (startside, feilsøking og tavleside)
+#
+# Hører til blueprintene
+#   blueprints/automation/snosmelt_hent_data.yaml
+#   blueprints/automation/snosmelt_styr_utgang.yaml
+# og bruker entitetene fra
+#   packages/snosmelt_hjelpere.yaml            (faste ID-er, skal ikke endres)
+#   packages/snosmelt_fellesfeil_eksempel.yaml (Tavle A / Kontaktor 1, tilpasses)
+#
+# Dette er et EKSEMPEL som må tilpasses anlegget. Alt som må byttes ut er
+# merket «TILPASS». Hele installasjonen er beskrevet steg for steg i
+# README_snosmelt_installasjon.md.
+#
+# Tre visninger:
+#   1. snosmelt     Startside for bruker: status, snø/rim, manuell kjøring, tavler
+#   2. feilsoking   Feilsøking for admin: alle hjelpere, automatikk, historikk
+#   3. tavle-a      Én side per tavle: én boks per kontaktor (kopieres per tavle)
+#
+# Bruk:
+#   1. Lag et dashbord (her: /dashboard-snosmelting) eller bruk et eksisterende.
+#   2. Åpne dashbordet → Rediger → ⋮ → Rå konfigurasjonsredigering.
+#   3. Lim inn visningene under `views:` og tilpass entiteter og stier.
+#
+# Egendefinerte kort (HACS):
+#   - Bubble Card   brukes på feilsøkings- og tavlesiden (testet med 3.2.0)
+#   - plotly-graph  brukes til historikken på feilsøkingssiden (kan sløyfes)
+# Startsiden bruker bare standardkortene i Home Assistant.
+#
+# Vis bare for admin under testing: legg inn på hver visning
+#     visible:
+#       - user: <bruker-ID>            # Innstillinger → Personer → Brukere → ID
+# og fjern det når løsningen er godkjent.
+#
+# Versjon: 2026.11.01
+
+views:
+  # ===========================================================================
+  # 1. STARTSIDE  –  det brukeren ser
+  # ===========================================================================
+  - type: sections
+    title: Snøsmelting
+    path: snosmelt
+    max_columns: 4
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading_style: title
+            heading: Snøsmelting
+
+          # --- Statusboks ----------------------------------------------------
+          # Grå = av, grønn = snøsmelting pågår, rød = fellesfeil.
+          # Første linje er «Snøsmelt - Årsak», liten skrift under er
+          # «Snøsmelt - Årsak - Utvidet forklaring». Ved fellesfeil kommer
+          # årsaken til feilen først.
+          # NB: Markdown-kortet fjerner `style` og `slot`, så ikonet i boksen
+          # følger typen (info / success / warning / error) og kan ikke byttes.
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set arsak = states('input_text.snosmelt_arsak') %}
+              {% set forklaring = states('input_text.snosmelt_forklaring') %}
+              {% if is_state('sensor.snosmelt_samlestatus', 'Fellesfeil') %}
+              <ha-alert alert-type="error" title="Fellesfeil">{{ states('sensor.snosmelt_fellesfeil_arsak') }}<br><br>{{ 'Snøsmelting pågår.' if is_state('input_boolean.snosmelt_behov', 'on') else 'Snøsmeltingen er AV.' }} {{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+              {% elif is_state('sensor.snosmelt_samlestatus', 'På') %}
+              <ha-alert alert-type="success" title="Snøsmelting pågår">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+              {% else %}
+              <ha-alert alert-type="info" title="Snøsmeltingen er AV">{{ arsak }}<br><br><small>{{ forklaring }}</small></ha-alert>
+              {% endif %}
+
+          # --- Snø og rim ----------------------------------------------------
+          - type: tile
+            entity: input_boolean.snosmelt_sno_detektert
+            name: Snø
+            icon: mdi:weather-snowy-heavy
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            grid_options:
+              columns: 6
+              rows: 1
+          - type: tile
+            entity: input_boolean.snosmelt_rim_detektert
+            name: Rim
+            icon: mdi:snowflake-alert
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            grid_options:
+              columns: 6
+              rows: 1
+
+          # --- Manuell kjøring -----------------------------------------------
+          # Ett trykk starter, nytt trykk stopper. Antall timer settes i
+          # «Snøsmelt - Hent data» (Manuell kjøring, timer).
+          - type: button
+            name: Manuell kjøring 6 timer            # TILPASS: samme antall timer som i blueprintet
+            icon: mdi:gesture-tap-button
+            show_name: true
+            show_icon: true
+            show_state: false
+            tap_action:
+              action: perform-action
+              perform_action: input_button.press
+              target:
+                entity_id: input_button.snosmelt_manuell_kjoring
+            hold_action:
+              action: none
+            grid_options:
+              columns: 12
+              rows: 2
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set til = as_timestamp(states('input_datetime.snosmelt_manuell_til'), 0) %}
+              {% if til > as_timestamp(now()) %}
+              <ha-alert alert-type="warning" title="Manuell kjøring er PÅ til kl. {{ til | timestamp_custom('%H:%M') }}">Trykk på knappen over for å stoppe.</ha-alert>
+              {% else %}
+              <ha-alert alert-type="info" title="Manuell kjøring er AV">Trykk på knappen over for å kjøre anlegget i 6 timer uansett vær.</ha-alert>
+              {% endif %}
+
+          # --- Tavler --------------------------------------------------------
+          # Tre like fliser per tavle der bare den som stemmer er synlig:
+          # grå = Av, gul = På, rød med bjelle = Problem. Trykk åpner tavlesiden.
+          # Kopier alle tre flisene for hver tavle.                # TILPASS
+          - type: heading
+            heading_style: title
+            heading: Tavler
+          - type: tile
+            entity: sensor.snosmelt_tavle_a_status
+            name: Tavle A
+            icon: mdi:snowflake-melt
+            color: grey
+            tap_action:
+              action: navigate
+              navigation_path: /dashboard-snosmelting/tavle-a
+            icon_tap_action:
+              action: navigate
+              navigation_path: /dashboard-snosmelting/tavle-a
+            grid_options:
+              columns: 12
+              rows: 1
+            visibility:
+              - condition: state
+                entity: sensor.snosmelt_tavle_a_status
+                state: Av
+          - type: tile
+            entity: sensor.snosmelt_tavle_a_status
+            name: Tavle A
+            icon: mdi:snowflake-melt
+            color: amber
+            tap_action:
+              action: navigate
+              navigation_path: /dashboard-snosmelting/tavle-a
+            icon_tap_action:
+              action: navigate
+              navigation_path: /dashboard-snosmelting/tavle-a
+            grid_options:
+              columns: 12
+              rows: 1
+            visibility:
+              - condition: state
+                entity: sensor.snosmelt_tavle_a_status
+                state: På
+          - type: tile
+            entity: sensor.snosmelt_tavle_a_status
+            name: Tavle A
+            icon: mdi:bell-alert
+            color: red
+            tap_action:
+              action: navigate
+              navigation_path: /dashboard-snosmelting/tavle-a
+            icon_tap_action:
+              action: navigate
+              navigation_path: /dashboard-snosmelting/tavle-a
+            grid_options:
+              columns: 12
+              rows: 1
+            visibility:
+              - condition: state
+                entity: sensor.snosmelt_tavle_a_status
+                state: Problem
+
+          # --- Til feilsøking (bare admin) -----------------------------------
+          - type: button
+            name: Feilsøking (Admin)
+            icon: mdi:wrench
+            show_name: true
+            show_icon: true
+            tap_action:
+              action: navigate
+              navigation_path: /dashboard-snosmelting/feilsoking
+            grid_options:
+              columns: 12
+              rows: 2
+            visibility:
+              - condition: user
+                users:
+                  - BRUKER_ID_ADMIN                     # TILPASS
+
+  # ===========================================================================
+  # 2. FEILSØKING  –  for admin
+  # ===========================================================================
+  - type: sections
+    title: Snøsmelt - Feilsøking
+    path: feilsoking
+    subview: true
+    back_path: /dashboard-snosmelting/snosmelt
+    max_columns: 4
+    visible:
+      - user: BRUKER_ID_ADMIN                           # TILPASS
+    sections:
+      # --- Drift: alle statusene i hver sin boks ------------------------------
+      - type: grid
+        cards:
+          - type: heading
+            heading_style: title
+            heading: Drift (Admin)
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            entity: sensor.snosmelt_samlestatus
+            name: Snøsmelt - Samlestatus
+            icon: mdi:snowflake-melt
+            show_state: true
+            scrolling_effect: false
+            button_action:
+              tap_action:
+                action: more-info
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            entity: binary_sensor.snosmelt_fellesfeil
+            name: Snøsmelt - Fellesfeil
+            icon: mdi:bell-alert
+            show_state: true
+            scrolling_effect: false
+            button_action:
+              tap_action:
+                action: more-info
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            entity: sensor.snosmelt_fellesfeil_arsak
+            name: Snøsmelt - Fellesfeil årsak
+            icon: mdi:bell-alert
+            show_state: true
+            scrolling_effect: false
+            button_action:
+              tap_action:
+                action: more-info
+          # Driftsstatus med Snø og Rim som underknapper
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            entity: input_boolean.snosmelt_behov
+            state_content: state
+            scrolling_effect: false
+            button_action:
+              tap_action:
+                action: more-info
+            sub_button:
+              main:
+                - entity: input_boolean.snosmelt_sno_detektert
+                  name: Snø
+                  show_name: true
+                - entity: input_boolean.snosmelt_rim_detektert
+                  name: Rim
+                  show_name: true
+              bottom: []
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            entity: input_text.snosmelt_arsak
+            name: Snøsmelt - Årsak
+            show_state: true
+            scrolling_effect: false
+            button_action:
+              tap_action:
+                action: more-info
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            entity: input_text.snosmelt_forklaring
+            name: Snøsmelt - Årsak - Utvidet forklaring
+            show_state: true
+            scrolling_effect: false
+            button_action:
+              tap_action:
+                action: more-info
+          # Manuell kjøring: trykk på boksen starter/stopper
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            entity: input_datetime.snosmelt_manuell_til
+            name: Manuellkjøring (Trykk for 6 timer)   # TILPASS: antall timer
+            icon: mdi:gesture-tap-button
+            show_state: true
+            scrolling_effect: false
+            button_action:
+              tap_action:
+                action: perform-action
+                perform_action: input_button.press
+                target:
+                  entity_id: input_button.snosmelt_manuell_kjoring
+            tap_action:
+              action: perform-action
+              perform_action: input_button.press
+              target:
+                entity_id: input_button.snosmelt_manuell_kjoring
+            sub_button:
+              main:
+                - entity: input_boolean.snosmelt_behov
+                  show_name: false
+              bottom: []
+
+      # --- Automatikk, historikk og værdata -----------------------------------
+      - type: grid
+        cards:
+          - type: heading
+            heading_style: title
+            heading: Automatikk (Admin)
+          - type: custom:bubble-card
+            card_type: button
+            button_type: switch
+            entity: automation.snosmelt_hent_data      # TILPASS
+            name: Snøsmelt - Hent data
+            icon: mdi:robot
+            show_last_changed: true
+            scrolling_effect: false
+            button_action:
+              tap_action:
+                action: more-info
+
+          - type: heading
+            heading_style: title
+            heading: Historikk (Admin)
+          # Kan sløyfes hvis plotly-graph ikke er installert.
+          - type: custom:plotly-graph
+            hours_to_show: 24
+            refresh_interval: 10
+            grid_options:
+              columns: 12
+              rows: 3
+            entities:
+              - entity: input_boolean.snosmelt_behov
+                name: Snøsmelt
+                filters:
+                  - map_y: "y === 'on' ? 1 : 0"
+                line:
+                  color: orange
+                  width: 8
+              - entity: input_boolean.snosmelt_rim_detektert
+                name: Rim detektert
+                filters:
+                  - map_y: "y === 'on' ? 1 : 0"
+                line:
+                  color: blue
+                  width: 4
+              - entity: input_boolean.snosmelt_sno_detektert
+                name: Snø detektert
+                filters:
+                  - map_y: "y === 'on' ? 1 : 0"
+                line:
+                  color: red
+                  width: 2
+            defaults:
+              yaxes:
+                fixedrange: true
+            layout:
+              xaxis:
+                tickmode: auto
+                nticks: 15
+                tickangle: -45
+                rangeselector:
+                  "y": 0
+                  buttons:
+                    - count: 4
+                      label: 4h
+                      step: hour
+                    - count: 24
+                      label: 24h
+                      step: hour
+                    - count: 168
+                      label: 7d
+                      step: hour
+                rangeslider:
+                  visible: false
+              yaxis:
+                tickmode: array
+                tickvals: [0, 1]
+                ticktext: [Stopp, Aktiv]
+                range: [-0.6, 1.2]
+
+          - type: heading
+            heading_style: title
+            heading: Værmelding (Admin)
+          - type: entities
+            show_header_toggle: false
+            entities:
+              - entity: automation.snosmelt_hent_data  # TILPASS
+                secondary_info: last-triggered
+              - entity: weather.forecast_home          # TILPASS
+              - entity: input_text.snosmelt_detaljer
+                name: Værdata i vinduet
+              - entity: input_datetime.snosmelt_sno_sist_aktiv
+              - entity: input_datetime.snosmelt_rim_sist_aktivert
+              - entity: input_datetime.snosmelt_manuell_til
+              - entity: input_datetime.snosmelt_sist_fullfort
+              - entity: input_datetime.snosmelt_feil_sist_varslet
+          # Kort forklaring av reglene. Tallene er standardverdiene i
+          # blueprintet og må rettes hvis innstillingene endres.     # TILPASS
+          - type: markdown
+            content: |-
+              Er laveste temperatur de neste 6 timene ...
+
+              **... varmere enn -5**;
+              Sjekk værmelding for de neste **3 timene.**
+              Snøsmelt kjører etterdrift i 4 timer etter siste snøfall.
+
+              **... -5 eller kaldere**;
+              Sjekk værmelding for de neste **6 timene**.
+              Snøsmelt kjører etterdrift i 7 timer etter siste snøfall.
+
+              **Nå:** {{ states('input_text.snosmelt_detaljer') }}
+
+  # ===========================================================================
+  # 3. TAVLESIDE  –  én visning per tavle (kopier og tilpass)
+  # ===========================================================================
+  - type: sections
+    title: Tavle A                                     # TILPASS
+    path: tavle-a                                      # TILPASS
+    subview: true
+    back_path: /dashboard-snosmelting/snosmelt
+    max_columns: 4
+    sections:
+      # --- Det brukeren ser: én boks per kontaktor ----------------------------
+      - type: grid
+        cards:
+          - type: heading
+            heading_style: title
+            heading: Tavle A - Alle enheter            # TILPASS
+          # Boksen er selve bryteren. Underknapper fra venstre:
+          #   1. Effekt     vises bare når det trekkes last (over 50 W)
+          #   2. Feil       rød bjelle, vises BARE ved feil
+          #   3. Automatikk robot, åpner «Styr utgang» for denne kontaktoren
+          # `styles` gjør underknapp nr. 2 (Feil) rød. Bytter du rekkefølge,
+          # må tallet i `.bubble-sub-button-2` følge med.
+          # Kopier hele kortet for hver kontaktor.                 # TILPASS
+          - type: custom:bubble-card
+            card_type: button
+            button_type: switch
+            entity: switch.tavle_a_kontaktor_1         # TILPASS
+            icon: mdi:snowflake-melt
+            show_last_changed: true
+            scrolling_effect: false
+            button_action:
+              tap_action:
+                action: more-info
+            sub_button:
+              main:
+                - entity: sensor.tavle_a_kontaktor_1_effekt        # TILPASS
+                  name: Effekt
+                  show_icon: false
+                  show_state: true
+                  show_background: true
+                  visibility:
+                    - condition: numeric_state
+                      entity: sensor.tavle_a_kontaktor_1_effekt    # TILPASS
+                      above: 50
+                - entity: binary_sensor.snosmelt_tavle_a_kontaktor_1_feil   # TILPASS
+                  name: Feil
+                  icon: mdi:bell-alert
+                  show_icon: true
+                  show_name: false
+                  show_state: false
+                  show_background: true
+                  tap_action:
+                    action: more-info
+                  visibility:
+                    - condition: state
+                      entity: binary_sensor.snosmelt_tavle_a_kontaktor_1_feil   # TILPASS
+                      state: "on"
+                - entity: automation.snosmelt_styr_utgang_tavle_a_kontaktor_1   # TILPASS
+                  name: Automatikk
+                  icon: mdi:robot
+                  show_icon: true
+                  show_name: false
+                  show_state: false
+                  show_background: true
+                  tap_action:
+                    action: more-info
+              bottom: []
+            styles: |-
+              .bubble-sub-button-2 { background-color: var(--error-color, #db4437) !important; }
+              .bubble-sub-button-2 * { color: white !important; }
+
+      # --- For admin: alle målinger per kontaktor ------------------------------
+      - type: grid
+        visibility:
+          - condition: user
+            users:
+              - BRUKER_ID_ADMIN                         # TILPASS
+        cards:
+          - type: heading
+            heading_style: title
+            heading: Tavle A - Snøsmelting (Admin)     # TILPASS
+          # Noter her det som er særegent for tavla: hva effektmåleren måler,
+          # normal last og spoleeffekt, sikringer osv.               # TILPASS
+          - type: markdown
+            content: |-
+              Skriv inn merknader om tavla her.
+          - type: entities
+            title: Kontaktor 1 (6,5 kW last, 2,5 W spole)   # TILPASS
+            show_header_toggle: false
+            entities:
+              - entity: switch.tavle_a_kontaktor_1                  # TILPASS
+                secondary_info: last-changed
+              - entity: sensor.tavle_a_kontaktor_1_effekt           # TILPASS
+                secondary_info: last-changed
+              - entity: sensor.tavle_a_kontaktor_1_spole_effekt     # TILPASS (sløyfes uten spolemåling)
+                name: Kontaktor - Effekt
+                secondary_info: last-changed
+              - entity: binary_sensor.snosmelt_tavle_a_kontaktor_1_feil   # TILPASS
+              - entity: automation.snosmelt_styr_utgang_tavle_a_kontaktor_1   # TILPASS
+                name: Styr utgang
+                secondary_info: last-triggered
+              - entity: input_boolean.snosmelt_behov
+                name: Snøsmelt - Driftsstatus
+                secondary_info: last-changed
+
+# =============================================================================
+# KNAPP TIL EN ANNEN STARTSIDE  (valgfri)
+# =============================================================================
+# Liten knapp uten tekst som viser tilstanden til hele anlegget og åpner
+# snøsmelt-siden. Legges på hovedstartsiden i et annet dashbord.
+# Ikonet er alltid snøsmelt-symbolet: grått = av, gult = snøsmelting pågår,
+# rødt = fellesfeil. To kort, bare ett er synlig om gangen.
+#
+#   - type: button
+#     entity: input_boolean.snosmelt_behov
+#     icon: mdi:snowflake-melt
+#     show_name: false
+#     show_state: false
+#     show_icon: true
+#     tap_action:
+#       action: navigate
+#       navigation_path: /dashboard-snosmelting/snosmelt
+#     hold_action:
+#       action: none
+#     double_tap_action:
+#       action: none
+#     grid_options:
+#       columns: 3
+#       rows: 1
+#     visibility:
+#       - condition: state
+#         entity: binary_sensor.snosmelt_fellesfeil
+#         state_not: "on"
+#   - type: button
+#     entity: binary_sensor.snosmelt_fellesfeil
+#     icon: mdi:snowflake-melt
+#     show_name: false
+#     show_state: false
+#     show_icon: true
+#     tap_action:
+#       action: navigate
+#       navigation_path: /dashboard-snosmelting/snosmelt
+#     hold_action:
+#       action: none
+#     double_tap_action:
+#       action: none
+#     grid_options:
+#       columns: 3
+#       rows: 1
+#     visibility:
+#       - condition: state
+#         entity: binary_sensor.snosmelt_fellesfeil
+#         state: "on"
