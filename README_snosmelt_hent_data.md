@@ -234,28 +234,50 @@ template:
 
 ### 10.4 Beregnede verdier og variabler
 
+Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): hvert steg gjør én ting, og værdataene legges i små tabeller med bare de kolonnene som brukes. Rådataene fra værvarselet ligger bare i stegene «Hent timevarsel» og «Hent døgnvarsel».
+
+**Tabeller**
+
+| Variabel | Steg | Innhold |
+|---|---|---|
+| `hourly_table` | 7 | Én rad per time i timevarselet: `i`, `tid` (f.eks. «ons 07:00»), `temp`, `nedbor`, `fukt` |
+| `window_table` | 9 | Radene fra `hourly_table` som avgjør behovet akkurat nå (3 eller 6 timer) |
+| `prediction_table` | 14 | Én rad per fremtidig time, til og med første treff: `tid`, `modus` (kaldt/varmt), `timer`, `nedbor_sum`, `temp_min`, `temp_maks`, `temp`, `duggpunkt`, `sno`, `frost` |
+| `daily_table` | 16 | Én rad per døgn: `dato`, `dager_frem`, `temp_hoy`, `temp_lav`, `nedbor`, `etter_timevarsel`, `sno` |
+
+**Vurdering nå**
+
 | Variabel | Beskrivelse |
 |---|---|
-| `fc_list` | Timevarselet fra weather-entiteten |
-| `min_temp_cold_window` | Laveste temperatur i «kaldt»-vinduet |
-| `is_cold_mode` | true når `min_temp_cold_window` ≤ grense kaldt/varmt |
-| `hours_to_check` / `afterrun_hours` | Valgt vindu og etterdrift for gjeldende modus |
-| `prec_list`, `temp_list`, `hum_list` | Verdier for valgt vindu |
-| `has_data` | true når alle tre listene har verdier |
+| `min_temp_cold_window`, `is_cold_mode` | Laveste temperatur i «kaldt»-vinduet, og om det gir kaldt-modus |
+| `hours_to_check`, `afterrun_hours` | Valgt vindu og etterdrift for gjeldende modus |
+| `temp_list`, `prec_list`, `hum_list`, `has_data` | Kolonnene fra `window_table`, og om alle tre har verdier |
 | `precip_sum`, `min_temp`, `max_temp`, `max_hum` | Nøkkelverdier for vinduet |
-| `temp_now`, `hum_now`, `dew_point` | Første time i varselet og beregnet duggpunkt |
-| `too_warm`, `too_cold`, `precip_expected` | Delvilkår for snø |
-| `snow_detected`, `frost_detected` | Snø og rim nå |
-| `afterrun_active`, `afterrun_remaining_h` | Etterdrift |
-| `manual_active`, `manual_remaining_h` | Manuell kjøring |
-| `demand` | Samlet behov |
-| `reason_combined`, `details_text` | Tekstene som skrives til hjelperne |
-| `explanation_weather`, `explanation_text` | Forklaringen i klarspråk, uten og med manuell kjøring |
-| `fc_daily` | Døgnvarselet fra weather-entiteten |
-| `next_start_hourly`, `next_start_daily` | Første spådde start som `snow\|tidspunkt` eller `frost\|tidspunkt`, tom hvis ingen |
-| `forecast_days`, `next_start_text` | Antall dager varselet dekker, og setningen om neste start |
+| `temp_now`, `hum_now`, `dew_point` | Første time i vinduet og beregnet duggpunkt |
+| `too_warm`, `too_cold`, `precip_expected`, `snow_detected` | Delvilkår for snø, og resultatet |
+| `dew_point_margin`, `frost_near_dew_point`, `frost_cold_enough`, `frost_detected` | Delvilkår for rim, og resultatet |
 
-Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reason`, `snow_detected`, `frost_detected`, `afterrun_active`, `manual_active`, `has_data`, `is_cold_mode`, `precip_sum`, `min_temp`, `max_temp`, `max_hum`, `dew_point`, `min_temp_cold_window`, `explanation`, `next_start_hourly`, `next_start_daily`.
+**Neste start**
+
+| Variabel | Beskrivelse |
+|---|---|
+| `prediction_last_row`, `prediction_hit` | Siste rad i spådomstabellen, og om den er et treff |
+| `daily_hits` | Radene i døgntabellen med snø |
+| `next_start_hourly`, `next_start_daily` | Første spådde start som `snow\|tidspunkt` eller `frost\|tidspunkt`, tom hvis ingen |
+| `forecast_days` | Antall dager frem døgnvarselet dekker |
+
+**Behov og tekster**
+
+| Variabel | Beskrivelse |
+|---|---|
+| `afterrun_active`, `afterrun_remaining_h` | Etterdrift |
+| `manual_active`, `manual_remaining_h`, `manual_until_text` | Manuell kjøring |
+| `weather_demand`, `demand` | Behov fra vær (snø, rim eller etterdrift), og samlet behov |
+| `reason_weather`, `reason_combined` | Årsak ut fra været, og årsaken som skrives til hjelperen |
+| `explanation_weather`, `next_start_text`, `explanation_text` | Delene av forklaringen, og forklaringen som skrives til hjelperen |
+| `details_text` | Værdata som tekst |
+
+Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reason`, `explanation`, `next_start_hourly`, `next_start_daily`, `snow_detected`, `frost_detected`, `afterrun_active`, `manual_active`, `has_data`, `is_cold_mode`, `precip_sum`, `min_temp`, `max_temp`, `max_hum`, `dew_point`, `min_temp_cold_window`.
 
 ### 10.5 Feilhåndtering
 
@@ -272,7 +294,18 @@ Hendelsen `webhome_snosmelt_update` inneholder: `demand_entity`, `demand`, `reas
 
 ### 10.6 Varsling og debug info
 
-Ingen egne debug-varsler. Alle mellomverdier er synlige i sporloggen (Trace) til automasjonen, steg for steg. Kjør automasjonen manuelt for å få gjeldende status tilsendt på Pushover.
+Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjonen:
+
+| Spørsmål | Se på steg | Variabel |
+|---|---|---|
+| Hvilke værdata ble brukt? | 9 – Vurderingstabell | `window_table` |
+| Hvorfor ble det (ikke) snø? | 10 og 12 | `precip_sum`, `min_temp`, `max_temp`, `too_warm`, `too_cold`, `precip_expected`, `snow_detected` |
+| Hvorfor ble det (ikke) rim? | 11 og 13 | `dew_point`, `dew_point_margin`, `frost_near_dew_point`, `frost_cold_enough`, `frost_detected` |
+| Hvorfor står det at neste start er da? | 14 – Spådomstabell | Siste rad i `prediction_table` er treffet. Radene over viser hvorfor timene før ikke ga start |
+| Hvorfor er en dag med, eller ikke med? | 16 – Døgntabell | `daily_table` |
+| Hvorfor er behovet på? | 21, 22 og 23 | `afterrun_active`, `manual_active`, `demand` |
+
+Kjør automasjonen manuelt for å få gjeldende status tilsendt på Pushover.
 
 ### 10.7 Forskjeller fra den opprinnelige «Snøsmelt - Hent data»
 
