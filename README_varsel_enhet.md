@@ -37,6 +37,7 @@ Sensorer du velger som kritiske vil trigge umiddelbart varsel – uten å vente 
 - Valgfritt: Uptime Kuma-sensorer
 - Valgfritt: kritiske Uptime-sensorer for umiddelbar varsling
 - Valgfritt: ignore-lister for enheter/devices som skal ekskluderes
+- Valgfritt: `sensor.home_assistant_running` for restart-deteksjon (se 10.1.1)
 - Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
 
 ## 5. Innstillinger
@@ -149,7 +150,25 @@ For å fastslå når en enhet sist rapporterte brukes (i prioritert rekkefølge)
 
 - Batteridrevne enheter i Home Assistant med batteri-sensorer
 - Valgfritt: Uptime Kuma-integrasjon
+- Valgfritt: `sensor.home_assistant_running` (restart-deteksjon, se 10.1.1)
 - Pushover-integrasjon og script `script.varsel_pushover_send_melding_webhome`
+
+### 10.1.1 Restart-deteksjon (`sensor.home_assistant_running`)
+
+**Hva den gjør:** Etter en omstart av Home Assistant får alle entiteter ny `last_changed`. Batterienheter som ikke har rapportert siden omstarten ser da ut som de «mistet signal» samtidig. Blueprinten sammenligner derfor tidspunktet enhetene mistet signal med tidspunktet Home Assistant startet. Hvis **alle** nylig-mistet-enhetene ligger innenfor 10 minutter av oppstarten, blir tittelen «… uten signal etter restart» i stedet for «… mistet signal». Kun tittelen påvirkes – innholdet i varselet er det samme.
+
+**Forutsetning:** Blueprinten leser den hardkodede entiteten `sensor.home_assistant_running`. Den finnes **ikke** i Home Assistant fra før og må opprettes én gang per installasjon. Tilstanden skal være tidspunktet Home Assistant sist startet (timestamp).
+
+**Slik opprettes den (ingen YAML, ingen omstart):**
+1. Innstillinger → Enheter og tjenester → Legg til integrasjon → søk **Uptime** (Home Assistants egen, ikke Uptime Kuma) → Send inn.
+2. Integrasjonen lager entiteten `sensor.uptime` (kan hete `sensor.oppetid` e.l. avhengig av språk).
+3. Åpne entiteten → tannhjul → endre **Entitets-ID** til `sensor.home_assistant_running`. Navn kan settes til «Home Assistant Running».
+4. Kontroller i Utviklerverktøy → Tilstander at `sensor.home_assistant_running` viser et tidspunkt.
+
+**Verdt å vite:**
+- Rett etter at integrasjonen er lagt til viser sensoren tidspunktet den ble lagt til, ikke forrige omstart. Den blir riktig fra og med neste omstart av Home Assistant.
+- Mangler sensoren, virker alt annet som normalt – tittelen blir da alltid «mistet signal».
+- I tracen vises verdiene i steget «Steg 1H - HA restart-tid» (`ha_start_ts`, `ha_start_age_s`) og resultatet i «Steg 11A» (`all_offline_at_restart`). `ha_start_ts = 0` betyr at sensoren mangler.
 
 ### 10.2 Eksempler
 

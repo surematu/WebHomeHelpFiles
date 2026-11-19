@@ -27,6 +27,12 @@ blueprint:
       - "Nylig gikk offline" = gikk offline siden forrige 4-timers sjekk
       - Kritiske Uptime-statussensorer kan trigge øyeblikkelig varsel
 
+    Restart-deteksjon (valgfri):
+      - Forutsetter at sensor.home_assistant_running finnes i HA (tidspunkt for siste HA-oppstart).
+        Opprettes med integrasjonen "Uptime" + endret entitets-ID, se README_varsel_enhet.md 10.1.1
+      - Hvis alle nylig-mistet-enheter mistet signal ved HA-oppstart, blir tittelen
+        "uten signal etter restart". Mangler sensoren brukes vanlig tittel.
+
     Felles for alle:
       - Én ignore-liste for entities og devices (gjelder alle sjekkene)
       - Debug-detaljer slås på én gang
@@ -36,7 +42,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.11.00
+    Blueprint versjon: 2026.11.01
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
