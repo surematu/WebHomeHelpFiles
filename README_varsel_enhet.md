@@ -98,12 +98,12 @@ Sensorer du velger som kritiske vil trigge umiddelbart varsel – uten å vente 
 1. **Del 1 – Batterinivå:** Leser alle sensor-entiteter med batteriprosent og binary_sensor-entiteter med «lavt batteri»-indikasjon. Enheter under terskelen listes opp.
 2. **Del 2 – Signal langsomt:** Finner batteridrevne enheter som ikke har rapportert innen `max_age` (standard 72 timer). Viser også samlet liste fra terskel og opp.
 3. **Del 3 – Signal raskt:** Finner enheter som nettopp passerte `last_seen_threshold` (standard 4 timer). Vinduet er én 4-timers syklus bredt, slik at samme enhet varsles én gang.
-4. **Del 4 – Uptime Kuma:** Samler status for Uptime Kuma-enheter og bygger statuslinjer.
+4. **Del 4 – Uptime Kuma:** Samler status for Uptime Kuma-enheter og bygger statuslinjer. Status `pending` (Uptime Kuma prøver fortsatt å få kontakt) og `maintenance` regnes ikke som offline – enheten varsles først når den faktisk går til `down`. En enhet som står i `pending` kan fortsatt vises under «Ustabil oppetid» hvis oppetiden siste døgn er under 99,5 %.
 
 **Viktig dedupliseringsregel:** Hvis en enhet er nevnt i en tidligere del av samme melding, vises den ikke på nytt i en senere del.
 
 **4-timers syklus:**
-Kjøres automatisk hver 4. time. Sender melding om nylig mistet signal og Uptime Kuma-enheter som nylig gikk offline.
+Kjøres automatisk hver 4. time. Sender melding om nylig mistet signal og Uptime Kuma-enheter som gikk offline (`down`) siden forrige 4-timers sjekk. Enheter som bare står i `pending` utløser ikke varsel.
 
 **Kritisk Uptime-trigger:**
 Kritisk-merkede Uptime-sensorer trigger umiddelbart varsel ved statusendring (offline eller online igjen), med egen prioritet.

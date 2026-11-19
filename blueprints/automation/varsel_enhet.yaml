@@ -22,6 +22,9 @@ blueprint:
 
     Del 4 – Uptime Kuma:
       - Inkluderes i samme varsling som Del 1-3 ved time_pattern og planlagt/manuell sjekk
+      - Status "pending" (Uptime Kuma prøver fortsatt å få kontakt) og "maintenance"
+        regnes ikke som offline. Enheten varsles først når den faktisk går til "down"
+      - "Nylig gikk offline" = gikk offline siden forrige 4-timers sjekk
       - Kritiske Uptime-statussensorer kan trigge øyeblikkelig varsel
 
     Felles for alle:
@@ -33,7 +36,7 @@ blueprint:
       - entity_id med "last_seen" i navnet (og parsbar timestamp i state)
       - Fallback: entity.last_changed for sensor/binary_sensor
 
-    Blueprint versjon: 2026.08.02
+    Blueprint versjon: 2026.11.00
   domain: automation
   author: WebHome
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/varsel_enhet.yaml
@@ -322,7 +325,10 @@ action:
   - alias: "Steg 1U-A - Finn Uptime Kuma devices"
     variables:
       uptime_devices: |-
-        {%- set interval_s = 3600 -%}
+        {#- 14400s = 4t = én time_pattern-syklus, + 60s margin så en enhet som går offline akkurat ved sjekken ikke mistes -#}
+        {%- set interval_s = 14460 -%}
+        {#- pending = Uptime Kuma prøver fortsatt (retries), maintenance = planlagt. Ingen av dem er offline. -#}
+        {%- set not_offline_states = ['up', 'pending', 'maintenance'] -%}
         {%- set now_ts = as_timestamp(now()) | int(0) -%}
         {%- set ignore_e = ignore_entities if ignore_entities is iterable else [] -%}
         {%- set ignore_d = ignore_devices if ignore_devices is iterable else [] -%}
@@ -353,17 +359,20 @@ action:
               {%- if found.status_eid != '' and found.status_eid not in ignore_e -%}
                 {%- set status_state = states(found.status_eid) | string -%}
                 {%- set is_up = (status_state | lower) == 'up' -%}
+                {%- set is_offline = (status_state | lower) not in not_offline_states -%}
                 {%- set status_obj = states[found.status_eid] -%}
                 {%- set lc_ts = as_timestamp(status_obj.last_changed, default=0) | int(0) -%}
                 {%- set age_s = (now_ts - lc_ts) | int(0) -%}
-                {%- set is_new = (not is_up) and (age_s >= 0) and (age_s < interval_s) -%}
+                {%- set is_new = is_offline and (age_s >= 0) and (age_s < interval_s) -%}
                 {%- set dev_info = {
                   'device_name': dev_name,
                   'status_eid': found.status_eid,
                   'uptime1': states(found.uptime1_eid) if found.uptime1_eid != '' else 'ukjent',
                   'uptime30': states(found.uptime30_eid) if found.uptime30_eid != '' else 'ukjent',
                   'uptime365': states(found.uptime365_eid) if found.uptime365_eid != '' else 'ukjent',
+                  'status': status_state,
                   'is_up': is_up,
+                  'is_offline': is_offline,
                   'age_s': age_s,
                   'is_new': is_new
                 } -%}
@@ -384,7 +393,7 @@ action:
         {%- set ns = namespace(down_all=[], down_new=[], unstable=[]) -%}
 
         {%- for dev in d.all_devices -%}
-          {%- if not dev.is_up -%}
+          {%- if dev.is_offline -%}
             {%- set ns.down_all = ns.down_all + [dev] -%}
             {%- if dev.is_new and dev.status_eid not in urgent_eids -%}
               {%- set ns.down_new = ns.down_new + [dev] -%}
