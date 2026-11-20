@@ -27,7 +27,7 @@
 # (Innstillinger → Enheter og tjenester → Hjelpere → Mal), med de samme malene.
 # Det er gjort slik på vtoppen.
 #
-# Versjon: 2026.11.00
+# Versjon: 2026.11.01
 
 template:
   - sensor:
@@ -40,7 +40,7 @@ template:
         icon: mdi:bell-alert
         state: >-
           {% set kontaktorer = [
-            ['input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tappevann_kontaktor_overvaking_rs50_54_xk1'],
+            ['input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot'],
           ] %}                                                           {# TILPASS: alle kontaktorene på tavla #}
           {% if kontaktorer | count == 0 %}
             {{ none }}

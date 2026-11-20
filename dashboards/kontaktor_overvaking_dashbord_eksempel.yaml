@@ -31,7 +31,7 @@
 # Kontaktorkortet er «state» (bare visning), ikke «switch», slik at et trykk
 # aldri kan slå av en kontaktor ved et uhell.
 #
-# Versjon: 2026.11.00
+# Versjon: 2026.11.01
 
 views:
   # ===========================================================================
@@ -168,7 +168,7 @@ views:
             title: Overvåking (automasjoner)
             show_header_toggle: false
             entities:
-              - {entity: automation.tappevann_kontaktor_overvaking_rs50_54_xk1, name: RS50-54 XK1, secondary_info: last-triggered}   # TILPASS: én per kontaktor
+              - {entity: automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot, name: RS50-54 XK1, secondary_info: last-triggered}   # TILPASS: én per kontaktor
 
   # ===========================================================================
   # 2. TAVLESIDE (kopieres per tavle)
@@ -194,7 +194,7 @@ views:
             content: |-
               {% set status = states('sensor.tappevann_rs50_54_status') %}
               {% set kontaktorer = [
-                ['XK1', 'input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tappevann_kontaktor_overvaking_rs50_54_xk1'],
+                ['XK1', 'input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot'],
               ] %}{# TILPASS: [navn, feil-hjelper, automasjon] for alle kontaktorene på tavla #}
               {% set ns = namespace(l=[], navn=[]) %}
               {% for navn, feil, auto in kontaktorer %}
@@ -250,7 +250,7 @@ views:
                   tap_action: {action: more-info}
                   visibility:
                     - {condition: state, entity: input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil, state: "on"}   # TILPASS
-                - entity: automation.tappevann_kontaktor_overvaking_rs50_54_xk1      # TILPASS: automasjon
+                - entity: automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot      # TILPASS: automasjon
                   name: Automatikk
                   icon: mdi:robot
                   show_icon: true
@@ -287,7 +287,7 @@ views:
               - {entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk1_effekt_kalkulert, secondary_info: last-changed}
               - {entity: sensor.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_kontaktor_effekt, name: Kontaktor - Effekt, secondary_info: last-changed}
               - {entity: input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil, secondary_info: last-changed}
-              - {entity: automation.tappevann_kontaktor_overvaking_rs50_54_xk1, name: Kontaktor overvåking, secondary_info: last-triggered}
+              - {entity: automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot, name: Kontaktor overvåking, secondary_info: last-triggered}
           # Statistikkgraf (5-minutters snitt) i stedet for historikkgraf: lastsensorer som
           # oppdateres hvert par sekund gir svært mye data i en vanlig historikkgraf.
           - type: statistics-graph

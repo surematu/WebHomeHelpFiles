@@ -15,13 +15,18 @@ blueprint:
     - Henger inne: kontaktoren er AV, men det måles fortsatt last.
     - Vern: reléet melder overstrøm, overoppheting e.l.
 
+    Feil som allerede står når Home Assistant starter eller automasjonen skrus på,
+    fanges av en oppstartsjekk (ikke på, spole, henger inne og vern).
+
+    Anbefalt navn på automasjonen: «<navn på bryteren> - Robot».
+
     Styring: automasjonen styrer ingenting som standard. Valgfritt kan den slå
     kontaktoren PÅ igjen hvis den står AV (standard av).
 
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md
 
-    Blueprint versjon: 2026.11.01
+    Blueprint versjon: 2026.11.02
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kontaktor_overvaking.yaml
@@ -602,30 +607,30 @@ actions:
       switch_off_minutes: >-
         {% set s = states[io_switch] %}
         {{ ((as_timestamp(now()) - as_timestamp(s.last_changed)) / 60) | round(1) if (s is not none and s.state != 'on') else 0 }}
-      auto_on_attempted: false
 
-  - alias: Steg 7 – Slå kontaktoren PÅ igjen (kun hvis valgt)
+  - alias: Steg 7 – Skal kontaktoren slås PÅ automatisk nå (kun hvis valgt)
+    variables:
+      auto_on_attempted: >-
+        {{ io_auto_turn_on and has_not_on_check
+           and switch_state_start == 'off'
+           and trigger_id in ['fault_not_on', 'retry_check']
+           and (switch_off_minutes | float(0)) >= (io_not_on_delay_min | float(5)) }}
+
+  - alias: Steg 8 – Slå kontaktoren PÅ (kun hvis steg 7 sier ja)
     if:
       - condition: template
-        value_template: >-
-          {{ io_auto_turn_on and has_not_on_check
-             and switch_state_start == 'off'
-             and trigger_id in ['fault_not_on', 'retry_check']
-             and (switch_off_minutes | float(0)) >= (io_not_on_delay_min | float(5)) }}
+        value_template: "{{ auto_on_attempted }}"
     then:
-      - alias: Steg 7-A – Slå PÅ
+      - alias: Steg 8-A – Slå PÅ
         action: switch.turn_on
         target:
           entity_id: "{{ io_switch }}"
         continue_on_error: true
-      - alias: Steg 7-B – Vent litt så målingene oppdateres
+      - alias: Steg 8-B – Vent litt så målingene oppdateres
         delay:
           seconds: 10
-      - alias: Steg 7-C – Husk at den ble forsøkt slått PÅ
-        variables:
-          auto_on_attempted: true
 
-  - alias: Steg 8 – Les kontaktor og måleverdier (etter eventuell innkobling)
+  - alias: Steg 9 – Les kontaktor og måleverdier (etter eventuell innkobling)
     variables:
       switch_state_now: "{{ states(io_switch) }}"
       switch_state_text: "{{ {'on': 'PÅ', 'off': 'AV', 'unavailable': 'utilgjengelig', 'unknown': 'ukjent'}.get(states(io_switch), states(io_switch)) }}"
@@ -635,7 +640,7 @@ actions:
       protection_on: >-
         {{ protection_list | select('is_state', 'on') | map('state_attr', 'friendly_name') | list }}
 
-  - alias: Steg 9 – Hvilke feil står akkurat nå
+  - alias: Steg 10 – Hvilke feil står akkurat nå
     variables:
       fault_now_not_on: "{{ has_not_on_check and switch_state_now != 'on' }}"
       fault_now_coil_low: "{{ has_coil and switch_state_now == 'on' and (coil_value | float(-1)) >= 0 and (coil_value | float(0)) < (coil_limit | float(0)) }}"
@@ -644,7 +649,7 @@ actions:
       fault_now_stuck: "{{ has_power and switch_state_now == 'off' and (power_value | float(0)) > (stuck_limit | float(0)) }}"
       fault_now_protection: "{{ has_protection and (protection_on | count) > 0 }}"
 
-  - alias: Steg 10 – Overvåkingstabell – målt verdi mot grense for hver sjekk
+  - alias: Steg 11 – Overvåkingstabell – målt verdi mot grense for hver sjekk
     variables:
       monitor_table: >-
         {{ [
@@ -656,7 +661,7 @@ actions:
           {'sjekk': 'Vern', 'i_bruk': has_protection, 'malt': protection_on, 'grense': 'ingen på', 'feil_na': fault_now_protection}
         ] }}
 
-  - alias: Steg 11 – Er kontaktoren bekreftet OK akkurat nå
+  - alias: Steg 12 – Er kontaktoren bekreftet OK akkurat nå
     variables:
       ok_now: >-
         {% if switch_state_now == 'on' %}
@@ -670,13 +675,13 @@ actions:
           false
         {% endif %}
 
-  - alias: Steg 12 – Feil-hjelper og om varsel kan sendes
+  - alias: Steg 13 – Feil-hjelper og om varsel kan sendes
     variables:
       latch_configured: "{{ io_fault_latch is string and (io_fault_latch | trim) != '' }}"
       latch_was_on: "{{ (io_fault_latch is string and (io_fault_latch | trim) != '') and is_state(io_fault_latch, 'on') }}"
       can_notify: "{{ (pushover_destination | string | trim) != '' }}"
 
-  - alias: Steg 13 – Feiltekster for feilene som står nå (brukes av planlagt sjekk og manuell kjøring)
+  - alias: Steg 14 – Feiltekster for feilene som står nå (brukes av planlagt sjekk og manuell kjøring)
     variables:
       fault_now_lines: >-
         {% set ns = namespace(l=[]) %}
@@ -688,15 +693,67 @@ actions:
         {% if latch_was_on and ns.l | length == 0 %}{% set ns.l = ns.l + ['Feil er registrert tidligere, og kontaktoren er ikke bekreftet OK siden (f.eks. ikke nådd full last).'] %}{% endif %}
         {{ ns.l }}
 
-  - alias: Steg 14 – Feil oppdaget av overvåkingen
+  # Oppstartsjekk: en template-trigger slår ikke ut hvis feilen allerede står når
+  # Home Assistant starter eller automasjonen skrus på. Da sjekkes de korte
+  # sjekkene her i stedet: står en feil fortsatt etter forsinkelsen, er det feil.
+  - alias: Steg 15 – Oppstartsjekk – trengs den
+    variables:
+      startup_check_needed: >-
+        {{ trigger_id in ['automation_enabled', 'ha_start'] and not latch_was_on
+           and (fault_now_not_on or fault_now_coil_low or fault_now_stuck or fault_now_protection) }}
+      startup_wait_min: >-
+        {% set ns = namespace(m=[1]) %}
+        {% if fault_now_not_on %}{% set ns.m = ns.m + [io_not_on_delay_min | int(5)] %}{% endif %}
+        {% if fault_now_coil_low %}{% set ns.m = ns.m + [io_coil_delay_min | int(2)] %}{% endif %}
+        {% if fault_now_stuck %}{% set ns.m = ns.m + [io_stuck_delay_min | int(2)] %}{% endif %}
+        {% if fault_now_protection %}{% set ns.m = ns.m + [io_protection_delay_min | int(1)] %}{% endif %}
+        {{ ns.m | max }}
+
+  - alias: Steg 16 – Oppstartsjekk – vent til feilene er borte (går rett videre når den ikke trengs)
+    wait_template: >-
+      {% if not startup_check_needed %}
+        true
+      {% else %}
+        {% set sw = states(io_switch) %}
+        {% set f_not_on = has_not_on_check and sw != 'on' %}
+        {% set f_coil = has_coil and sw == 'on' and (states(io_coil) | float(-1)) >= 0 and (states(io_coil) | float(0)) < (coil_limit | float(0)) %}
+        {% set f_stuck = has_power and sw == 'off' and (states(io_power) | float(0)) > (stuck_limit | float(0)) %}
+        {% set f_prot = has_protection and (protection_list | select('is_state', 'on') | list | count) > 0 %}
+        {{ not (f_not_on or f_coil or f_stuck or f_prot) }}
+      {% endif %}
+    timeout:
+      minutes: "{{ startup_wait_min | int(1) }}"
+    continue_on_timeout: true
+
+  - alias: Steg 17 – Oppstartsjekk – resultat
+    variables:
+      startup_fault: "{{ startup_check_needed and wait is defined and wait is not none and not wait.completed }}"
+      startup_fault_lines: >-
+        {% set ns = namespace(l=[]) %}
+        {% if startup_fault %}
+          {% set sw = states(io_switch) %}
+          {% set sw_text = {'on': 'PÅ', 'off': 'AV', 'unavailable': 'utilgjengelig', 'unknown': 'ukjent'}.get(sw, sw) %}
+          {% set c = states(io_coil) | float(-1) | round(1) if has_coil else -1 %}
+          {% set p = states(io_power) | float(-1) | round(0) | int if has_power else -1 %}
+          {% set prot_now = protection_list | select('is_state', 'on') | map('state_attr', 'friendly_name') | list %}
+          {% if has_not_on_check and sw != 'on' %}{% set ns.l = ns.l + ['Kontaktoren skal alltid være PÅ, men er ' ~ sw_text ~ '.'] %}{% endif %}
+          {% if has_coil and sw == 'on' and c >= 0 and c < (coil_limit | float(0)) %}{% set ns.l = ns.l + ['Lav spoleeffekt: ' ~ c ~ ' (grense ' ~ coil_limit ~ ').'] %}{% endif %}
+          {% if has_power and sw == 'off' and p > (stuck_limit | float(0)) %}{% set ns.l = ns.l + ['Kontaktoren er AV, men det måles last: ' ~ p ~ '.'] %}{% endif %}
+          {% if has_protection and prot_now | count > 0 %}{% set ns.l = ns.l + ['Vern: ' ~ (prot_now | join(', ')) ~ '.'] %}{% endif %}
+        {% endif %}
+        {{ ns.l }}
+
+  - alias: Steg 18 – Feil oppdaget av overvåkingen (eller av oppstartsjekken)
     if:
       - condition: template
-        value_template: "{{ trigger_id in ['fault_not_on', 'fault_coil_low', 'fault_no_load', 'fault_not_full', 'fault_stuck_on', 'fault_protection'] }}"
+        value_template: "{{ startup_fault or trigger_id in ['fault_not_on', 'fault_coil_low', 'fault_no_load', 'fault_not_full', 'fault_stuck_on', 'fault_protection'] }}"
     then:
-      - alias: Steg 14-A – Bygg feiltekst
+      - alias: Steg 18-A – Bygg feiltekst
         variables:
           fault_message: >-
-            {% if trigger_id == 'fault_not_on' %}
+            {% if startup_fault %}
+              Feil som fortsatt sto etter {{ startup_wait_min }} min da overvåkingen startet ({{ trigger_text | lower }}): {{ startup_fault_lines | join(' ') }}
+            {% elif trigger_id == 'fault_not_on' %}
               Kontaktoren skal alltid være PÅ, men har vært {{ switch_state_start_text }} i minst {{ io_not_on_delay_min }} min. Sjekk at reléet svarer og ikke er slått av for hånd.{{ (' Den ble forsøkt slått PÅ automatisk, og er nå ' ~ switch_state_text ~ '.') if auto_on_attempted else '' }}
             {% elif trigger_id == 'fault_coil_low' %}
               Kontaktoren er PÅ, men spoleeffekten er {{ coil_value }} (forventet ca. {{ io_coil_expected }}, grense {{ coil_limit }}). Kontaktoren trekker trolig ikke inn. Sjekk reléutgang, styresikring og spole.
@@ -710,15 +767,15 @@ actions:
               Reléet melder vern: {{ protection_on | join(', ') }}. Sjekk last og kabling.
             {% endif %}
           fault_priority: "{{ (pushover_priority_not_full | int(0)) if trigger_id == 'fault_not_full' else (pushover_priority | int(0)) }}"
-      - alias: Steg 14-B – Slå på feil-hjelper (valgfri)
+      - alias: Steg 18-B – Slå på feil-hjelper (valgfri)
         if:
           - condition: template
-            value_template: "{{ latch_configured and not latch_was_on }}"
+            value_template: "{{ latch_configured and not is_state(io_fault_latch, 'on') }}"
         then:
           - action: input_boolean.turn_on
             target:
               entity_id: "{{ io_fault_latch }}"
-      - alias: Steg 14-C – Send feilvarsel
+      - alias: Steg 18-C – Send feilvarsel
         if:
           - condition: template
             value_template: "{{ can_notify }}"
@@ -731,7 +788,7 @@ actions:
               priority: "{{ fault_priority | int(0) }}"
               ttl_hours: "{{ pushover_ttl_hours }}"
 
-  - alias: Steg 15 – Planlagt sjekk på faste ukedager (påminnelse hvis feil står)
+  - alias: Steg 19 – Planlagt sjekk på faste ukedager (påminnelse hvis feil står)
     if:
       - condition: template
         value_template: "{{ trigger_id == 'scheduled_check' and (fault_now_lines | length) > 0 and can_notify }}"
@@ -744,7 +801,7 @@ actions:
           priority: "{{ pushover_priority | int(0) }}"
           ttl_hours: "{{ pushover_ttl_hours }}"
 
-  - alias: Steg 16 – Bekreftet OK igjen (kun med feil-hjelper)
+  - alias: Steg 20 – Bekreftet OK igjen (kun med feil-hjelper)
     if:
       - condition: template
         value_template: >-
@@ -752,11 +809,11 @@ actions:
              and (trigger_id == 'ok_verified'
                   or (trigger_id in ['automation_enabled', 'ha_start', 'scheduled_check', 'manual_run'] and ok_now)) }}
     then:
-      - alias: Steg 16-A – Slå av feil-hjelper
+      - alias: Steg 20-A – Slå av feil-hjelper
         action: input_boolean.turn_off
         target:
           entity_id: "{{ io_fault_latch }}"
-      - alias: Steg 16-B – Send varsel om at feilen er borte (valgfri)
+      - alias: Steg 20-B – Send varsel om at feilen er borte (valgfri)
         if:
           - condition: template
             value_template: "{{ io_varsel_ved_ok and can_notify }}"
@@ -769,7 +826,7 @@ actions:
               priority: 0
               ttl_hours: "{{ pushover_ttl_hours }}"
 
-  - alias: Steg 17 – Varsling ved manuell kjøring (valgfri)
+  - alias: Steg 21 – Varsling ved manuell kjøring (valgfri)
     if:
       - condition: template
         value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring and can_notify }}"

@@ -52,8 +52,11 @@ En input_boolean som slås PÅ ved feil og AV når kontaktoren er bekreftet OK i
 **Hva skjer når automasjonen er skrudd av?**
 Kontaktoren overvåkes ikke, og det sendes ingen varsler for den. Bruk tavlestatus-eksemplet i 10.2, så vises en avslått automasjon som feil i dashbordet.
 
-**Hva skjer ved omstart av Home Assistant?**
-Tidtakerne for forsinkelsene starter på nytt. En feil som allerede står, varsles ikke på nytt etter omstart, men feil-hjelperen beholder tilstanden og påminnelsen kommer på planlagt dag.
+**Hva skjer ved omstart av Home Assistant, eller når automasjonen skrus på?**
+Tidtakerne for forsinkelsene starter på nytt. En oppstartsjekk ser etter feil som allerede står (ikke på, spole, henger inne og vern). Står feilen fortsatt etter forsinkelsen, registreres den og varsles. Står feil-hjelperen allerede PÅ, varsles det ikke på nytt. «Ingen last» og «Ikke full last» har lange forsinkelser og sjekkes ikke ved oppstart; de fanges når avviket oppstår på nytt, og feil-hjelperen beholder tilstanden gjennom omstart.
+
+**Hva bør automasjonen hete?**
+«<navn på bryteren> - Robot», f.eks. «VVB XK1 (+RS52=434.002-XO01.1) - Robot», med entitets-ID med samme stamme som bryteren, f.eks. `automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot`. Feil-hjelperen heter «<navn på bryteren> Feil».
 
 ## 4. Hva slags info trengs
 
@@ -132,8 +135,8 @@ Automasjonen kjøres bare når noe skjer, slik at hver kjøring i sporloggen bet
 | Feil-hjelperen står PÅ, og kontaktoren har vært OK i 2 minutter | `ok_verified` |
 | Hvert 15. minutt (bare når «Slå PÅ igjen automatisk» er valgt) | `retry_check` |
 | Planlagt sjekk på faste ukedager | `scheduled_check` |
-| Home Assistant starter | `ha_start` |
-| Automasjonen skrus PÅ | `automation_enabled` |
+| Home Assistant starter (med oppstartsjekk) | `ha_start` |
+| Automasjonen skrus PÅ (med oppstartsjekk) | `automation_enabled` |
 
 **Sjekkene**
 
@@ -147,6 +150,16 @@ Automasjonen kjøres bare når noe skjer, slik at hver kjøring i sporloggen bet
 | Vern | Én av vern-sensorene er PÅ |
 
 En utilgjengelig målesensor gir ikke feil på spole eller last (verdien kan ikke vurderes).
+
+**Oppstartsjekk**
+
+En template-trigger slår ikke ut hvis avviket allerede står når triggeren settes opp (ved omstart eller når automasjonen skrus på). Derfor gjør automasjonen en egen sjekk ved `ha_start` og `automation_enabled`, når feil-hjelperen er AV:
+
+1. Står «Ikke på», «Spole», «Henger inne» eller «Vern» i avvik nå, ventes det til avviket er borte, men maks den lengste forsinkelsen for avvikene som står (f.eks. 5 min for «Ikke på»).
+2. Er avviket borte innen tiden, skjer ingenting.
+3. Står det fortsatt, registreres feilen (feil-hjelper PÅ) og det sendes varsel med alle avvikene som står.
+
+Mens oppstartsjekken venter, står andre kjøringer av automasjonen i kø.
 
 **Bekreftet OK**
 
@@ -179,6 +192,7 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) sendes en påminnelse m
 
 - **Tittel:** `🔔 <anlegg> feil - <navn>`
 - **Ikke på:** `Kontaktoren skal alltid være PÅ, men har vært AV i minst 5 min. Sjekk at reléet svarer og ikke er slått av for hånd.`
+- **Oppstartsjekk:** `Feil som fortsatt sto etter 5 min da overvåkingen startet (automasjonen ble skrudd på): Kontaktoren skal alltid være PÅ, men er AV.`
 - **Spole:** `Kontaktoren er PÅ, men spoleeffekten er 0.0 (forventet ca. 1.7, grense 0.5). Kontaktoren trekker trolig ikke inn. Sjekk reléutgang, styresikring og spole.`
 - **Ingen last:** `Kontaktoren er PÅ, men lasten har vært under 650 i 60 min (nå 0, full last ca. 6500). Sjekk sikring, kontaktor og last (f.eks. element eller termostat).`
 - **Ikke full last:** `Lasten har ikke nådd full effekt (grense 5200, full last ca. 6500) på 24 timer. Nå: 3720. Mulig feil på en del av lasten, f.eks. ett element.`
@@ -214,12 +228,19 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) sendes en påminnelse m
 - En switch-entitet for kontaktoren.
 - `script.varsel_pushover_send_melding_webhome` (fra `blueprints/scripts/varsel_pushover.yaml`) hvis varsling brukes.
 - Valgfritt: én input_boolean per kontaktor som «Feil-hjelper». Navn: «<navn på bryteren> Feil», ikon `mdi:bell-alert`. Gi gjerne entitets-ID samme stamme som bryteren, f.eks. `switch.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1` → `input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil`.
+- Navn på automasjonen: «<navn på bryteren> - Robot», entitets-ID med samme stamme, f.eks. `automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot`. Endre entitets-ID-en under innstillingene for automasjonen etter at den er lagret.
+
+**Utrulling på mange kontaktorer:**
+1. Lag feil-hjelperen og automasjonen for én kontaktor og sjekk sporloggen.
+2. Lag resten, én automasjon per kontaktor, med grenser fra 10.7.
+3. Skru hver automasjon av og på én gang, så oppstartsjekken kjører og feil som allerede står (f.eks. en kontaktor som er AV) blir registrert.
+4. Legg feil-hjelperne og automasjonene inn i listen per tavle i status-sensorene (10.2).
 
 ### 10.2 Eksempler
 
 **Automasjon fra blueprint (YAML), elkolbe i bereder:**
 ```yaml
-alias: Tappevann - Kontaktor overvåking - RS50-54 XK1
+alias: VVB XK1 (+RS52=434.002-XO01.1) - Robot
 use_blueprint:
   path: surematu/kontaktor_overvaking.yaml
   input:
@@ -271,14 +292,17 @@ Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): h
 | 4 | `has_not_on_check`, `has_coil`, `has_power`, `has_not_full`, `has_protection`, `protection_list` | Hvilke sjekker som er i bruk |
 | 5 | `coil_limit`, `no_load_limit`, `not_full_limit`, `stuck_limit`, `ok_power_limit` | Grensene regnet ut fra forventet verdi og prosent |
 | 6 | `switch_state_start`, `switch_off_minutes` | Kontaktoren da kjøringen startet, og hvor lenge den har vært ikke-PÅ |
-| 7 | `auto_on_attempted` | Om den ble forsøkt slått PÅ i denne kjøringen |
-| 8 | `switch_state_now`, `switch_state_text`, `coil_value`, `power_value`, `protection_on` | Tilstand og måleverdier (−1 = ikke i bruk eller utilgjengelig) |
-| 9 | `fault_now_*` | Hvilke feil som står akkurat nå |
-| 10 | `monitor_table` | Én rad per sjekk: `sjekk`, `i_bruk`, `malt`, `grense`, `feil_na` |
-| 11 | `ok_now` | Om kontaktoren er bekreftet OK akkurat nå |
-| 12 | `latch_configured`, `latch_was_on`, `can_notify` | Feil-hjelper, og om varsel kan sendes |
-| 13 | `fault_now_lines` | Feiltekstene for planlagt sjekk og manuell kjøring |
-| 14 | `fault_message`, `fault_priority` | Feiltekst og prioritet når en sjekk har slått ut |
+| 7 | `auto_on_attempted` | Om den skal forsøkes slått PÅ i denne kjøringen (steg 8 gjør det) |
+| 9 | `switch_state_now`, `switch_state_text`, `coil_value`, `power_value`, `protection_on` | Tilstand og måleverdier (−1 = ikke i bruk eller utilgjengelig) |
+| 10 | `fault_now_*` | Hvilke feil som står akkurat nå |
+| 11 | `monitor_table` | Én rad per sjekk: `sjekk`, `i_bruk`, `malt`, `grense`, `feil_na` |
+| 12 | `ok_now` | Om kontaktoren er bekreftet OK akkurat nå |
+| 13 | `latch_configured`, `latch_was_on`, `can_notify` | Feil-hjelper, og om varsel kan sendes |
+| 14 | `fault_now_lines` | Feiltekstene for planlagt sjekk og manuell kjøring |
+| 15 | `startup_check_needed`, `startup_wait_min` | Om oppstartsjekken trengs, og hvor lenge den venter |
+| 16 | `wait` | Ventingen i oppstartsjekken (`wait.completed` = false betyr at feilen sto hele tiden) |
+| 17 | `startup_fault`, `startup_fault_lines` | Resultatet av oppstartsjekken og avvikene som fortsatt sto |
+| 18 | `fault_message`, `fault_priority` | Feiltekst og prioritet når en sjekk eller oppstartsjekken har slått ut |
 
 Sjekkene er template-triggere med `trigger_variables` (`tv_*`), slik at vilkårene må være sanne sammenhengende i hele forsinkelsen. Selve ventetiden vises ikke i sporloggen. `trigger_text` sier hvilken sjekk som slo ut, og `monitor_table` viser verdiene i det kjøringen startet.
 
@@ -292,7 +316,8 @@ Sjekkene er template-triggere med `trigger_variables` (`tv_*`), slik at vilkåre
 | Målesensor utilgjengelig | Ingen feil meldes for spole/last |
 | Forventet verdi eller full effekt er 0 | Sjekken er av |
 | Lasten faller til 0 i noen sekunder (målestøy) | Fanges av forsinkelsen |
-| Omstart av Home Assistant | Forsinkelsene starter på nytt. Feil som står, varsles ikke på nytt. Feil-hjelperen beholder tilstanden og nullstilles ved oppstart hvis kontaktoren er OK |
+| Omstart av Home Assistant | Forsinkelsene starter på nytt. Oppstartsjekken fanger «Ikke på», «Spole», «Henger inne» og «Vern» som står. Feil-hjelperen beholder tilstanden og nullstilles ved oppstart hvis kontaktoren er OK |
+| Automasjonen lages eller skrus på mens en feil står | Oppstartsjekken (ved `automation_enabled`). En helt ny automasjon må skrus av og på én gang for at sjekken skal kjøre |
 | Feil-hjelperen slås AV for hånd mens feilen står | Feilen varsles på nytt først når avviket forsvinner og kommer igjen |
 | Slå PÅ feiler | Feilen logges, nytt forsøk hvert 15. minutt |
 
@@ -303,10 +328,11 @@ Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjo
 | Spørsmål | Se på steg | Variabel |
 |---|---|---|
 | Hvorfor kjørte den nå? | 2 | `trigger_text` |
-| Hva var målt, og hva var grensen? | 10 | `monitor_table` |
+| Hva var målt, og hva var grensen? | 11 | `monitor_table` |
 | Ble den slått PÅ automatisk? | 7 | `auto_on_attempted` |
-| Hvorfor ble feil-hjelperen (ikke) nullstilt? | 11 og 12 | `ok_now`, `latch_was_on` |
-| Hvorfor ble det (ikke) sendt varsel? | 12 og 14 | `can_notify`, `fault_priority` |
+| Fant oppstartsjekken feil? | 15–17 | `startup_check_needed`, `startup_fault`, `startup_fault_lines` |
+| Hvorfor ble feil-hjelperen (ikke) nullstilt? | 12 og 13 | `ok_now`, `latch_was_on` |
+| Hvorfor ble det (ikke) sendt varsel? | 13 og 18 | `can_notify`, `fault_priority` |
 
 ### 10.7 Slik finner du grensene
 
