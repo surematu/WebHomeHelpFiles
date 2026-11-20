@@ -271,7 +271,11 @@ Feil-hjelper per kontaktor + automasjonen PÅ/AV
 En kontaktor teller som feil når feil-hjelperen er PÅ eller når automasjonen er AV (da overvåkes den ikke).
 
 **Dashbord:**
-Se [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/kontaktor_overvaking_dashbord_eksempel.yaml): oversikt med samlet status, antall feil og tavleknapper, og én side per tavle med ett Bubble Card per kontaktor (last og spole som underknapper, rød bjelle ved feil, robot for automasjonen).
+Se [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/kontaktor_overvaking_dashbord_eksempel.yaml):
+
+- **Oversikt:** samlet status, fellesfeil, antall kontaktorer med feil, én knapp per tavle, knapp til admin info (bare admin) og systembildene med temperaturer.
+- **Tavleside:** status for tavla og ett Bubble Card per kontaktor (last og spole som underknapper, rød bjelle ved feil, robot-knapp til roboten), varmepumpe og admin-del.
+- **Admin info:** status-hjelperne, alle roboter og alle feil-hjelpere.
 
 ### 10.3 Relevante automasjoner og script
 

@@ -9,10 +9,12 @@
 # merket «TILPASS». Eksemplet er hentet fra tappevann på vtoppen
 # (/dashboard-tappevann/v2), der elkolbene i berederne overvåkes.
 #
-# To visninger:
-#   1. v2           Oversikt: samlet status, antall feil, fellesfeil, én knapp per tavle
+# Tre visninger:
+#   1. v2           Oversikt: samlet status, antall feil, fellesfeil, én knapp per tavle,
+#                   knapp til admin info (bare admin) og systembilder med temperaturer
 #   2. v2-rs50-54   Én side per tavle: status, ett Bubble Card per kontaktor, admin-del
 #                   (kopieres per tavle)
+#   3. v2-admin     Admin info: status-hjelpere, alle roboter og alle feil-hjelpere
 #
 # Bruk:
 #   1. Åpne dashbordet → Rediger → ⋮ → Rå konfigurasjonsredigering.
@@ -31,7 +33,7 @@
 # Kontaktorkortet er «state» (bare visning), ikke «switch», slik at et trykk
 # aldri kan slå av en kontaktor ved et uhell.
 #
-# Versjon: 2026.11.01
+# Versjon: 2026.11.02
 
 views:
   # ===========================================================================
@@ -146,29 +148,39 @@ views:
 
           - type: markdown
             text_only: true
-            content: Grønn = alle overvåkede elkolber i drift, rød = problem, grå = ikke overvåket ennå. Trykk på en tavle for detaljer.
+            content: Grønn = alle elkolber på tavla i drift, rød = problem (trykk for detaljer), grå = ikke overvåket.
 
+          # Admin info: egen underside, knappen vises bare for admin.
+          - type: button
+            name: Admin info
+            icon: mdi:wrench
+            show_name: true
+            show_icon: true
+            grid_options: {columns: 12, rows: 2}
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-admin}   # TILPASS
+            visibility:
+              - condition: user
+                users: [<bruker-ID>]                     # TILPASS
+
+      # Systembilder med temperaturer og effekt (picture-elements), kopiert fra
+      # anleggets eksisterende oversikt. Ett bilde per tavle.
       - type: grid
-        visibility:
-          - condition: user
-            users: [<bruker-ID>]                         # TILPASS
+        column_span: 2
         cards:
           - type: heading
-            heading: Admin
+            heading: RS50-54 - Systembilde               # TILPASS
             heading_style: title
-          - type: entities
-            title: Status (hjelpere)
-            show_header_toggle: false
-            entities:
-              - {entity: binary_sensor.tappevann_fellesfeil, secondary_info: last-changed}
-              - {entity: sensor.tappevann_antall_feil, secondary_info: last-changed}
-              - {entity: sensor.tappevann_rs50_54_status, secondary_info: last-changed}
-              - {entity: sensor.tappevann_rs50_54_antall_feil, secondary_info: last-changed}
-          - type: entities
-            title: Overvåking (automasjoner)
-            show_header_toggle: false
-            entities:
-              - {entity: automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot, name: RS50-54 XK1, secondary_info: last-triggered}   # TILPASS: én per kontaktor
+          - type: picture-elements
+            image: /local/systembilde_rs52.png           # TILPASS: anleggets bilde
+            grid_options: {columns: 24, rows: auto}
+            elements:                                    # TILPASS: én state-label per måling
+              - type: state-label
+                entity: sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_vvb_rs52_434_002_rt402
+                style: {left: 80%, top: 45%, color: white, font-size: 14px, font-weight: bold, background-color: "rgba(0, 0, 0, 0.65)", padding: 0px 4px, border-radius: 100px}
+              - type: state-label
+                entity: sensor.vvb_total_kalkulert_effekt_rs52_434_002
+                prefix: "VVB: "
+                style: {left: 86.6%, top: 80%, color: white, font-size: 14px, font-weight: bold, background-color: "rgba(0, 0, 0, 0.65)", padding: 0px 4px, border-radius: 100px}
 
   # ===========================================================================
   # 2. TAVLESIDE (kopieres per tavle)
@@ -250,8 +262,8 @@ views:
                   tap_action: {action: more-info}
                   visibility:
                     - {condition: state, entity: input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil, state: "on"}   # TILPASS
-                - entity: automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot      # TILPASS: automasjon
-                  name: Automatikk
+                - entity: automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot      # TILPASS: roboten
+                  name: Robot
                   icon: mdi:robot
                   show_icon: true
                   show_name: false
@@ -264,12 +276,7 @@ views:
               .bubble-sub-button-3 { background-color: var(--error-color, #db4437) !important; }
               .bubble-sub-button-3 * { color: white !important; }
 
-          - type: markdown
-            content: |-
-              **Ikke lagt inn ennå.** Overvåkes ikke før de er lagt inn.
-
-              - XK2 (full effekt ca. 6,5 kW målt, spole 1,9 W)
-            # TILPASS: fjern når alle kontaktorene er lagt inn
+          # TILPASS: ett Bubble Card per kontaktor på tavla (kopier kortet over).
 
       - type: grid
         visibility:
@@ -299,3 +306,54 @@ views:
             entities:                                    # TILPASS: alle lastsensorene på tavla
               - {entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk1_effekt_kalkulert, name: XK1}
               - {entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk2_effekt_kalkulert, name: XK2}
+
+  # ===========================================================================
+  # 3. ADMIN INFO
+  # ===========================================================================
+  - type: sections
+    max_columns: 4
+    title: Tappevann v2 - Admin info                   # TILPASS
+    path: v2-admin
+    subview: true
+    back_path: /dashboard-tappevann/v2
+    visible:
+      - user: <bruker-ID>                              # TILPASS (skal stå, bare for admin)
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Status
+            heading_style: title
+          - type: markdown
+            content: |-
+              Hver kontaktor overvåkes av sin egen robot fra blueprinten **Kontaktor - Overvåking** ([dokumentasjon](https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md)). Grenser justeres i roboten for kontaktoren.
+
+              En kontaktor teller som feil når feil-hjelperen er PÅ eller roboten er AV. Feil-hjelperen slås AV av roboten når kontaktoren er OK igjen, og kan slås AV for hånd som kvittering.
+          - type: entities
+            title: Status (hjelpere)
+            show_header_toggle: false
+            entities:
+              - {entity: binary_sensor.tappevann_fellesfeil, secondary_info: last-changed}
+              - {entity: sensor.tappevann_antall_feil, secondary_info: last-changed}
+              - {entity: sensor.tappevann_rs50_54_status, secondary_info: last-changed}
+              - {entity: sensor.tappevann_rs50_54_antall_feil, secondary_info: last-changed}
+      - type: grid
+        cards:
+          - type: heading
+            heading: Roboter
+            heading_style: title
+          - type: entities
+            title: Roboter RS50-54                       # TILPASS: én liste per tavle
+            show_header_toggle: false
+            entities:
+              - {entity: automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot, name: XK1, secondary_info: last-triggered}
+      - type: grid
+        cards:
+          - type: heading
+            heading: Feil-hjelpere
+            heading_style: title
+          - type: entities
+            title: Feil-hjelpere RS50-54                 # TILPASS: én liste per tavle
+            show_header_toggle: false
+            entities:
+              - {entity: input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil, name: XK1, secondary_info: last-changed}
