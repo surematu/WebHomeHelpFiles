@@ -26,7 +26,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md
 
-    Blueprint versjon: 2026.11.02
+    Blueprint versjon: 2026.11.03
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kontaktor_overvaking.yaml
@@ -342,9 +342,21 @@ blueprint:
               step: 1
               mode: box
 
+        send_scheduled_reminder:
+          name: Påminnelse på faste ukedager
+          description: >
+            Sender en påminnelse på valgte ukedager hvis en feil fortsatt står. Slå av
+            når «Kontaktor - Fellesfeil varsel» sender en samlet påminnelse for hele
+            anlegget, så det ikke blir dobbeltvarsling.
+          default: true
+          selector:
+            boolean:
+
         check_time:
           name: Tid for planlagt sjekk
-          description: På valgte ukedager sendes en påminnelse hvis en feil fortsatt står.
+          description: >
+            På valgte ukedager sendes en påminnelse hvis en feil fortsatt står (hvis
+            påminnelse er slått på), og feil-hjelperen nullstilles hvis kontaktoren er OK.
           default: "09:00:00"
           selector:
             time:
@@ -551,6 +563,7 @@ actions:
       pushover_priority_not_full: !input pushover_priority_not_full
       pushover_ttl_hours: !input pushover_ttl_hours
       io_varsel_ved_ok: !input varsel_ved_ok
+      io_send_scheduled_reminder: !input send_scheduled_reminder
       io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
 
   - alias: Steg 2 – Hvorfor kjører automasjonen nå
@@ -791,7 +804,7 @@ actions:
   - alias: Steg 19 – Planlagt sjekk på faste ukedager (påminnelse hvis feil står)
     if:
       - condition: template
-        value_template: "{{ trigger_id == 'scheduled_check' and (fault_now_lines | length) > 0 and can_notify }}"
+        value_template: "{{ trigger_id == 'scheduled_check' and io_send_scheduled_reminder and (fault_now_lines | length) > 0 and can_notify }}"
     then:
       - action: script.varsel_pushover_send_melding_webhome
         data:

@@ -50,7 +50,10 @@ Nei. Hver sjekk varsler én gang når avviket har vart hele forsinkelsen. Den va
 En input_boolean som slås PÅ ved feil og AV når kontaktoren er bekreftet OK igjen. Den brukes til feillampe i dashbordet og til tavlestatus/fellesfeil, og den gir varsel når feilen er borte. Den kan slås av for hånd (kvittering). Er feilen der fortsatt, slås den PÅ igjen ved neste feil.
 
 **Hva skjer når automasjonen er skrudd av?**
-Kontaktoren overvåkes ikke, og det sendes ingen varsler for den. Bruk tavlestatus-eksemplet i 10.2, så vises en avslått automasjon som feil i dashbordet.
+Kontaktoren overvåkes ikke, og det sendes ingen varsler for den. Bruk tavlestatus-eksemplet i 10.2, så vises en avslått automasjon som feil i dashbordet, og bruk «Kontaktor - Fellesfeil varsel» ([README_kontaktor_fellesfeil.md](./README_kontaktor_fellesfeil.md)), så varsles det med en gang.
+
+**Hvordan unngår jeg dobbeltvarsling med en overordnet robot?**
+Roboten per kontaktor varsler hva som er feil og når den er OK igjen. «Kontaktor - Fellesfeil varsel» varsler bare det kontaktorene ikke kan (en robot som er AV), en samlet påminnelse hver 24. time, og «Tilbake i normal drift» bare hvis den selv har varslet. Slå av «Påminnelse på faste ukedager» i robotene per kontaktor når den brukes.
 
 **Hva skjer ved omstart av Home Assistant, eller når automasjonen skrus på?**
 Tidtakerne for forsinkelsene starter på nytt. En oppstartsjekk ser etter feil som allerede står (ikke på, spole, henger inne og vern). Står feilen fortsatt etter forsinkelsen, registreres den og varsles. Står feil-hjelperen allerede PÅ, varsles det ikke på nytt. «Ingen last» og «Ikke full last» har lange forsinkelser og sjekkes ikke ved oppstart; de fanges når avviket oppstår på nytt, og feil-hjelperen beholder tilstanden gjennom omstart.
@@ -119,6 +122,7 @@ Tidtakerne for forsinkelsene starter på nytt. En oppstartsjekk ser etter feil s
 | Levetid varsel (timer) | 168 | Hvor lenge skal varslet være synlig før det forsvinner? |
 | Pushover priority – «Ikke full last» | 0 | Egen prioritet for «Ikke full last», som oftest betyr redusert effekt og ikke stopp |
 | Tid for planlagt sjekk | 09:00 | Tidspunkt for påminnelse hvis en feil fortsatt står |
+| Påminnelse på faste ukedager | true | Påminnelse hvis en feil står. Slå av når «Kontaktor - Fellesfeil varsel» sender samlet påminnelse |
 | Ukedag(er) for planlagt sjekk | Onsdag | Hvilke dager påminnelsen sendes |
 | Send varsel når feilen er borte | true | Krever «Feil-hjelper» |
 | Send varsel ved manuell kjøring | true | Sett til true for å sende varsel når automasjonen kjøres manuelt. Sett til false for å ikke sende varsel ved manuell kjøring. |
@@ -199,7 +203,7 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) sendes en påminnelse m
 - **Henger inne:** `Kontaktoren er AV, men det måles fortsatt last: 6480 (grense 650). Kontaktoren kan henge inne.`
 - **Vern:** `Reléet melder vern: <navn på vern-sensor>. Sjekk last og kabling.`
 
-**Påminnelse ved planlagt sjekk (kun når en feil står):**
+**Påminnelse ved planlagt sjekk (kun når en feil står, og «Påminnelse på faste ukedager» er PÅ):**
 
 - **Tittel:** `🔔 <anlegg> feil (påminnelse) - <navn>`
 - **Melding:** én linje per feil som står.
@@ -285,6 +289,7 @@ Se [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/kontakt
 | `scripts/varsel_pushover.yaml` | Sender Pushover-varslene |
 | `snosmelt_styr_utgang.yaml` | Styrer og overvåker kontaktorer for snøsmelting (samme type sjekker, men med styring fra «Snøsmelt behov») |
 | `varsel_enhet.yaml` | Varsler om enheter som er offline (Uptime Kuma) |
+| `kontaktor_fellesfeil.yaml` | Overordnet robot: robot AV, samlet påminnelse og «Tilbake i normal drift» for hele anlegget |
 
 ### 10.4 Beregnede verdier og variabler
 

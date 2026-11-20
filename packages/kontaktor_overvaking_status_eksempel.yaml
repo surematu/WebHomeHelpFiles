@@ -28,7 +28,7 @@
 # (Innstillinger → Enheter og tjenester → Hjelpere → Mal), med de samme malene.
 # Det er gjort slik på vtoppen.
 #
-# Versjon: 2026.11.02
+# Versjon: 2026.11.03
 
 template:
   - sensor:
@@ -86,6 +86,7 @@ template:
             ]],
           ] %}                                                           {# TILPASS: alle tavlene og kontaktorene #}
           {% set ns = namespace(a=[]) %}
+          {% if not is_state('automation.tappevann_robot', 'on') %}{% set ns.a = ns.a + ['Hovedroboten er AV.'] %}{% endif %}   {# TILPASS #}
           {% for tavle, kontaktorer in tavler %}
             {% set t = namespace(feil=[], av=[]) %}
             {% for navn, feil, auto in kontaktorer %}
@@ -107,4 +108,5 @@ template:
           {{ [
             'sensor.tappevann_rs50_54_status',
             'sensor.tappevann_rs60_62_status'
-          ] | select('is_state', 'Problem') | list | count > 0 }}         {# TILPASS: alle tavlene #}
+          ] | select('is_state', 'Problem') | list | count > 0            {# TILPASS: alle tavlene #}
+             or not is_state('automation.tappevann_robot', 'on') }}     {# TILPASS: overordnet robot (Kontaktor - Fellesfeil varsel) #}

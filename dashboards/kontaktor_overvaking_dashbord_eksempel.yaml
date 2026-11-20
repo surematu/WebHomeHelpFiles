@@ -35,7 +35,7 @@
 # alle trykk er satt til å åpne info (more-info / none). Et trykk kan derfor
 # ikke slå av en kontaktor ved et uhell.
 #
-# Versjon: 2026.11.03
+# Versjon: 2026.11.04
 
 views:
   # ===========================================================================
@@ -385,6 +385,30 @@ views:
             entity: sensor.tappevann_rs50_54_antall_feil
             name: Tappevann - RS50-54 Antall feil
             icon: mdi:bell-alert
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+
+          # Overordnet robot (Kontaktor - Fellesfeil varsel) og når det sist ble varslet.
+          - type: custom:bubble-card
+            card_type: button
+            button_type: switch
+            scrolling_effect: false
+            entity: automation.tappevann_robot           # TILPASS
+            name: Tappevann - Robot
+            icon: mdi:robot
+            show_last_changed: true
+            tap_action: {action: more-info}
+            button_action:
+              tap_action: {action: more-info}
+              double_tap_action: {action: none}
+              hold_action: {action: more-info}
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: input_datetime.tappevann_feil_sist_varslet   # TILPASS
+            name: Tappevann - Feil sist varslet
+            icon: mdi:bell-ring
             show_state: true
             button_action: {tap_action: {action: more-info}}
 
