@@ -192,9 +192,11 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) kontrolleres det om en 
 
 ### 10.2 Eksempler
 
+**Navn:** «<bryternavn> - Robot», med entitets-ID lik bryterens ID + `_robot`, f.eks. `automation.tavle_rs52_sno_q1_2_rs52_433_002_xo01_1_robot`.
+
 **Automasjon fra blueprint (YAML):**
 ```yaml
-alias: Snøsmelt - Styr utgang - Tavle A Kontaktor 1
+alias: Tavle A Kontaktor 1 - Robot
 use_blueprint:
   path: surematu/snosmelt_styr_utgang.yaml
   input:

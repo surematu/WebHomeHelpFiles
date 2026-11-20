@@ -120,8 +120,10 @@ Standardverdiene er de som er testet. Endres antall timer for manuell kjøring, 
 
 Start med **én** kontaktor.
 
+**Navn:** automasjonen heter det samme som bryteren + « - Robot», f.eks. «Snø Q1-2 (+RS52=433.002-XO01.1) - Robot». Endre entitets-ID-en til bryterens ID + `_robot` (f.eks. `switch.tavle_rs52_sno_q1_2_rs52_433_002_xo01_1` → `automation.tavle_rs52_sno_q1_2_rs52_433_002_xo01_1_robot`) under innstillingene for automasjonen etter at den er lagret. Feilsensoren og fellesfeil-årsaken skal peke på denne ID-en.
+
 ```yaml
-alias: Snøsmelt - Styr utgang - Tavle A Kontaktor 1
+alias: Tavle A Kontaktor 1 - Robot
 use_blueprint:
   path: surematu/snosmelt_styr_utgang.yaml
   input:

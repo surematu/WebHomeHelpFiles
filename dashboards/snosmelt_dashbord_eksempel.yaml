@@ -31,7 +31,7 @@
 #       - user: <bruker-ID>            # Innstillinger → Personer → Brukere → ID
 # og fjern det når løsningen er godkjent.
 #
-# Versjon: 2026.11.02
+# Versjon: 2026.11.03
 
 views:
   # ===========================================================================
@@ -447,10 +447,11 @@ views:
             heading: Tavle A - Alle enheter            # TILPASS
           # Boksen er selve bryteren. Underknapper fra venstre:
           #   1. Effekt     vises bare når det trekkes last (over 50 W)
-          #   2. Feil       rød bjelle, vises BARE ved feil
-          #   3. Automatikk robot, åpner «Styr utgang» for denne kontaktoren
-          # `styles` gjør underknapp nr. 2 (Feil) rød. Bytter du rekkefølge,
-          # må tallet i `.bubble-sub-button-2` følge med.
+          #   2. Spole      spoleeffekt, vises når bryteren er PÅ
+          #   3. Feil       rød bjelle, vises BARE ved feil
+          #   4. Robot      åpner «<bryternavn> - Robot» (Styr utgang) for kontaktoren
+          # `styles` gjør underknapp nr. 3 (Feil) rød. Bytter du rekkefølge,
+          # må tallet i `.bubble-sub-button-3` følge med.
           # Kopier hele kortet for hver kontaktor.                 # TILPASS
           - type: custom:bubble-card
             card_type: button
@@ -473,6 +474,19 @@ views:
                     - condition: numeric_state
                       entity: sensor.tavle_a_kontaktor_1_effekt    # TILPASS
                       above: 50
+                - entity: sensor.tavle_a_kontaktor_1_spole_effekt  # TILPASS
+                  name: Spole
+                  icon: mdi:magnet-on
+                  show_icon: true
+                  show_name: false
+                  show_state: true
+                  show_background: true
+                  tap_action:
+                    action: more-info
+                  visibility:
+                    - condition: state
+                      entity: switch.tavle_a_kontaktor_1           # TILPASS
+                      state: "on"
                 - entity: binary_sensor.snosmelt_tavle_a_kontaktor_1_feil   # TILPASS
                   name: Feil
                   icon: mdi:bell-alert
@@ -486,8 +500,8 @@ views:
                     - condition: state
                       entity: binary_sensor.snosmelt_tavle_a_kontaktor_1_feil   # TILPASS
                       state: "on"
-                - entity: automation.snosmelt_styr_utgang_tavle_a_kontaktor_1   # TILPASS
-                  name: Automatikk
+                - entity: automation.tavle_a_kontaktor_1_robot   # TILPASS: «<bryternavn> - Robot»
+                  name: Robot
                   icon: mdi:robot
                   show_icon: true
                   show_name: false
@@ -497,8 +511,8 @@ views:
                     action: more-info
               bottom: []
             styles: |-
-              .bubble-sub-button-2 { background-color: var(--error-color, #db4437) !important; }
-              .bubble-sub-button-2 * { color: white !important; }
+              .bubble-sub-button-3 { background-color: var(--error-color, #db4437) !important; }
+              .bubble-sub-button-3 * { color: white !important; }
 
       # --- For admin: alle målinger per kontaktor ------------------------------
       - type: grid
@@ -527,7 +541,7 @@ views:
                 name: Kontaktor - Effekt
                 secondary_info: last-changed
               - entity: binary_sensor.snosmelt_tavle_a_kontaktor_1_feil   # TILPASS
-              - entity: automation.snosmelt_styr_utgang_tavle_a_kontaktor_1   # TILPASS
+              - entity: automation.tavle_a_kontaktor_1_robot   # TILPASS
                 name: Styr utgang
                 secondary_info: last-triggered
               - entity: input_boolean.snosmelt_behov
