@@ -6,7 +6,7 @@ Oppskriften er skrevet slik at den kan følges både for hånd og av en AI-assis
 
 I eksemplene står **«Tappevann»** for anlegget og **«RS50-54»** for en tavle. Bytt med anleggets egne navn.
 
-Versjon: 2026.11.00
+Versjon: 2026.11.01
 
 ## 1. Hva løsningen består av
 
@@ -184,9 +184,9 @@ Bruk [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/konta
 
 | Visning | For hvem | Innhold |
 |---|---|---|
-| Oversikt (`v2`) | Bruker | Statusboks med årsak, Fellesfeil, antall kontaktorer med feil, én flis per tavle (grønn / rød / grå), systembilder med temperaturer, knapp til admin info (bare admin) |
-| Tavleside (`v2-<tavle>`) | Bruker og admin | Statusboks for tavla, ett Bubble Card per kontaktor, varmepumpe, admin-del med målinger og 24 t graf |
-| Admin info (`v2-admin`) | Admin | Statusboks med feilinformasjon, Bubble Card for alle status-hjelperne, den overordnede roboten og «Feil sist varslet» |
+| Oversikt (`oversikt`, første visning) | Bruker | Statusboks med årsak, Fellesfeil, antall kontaktorer med feil, én flis per tavle (grønn / rød / grå), systembilder med temperaturer, knapp til admin info (bare admin) |
+| Tavleside (`<tavle>`, f.eks. `rs50-54`) | Bruker og admin | Statusboks for tavla, ett Bubble Card per kontaktor, varmepumpe, admin-del med målinger og 24 t graf |
+| Admin info (`admin`) | Admin | Statusboks med feilinformasjon, Bubble Card for alle status-hjelperne, den overordnede roboten og «Feil sist varslet» |
 
 Valg som er gjort, og som bør beholdes for at anleggene skal se like ut:
 
@@ -198,6 +198,8 @@ Valg som er gjort, og som bør beholdes for at anleggene skal se like ut:
 | Tavle-fliser | Tre `tile`-kort med `visibility` | Standardkort kan ikke bytte farge etter tekst-tilstand |
 | Graf over last | `statistics-graph` med 5-minutters snitt | En vanlig historikkgraf av lastsensorer som oppdateres hvert par sekund henter over en million punkter per visning |
 | Admin | Egen underside med knapp fra oversikten | Brukeren ser bare det som er relevant |
+
+**Erstatte et eksisterende dashbord:** bygg de nye visningene som undersider som bare admin ser, med en admin-knapp fra den gamle oversikten. Når de er godkjent: ta en kopi av dashbordet (f.eks. som eget skjult dashbord som bare admin ser), fjern de gamle visningene, gjør oversikten til første visning og gi tavlesidene de gamle adressene, så lenker fra andre sider virker.
 
 **Kontroll:** åpne hver visning som admin. Kontroller at ingen kort viser «Entitet ikke funnet».
 

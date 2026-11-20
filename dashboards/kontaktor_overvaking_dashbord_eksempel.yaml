@@ -7,35 +7,40 @@
 #
 # Dette er et EKSEMPEL som må tilpasses anlegget. Alt som må byttes ut er
 # merket «TILPASS». Eksemplet er hentet fra tappevann på vtoppen
-# (/dashboard-tappevann/v2), der elkolbene i berederne overvåkes.
+# (/dashboard-tappevann), der elkolbene i berederne overvåkes.
 #
 # Tre visninger:
-#   1. v2           Oversikt: samlet status, antall feil, fellesfeil, én knapp per tavle,
+#   1. oversikt     Oversikt (første visning): samlet status, antall feil, fellesfeil, én knapp per tavle,
 #                   knapp til admin info (bare admin) og systembilder med temperaturer
-#   2. v2-rs50-54   Én side per tavle: status, ett Bubble Card per kontaktor, admin-del
+#   2. rs50-54      Én side per tavle: status, ett Bubble Card per kontaktor, admin-del
 #                   (kopieres per tavle)
-#   3. v2-admin     Admin info: statusboks med feilinformasjon og Bubble Card for
+#   3. admin        Admin info (bare admin): statusboks med feilinformasjon og Bubble Card for
 #                   alle status-hjelperne
 #
 # Bruk:
 #   1. Åpne dashbordet → Rediger → ⋮ → Rå konfigurasjonsredigering.
 #   2. Lim inn visningene under `views:` og tilpass entiteter og stier.
-#   3. Lenke fra en eksisterende side: knapp med
-#        tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2}
+#   3. Lenke fra en annen side: knapp med
+#        tap_action: {action: navigate, navigation_path: /dashboard-tappevann}
 #
 # Egendefinerte kort (HACS):
 #   - Bubble Card   brukes for kontaktorene på tavlesiden (testet med 3.2.0)
 # Oversikten bruker bare standardkortene i Home Assistant.
 #
-# Vis bare for admin under testing: la `visible:` stå på visningene, og fjern
-# det når løsningen er godkjent. Admin-delen har `visibility:` og skal stå.
+# Under testing ved siden av en gammel side: legg visningene inn som undersider
+# (`subview: true`) med `visible: [{user: <bruker-ID>}]` og en knapp fra den
+# gamle siden som bare admin ser. Når løsningen er godkjent: fjern de gamle
+# visningene, gjør oversikten til første visning (uten subview) og fjern
+# `visible` fra oversikt og tavlesider. Gi tavlesidene samme `path` som de
+# gamle sidene hadde, så eksisterende lenker virker. Admin info og
+# admin-delene har `visible`/`visibility` og skal stå.
 # Bruker-ID: Innstillinger → Personer → Brukere → ID.
 #
 # Kontaktorkortet er «switch», så hele kortet lyser når kontaktoren er PÅ, men
 # alle trykk er satt til å åpne info (more-info / none). Et trykk kan derfor
 # ikke slå av en kontaktor ved et uhell.
 #
-# Versjon: 2026.11.05
+# Versjon: 2026.11.06
 
 views:
   # ===========================================================================
@@ -43,12 +48,8 @@ views:
   # ===========================================================================
   - type: sections
     max_columns: 4
-    title: Tappevann v2                                # TILPASS
-    path: v2
-    subview: true
-    back_path: /dashboard-tappevann/0                  # TILPASS: siden det lenkes fra
-    visible:
-      - user: <bruker-ID>                              # TILPASS (fjernes etter test)
+    title: Oversikt
+    path: oversikt
     sections:
       - type: grid
         cards:
@@ -120,8 +121,8 @@ views:
             icon: mdi:water-boiler
             color: green
             vertical: false
-            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}        # TILPASS
-            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}   # TILPASS
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54}        # TILPASS
+            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54}   # TILPASS
             grid_options: {columns: 12, rows: 1}
             visibility:
               - {condition: state, entity: sensor.tappevann_rs50_54_status, state: I drift}
@@ -131,8 +132,8 @@ views:
             icon: mdi:bell-alert
             color: red
             vertical: false
-            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}
-            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54}
+            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54}
             grid_options: {columns: 12, rows: 1}
             visibility:
               - {condition: state, entity: sensor.tappevann_rs50_54_status, state: Problem}
@@ -142,8 +143,8 @@ views:
             icon: mdi:water-boiler-off
             color: grey
             vertical: false
-            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}
-            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54}
+            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54}
             grid_options: {columns: 12, rows: 1}
             visibility:
               - {condition: state, entity: sensor.tappevann_rs50_54_status, state: Ikke overvåket}
@@ -159,7 +160,7 @@ views:
             show_name: true
             show_icon: true
             grid_options: {columns: 12, rows: 2}
-            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-admin}   # TILPASS
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/admin}   # TILPASS
             visibility:
               - condition: user
                 users: [<bruker-ID>]                     # TILPASS
@@ -189,12 +190,10 @@ views:
   # ===========================================================================
   - type: sections
     max_columns: 4
-    title: RS50-54 v2                                  # TILPASS
-    path: v2-rs50-54                                   # TILPASS
+    title: RS50-54                                     # TILPASS
+    path: rs50-54                                      # TILPASS
     subview: true
-    back_path: /dashboard-tappevann/v2
-    visible:
-      - user: <bruker-ID>                              # TILPASS (fjernes etter test)
+    back_path: /dashboard-tappevann/oversikt
     sections:
       - type: grid
         cards:
@@ -326,10 +325,10 @@ views:
   # ===========================================================================
   - type: sections
     max_columns: 4
-    title: Tappevann v2 - Admin info                   # TILPASS
-    path: v2-admin
+    title: Admin info
+    path: admin
     subview: true
-    back_path: /dashboard-tappevann/v2
+    back_path: /dashboard-tappevann/oversikt
     visible:
       - user: <bruker-ID>                              # TILPASS (skal stå, bare for admin)
     sections:
