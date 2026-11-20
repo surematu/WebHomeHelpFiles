@@ -35,7 +35,7 @@
 # alle trykk er satt til å åpne info (more-info / none). Et trykk kan derfor
 # ikke slå av en kontaktor ved et uhell.
 #
-# Versjon: 2026.11.04
+# Versjon: 2026.11.05
 
 views:
   # ===========================================================================
@@ -282,6 +282,15 @@ views:
               .bubble-sub-button-3 * { color: white !important; }
 
           # TILPASS: ett Bubble Card per kontaktor på tavla (kopier kortet over).
+
+          # Total effekt for alle elkolbene på tavla (gruppe-sensor med sum).
+          - type: tile
+            entity: sensor.vvb_total_kalkulert_effekt_rs52_434_002   # TILPASS
+            vertical: false
+            features:
+              - type: trend-graph
+            features_position: bottom
+            grid_options: {columns: 12, rows: 2}
 
       - type: grid
         visibility:
