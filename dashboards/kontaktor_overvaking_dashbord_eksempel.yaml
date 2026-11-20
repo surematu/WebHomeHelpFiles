@@ -20,8 +20,15 @@
 # Bruk:
 #   1. Åpne dashbordet → Rediger → ⋮ → Rå konfigurasjonsredigering.
 #   2. Lim inn visningene under `views:` og tilpass entiteter og stier.
-#   3. Lenke fra en annen side: knapp med
-#        tap_action: {action: navigate, navigation_path: /dashboard-tappevann}
+#   3. Knapp på hjemsiden (blå i normal drift, rød ved fellesfeil, samme
+#      oppbygging som snøsmelt-knappen):
+#        - type: button
+#          entity: binary_sensor.tappevann_fellesfeil   # TILPASS
+#          icon: mdi:water-boiler
+#          show_name: false
+#          show_state: false
+#          grid_options: {columns: 3, rows: 1}
+#          tap_action: {action: navigate, navigation_path: /dashboard-tappevann}   # TILPASS
 #
 # Egendefinerte kort (HACS):
 #   - Bubble Card   brukes for kontaktorene på tavlesiden (testet med 3.2.0)
@@ -40,7 +47,7 @@
 # alle trykk er satt til å åpne info (more-info / none). Et trykk kan derfor
 # ikke slå av en kontaktor ved et uhell.
 #
-# Versjon: 2026.11.06
+# Versjon: 2026.11.07
 
 views:
   # ===========================================================================
