@@ -1,0 +1,85 @@
+# Kontaktor – Overvåking: eksempel på antall feil, tavlestatus og fellesfeil
+#
+# Hører til blueprinten
+#   blueprints/automation/kontaktor_overvaking.yaml
+#
+# Dette er et EKSEMPEL som må tilpasses anlegget: bytt ut entitetene merket
+# «TILPASS» med anleggets egne feil-hjelpere og automasjoner, og lag én blokk per
+# tavle. Navnene under er de som brukes på vtoppen for tappevann
+# (README_kontaktor_overvaking.md, avsnitt 10.2). Bytt «Tappevann» med anlegget.
+#
+# Kjeden er:
+#   Feil-hjelper per kontaktor + automasjonen PÅ/AV
+#     → Antall feil per tavle → Status per tavle (I drift / Problem / Ikke overvåket)
+#     → Antall feil totalt     → Fellesfeil
+#
+# En kontaktor teller som feil når feil-hjelperen er PÅ, eller når automasjonen
+# for kontaktoren er AV (da overvåkes den ikke).
+#
+# Bruk:
+#   1. Kopier filen til /config/packages/ og tilpass den.
+#   2. Sørg for at packages er aktivert i configuration.yaml:
+#        homeassistant:
+#          packages: !include_dir_named packages
+#   3. Start Home Assistant på nytt.
+#
+# De samme sensorene kan også lages som mal-hjelpere i brukergrensesnittet
+# (Innstillinger → Enheter og tjenester → Hjelpere → Mal), med de samme malene.
+# Det er gjort slik på vtoppen.
+#
+# Versjon: 2026.11.00
+
+template:
+  - sensor:
+      # --- Én per tavle: antall kontaktorer med feil -----------------------
+      # Listen er [feil-hjelper, automasjon] for hver kontaktor på tavla.
+      # Tom liste = ingen kontaktorer overvåkes ennå → «unknown» (vises som
+      # «Ikke overvåket» i tavlestatus).
+      - name: "Tappevann - RS50-54 Antall feil"
+        unique_id: tappevann_rs50_54_antall_feil
+        icon: mdi:bell-alert
+        state: >-
+          {% set kontaktorer = [
+            ['input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tappevann_kontaktor_overvaking_rs50_54_xk1'],
+          ] %}                                                           {# TILPASS: alle kontaktorene på tavla #}
+          {% if kontaktorer | count == 0 %}
+            {{ none }}
+          {% else %}
+            {% set ns = namespace(n=0) %}
+            {% for feil, auto in kontaktorer %}
+              {% if is_state(feil, 'on') or not is_state(auto, 'on') %}{% set ns.n = ns.n + 1 %}{% endif %}
+            {% endfor %}
+            {{ ns.n }}
+          {% endif %}
+
+      # --- Én per tavle: I drift / Problem / Ikke overvåket -----------------
+      - name: "Tappevann - RS50-54 Status"
+        unique_id: tappevann_rs50_54_status
+        icon: mdi:water-boiler
+        state: >-
+          {% set n = states('sensor.tappevann_rs50_54_antall_feil') %}   {# TILPASS #}
+          {% if n == 'unknown' %}Ikke overvåket
+          {% elif not is_number(n) or (n | int) > 0 %}Problem
+          {% else %}I drift{% endif %}
+
+      # --- Hele anlegget: antall kontaktorer med feil ----------------------
+      - name: "Tappevann - Antall feil"
+        unique_id: tappevann_antall_feil
+        icon: mdi:bell-alert
+        state: >-
+          {{ [
+            'sensor.tappevann_rs50_54_antall_feil',
+            'sensor.tappevann_rs60_62_antall_feil'
+          ] | map('states') | select('is_number') | map('int') | sum }}   {# TILPASS: alle tavlene #}
+
+  - binary_sensor:
+      # --- Hele anlegget: fellesfeil når en tavle har problem ---------------
+      - name: "Tappevann - Fellesfeil"
+        unique_id: tappevann_fellesfeil
+        device_class: problem
+        icon: mdi:bell-alert
+        state: >-
+          {{ [
+            'sensor.tappevann_rs50_54_status',
+            'sensor.tappevann_rs60_62_status'
+          ] | select('is_state', 'Problem') | list | count > 0 }}         {# TILPASS: alle tavlene #}

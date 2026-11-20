@@ -205,6 +205,17 @@ Installasjon på et nytt anlegg, steg for steg:
 
 ---
 
+### kontaktor_overvaking.yaml — Kontaktor - Overvåking
+
+Overvåker én kontaktor (f.eks. elkolbe i varmtvannsbereder, varmekabel eller annen fast last) og varsler via Pushover når den ikke ligger inne som forventet, når spolen ikke trekker, når lasten mangler eller ikke når full effekt, når kontaktoren henger inne, eller når reléet melder vern. Det lages én automasjon per kontaktor fra samme blueprint, slik at samme logikk brukes på alle og alle grenser justeres på ett sted per kontaktor. Automasjonen styrer ingenting som standard, men kan valgfritt slå kontaktoren PÅ igjen hvis den skal være alltid PÅ.
+
+Eksempel på antall feil, tavlestatus og fellesfeil ligger i [packages/kontaktor_overvaking_status_eksempel.yaml](./packages/kontaktor_overvaking_status_eksempel.yaml). Eksempel på dashbord ligger i [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/kontaktor_overvaking_dashbord_eksempel.yaml).
+
+Detaljert funksjonsbeskrivelse:
+- [README_kontaktor_overvaking.md](./README_kontaktor_overvaking.md)
+
+---
+
 ### varsel_printer.yaml — Varsel - Printer - Blekk/Toner lavt
 
 Finner automatisk alle printer-sensorer og sender varsel via Pushover når blekk eller toner er lavere enn valgt terskel. Grupperer sensorer per printer og filtrerer ugyldige verdier automatisk.

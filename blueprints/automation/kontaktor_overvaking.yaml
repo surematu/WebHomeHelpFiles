@@ -1,0 +1,788 @@
+blueprint:
+  name: Kontaktor - Overvåking (WebHome Automation)
+  description: >
+    Overvåker ÉN kontaktor (f.eks. elkolbe i varmtvannsbereder, varmekabel eller
+    annen fast last) og varsler via Pushover når noe er galt. Lag én automasjon per
+    kontaktor, slik at samme logikk brukes på alle og overvåkingen kan skrus av
+    for én kontaktor om gangen.
+
+    Sjekker (hver sjekk er valgfri og må vare sammenhengende før det er feil):
+    - Ikke på: kontaktoren skal alltid være PÅ, men er AV eller utilgjengelig.
+    - Spole: kontaktoren er PÅ, men spolen trekker ikke forventet effekt.
+    - Ingen last: kontaktoren er PÅ, men det måles (nesten) ingen last over lang tid.
+    - Ikke full last: lasten har ikke nådd full effekt på mange timer
+      (f.eks. ett defekt element i en elkolbe).
+    - Henger inne: kontaktoren er AV, men det måles fortsatt last.
+    - Vern: reléet melder overstrøm, overoppheting e.l.
+
+    Styring: automasjonen styrer ingenting som standard. Valgfritt kan den slå
+    kontaktoren PÅ igjen hvis den står AV (standard av).
+
+    Dokumentasjon/wiki:
+    https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md
+
+    Blueprint versjon: 2026.11.00
+
+  domain: automation
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kontaktor_overvaking.yaml
+  author: WebHome
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    main:
+      name: Hovedinnganger
+      icon: mdi:electric-switch
+      input:
+        output_switch:
+          name: Utgang (kontaktor)
+          description: Bryteren (reléutgangen) som styrer kontaktoren.
+          selector:
+            entity:
+              domain: switch
+
+        output_name:
+          name: Navn i varsel (valgfri)
+          description: Brukes i varseltittel. Tom = navnet til bryteren.
+          default: ""
+          selector:
+            text:
+
+        notify_prefix:
+          name: Anlegg i varseltittel
+          description: >
+            Første ord i varseltittelen, f.eks. «Tappevann» gir
+            «🔔 Tappevann feil - <navn>».
+          default: Kontaktor
+          selector:
+            text:
+
+        expected_state:
+          name: Forventet tilstand
+          description: >
+            «Alltid PÅ» = kontaktoren skal alltid ligge inne, og det er feil når den er AV.
+            «Ingen fast tilstand» = kontaktoren styres av noe annet; da sjekkes spole og
+            last bare når den er PÅ, og «henger inne» når den er AV.
+          default: alltid_pa
+          selector:
+            select:
+              mode: list
+              options:
+                - label: Alltid PÅ
+                  value: alltid_pa
+                - label: Ingen fast tilstand (styres av noe annet)
+                  value: ingen
+
+        fault_latch:
+          name: Feil-hjelper (input_boolean) (valgfri)
+          description: >
+            Slås PÅ ved feil og AV når kontaktoren igjen er bekreftet OK. Brukes til
+            feillampe i dashbord og tavlestatus, og gir varsel når feilen er borte.
+            Anbefalt navn: «<navn på bryteren> Feil».
+          default: ""
+          selector:
+            entity:
+              domain: input_boolean
+
+    spole:
+      name: Spole (Valgfri)
+      icon: mdi:electro-magnet
+      collapsed: true
+      input:
+        coil_sensor:
+          name: Spole – målt effekt (valgfri)
+          description: >
+            Sensor som måler effekten til kontaktorspolen (f.eks. effektmåling på
+            reléutgangen). Tom = ingen sjekk av spolen.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+        coil_expected:
+          name: Spole – forventet effekt
+          description: Normal spoleeffekt når kontaktoren ligger inne (normalt W). 0 = sjekken er av.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 0.1
+              mode: box
+
+        coil_min_pct:
+          name: Spole – laveste godkjente andel (%)
+          description: Feil når målt spoleeffekt er under denne andelen av forventet.
+          default: 30
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: box
+
+        coil_delay_min:
+          name: Spole – forsinkelse før feil (minutter)
+          default: 2
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+    last:
+      name: Last (Valgfri)
+      icon: mdi:flash
+      collapsed: true
+      input:
+        power_sensor:
+          name: Last – målt effekt (valgfri)
+          description: Sensor som måler effekten til lasten. Tom = ingen sjekk av last.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+        power_full:
+          name: Last – full effekt
+          description: >
+            Effekten sensoren normalt viser når hele lasten er inne (samme enhet som
+            sensoren, normalt W). Bruk det sensoren faktisk viser, ikke merkeeffekten.
+            0 = alle lastsjekker er av.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000000
+              step: 1
+              mode: box
+
+        no_load_pct:
+          name: Ingen last – grense (%)
+          description: Feil når kontaktoren er PÅ og lasten er under denne andelen av full effekt.
+          default: 10
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: box
+
+        no_load_delay_min:
+          name: Ingen last – forsinkelse før feil (minutter)
+          description: >
+            Må være lengre enn normale pauser i lasten (f.eks. når en termostat har
+            koblet ut).
+          default: 60
+          selector:
+            number:
+              min: 1
+              max: 1440
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+        not_full_pct:
+          name: Ikke full last – grense (%)
+          description: >
+            Feil når lasten ikke har vært over denne andelen av full effekt i hele
+            perioden under. 0 = sjekken er av.
+          default: 80
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: box
+
+        not_full_hours:
+          name: Ikke full last – periode (timer)
+          default: 24
+          selector:
+            number:
+              min: 1
+              max: 168
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+        stuck_pct:
+          name: Henger inne – grense (%)
+          description: Feil når kontaktoren er AV, men lasten er over denne andelen av full effekt.
+          default: 10
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: box
+
+        stuck_delay_min:
+          name: Henger inne – forsinkelse før feil (minutter)
+          default: 2
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+    andre:
+      name: Andre sjekker og styring
+      icon: mdi:tune
+      collapsed: true
+      input:
+        not_on_delay_min:
+          name: Ikke på – forsinkelse før feil (minutter)
+          description: Brukes bare når forventet tilstand er «Alltid PÅ».
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+        protection_sensors:
+          name: Vern fra reléet (valgfri)
+          description: >
+            binary_sensor-er som melder vern/feil fra reléet, f.eks. Shelly
+            «Overcurrent», «Overheating», «Overvoltage» og «Overpowering».
+            Feil når én av dem er PÅ.
+          default: []
+          selector:
+            entity:
+              domain: binary_sensor
+              multiple: true
+
+        protection_delay_min:
+          name: Vern – forsinkelse før feil (minutter)
+          default: 1
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+        auto_turn_on:
+          name: Slå kontaktoren PÅ igjen automatisk
+          description: >
+            Gjelder bare «Alltid PÅ». Når kontaktoren har stått AV i «Ikke på –
+            forsinkelse», slås den PÅ igjen (nytt forsøk hvert 15. minutt).
+            Standard av: da varsles det bare.
+          default: false
+          selector:
+            boolean:
+
+    varsling:
+      name: Varsling (Valgfri)
+      icon: mdi:bell
+      collapsed: true
+      input:
+        pushover_destination:
+          name: Pushover destination (valgfri)
+          description: >
+            Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres
+            slik at den blir sendt ulikt.
+          default: pushover
+          selector:
+            text:
+
+        pushover_priority:
+          name: Pushover priority
+          description: >
+            −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd),
+            1 (Høy prioritet, rødt varsel, omgår stilleperiode),
+            2 (nødvarsel som gjentas til det bekreftes).
+          default: 1
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_ttl_hours:
+          name: Levetid varsel (timer)
+          description: Hvor lenge skal varslet være synlig før det forsvinner?
+          default: 168
+          selector:
+            number:
+              min: 0
+              max: 168
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+        pushover_priority_not_full:
+          name: Pushover priority – «Ikke full last»
+          description: >
+            Egen prioritet for «Ikke full last», som oftest betyr redusert effekt og
+            ikke stopp. Samme skala som over.
+          default: 0
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        check_time:
+          name: Tid for planlagt sjekk
+          description: På valgte ukedager sendes en påminnelse hvis en feil fortsatt står.
+          default: "09:00:00"
+          selector:
+            time:
+
+        check_weekdays:
+          name: Ukedag(er) for planlagt sjekk
+          default:
+            - wed
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - { label: Mandag, value: mon }
+                - { label: Tirsdag, value: tue }
+                - { label: Onsdag, value: wed }
+                - { label: Torsdag, value: thu }
+                - { label: Fredag, value: fri }
+                - { label: Lørdag, value: sat }
+                - { label: Søndag, value: sun }
+
+        varsel_ved_ok:
+          name: Send varsel når feilen er borte
+          description: Krever at «Feil-hjelper» er valgt. Sender varsel når kontaktoren igjen er bekreftet OK.
+          default: true
+          selector:
+            boolean:
+
+    avansert:
+      name: Avansert
+      icon: mdi:cog
+      collapsed: true
+      input:
+        varsel_ved_manuell_kjoring:
+          name: Send varsel ved manuell kjøring
+          description: >
+            Sett til true for å sende varsel når automasjonen kjøres manuelt.
+            Sett til false for å ikke sende varsel ved manuell kjøring.
+          default: true
+          selector:
+            boolean:
+
+mode: queued
+max: 10
+
+# Flere lagrede kjøringer i sporloggen enn standard (5), så hendelser ikke forsvinner så fort.
+trace:
+  stored_traces: 30
+
+trigger_variables:
+  tv_switch: !input output_switch
+  tv_expected: !input expected_state
+  tv_coil: !input coil_sensor
+  tv_coil_expected: !input coil_expected
+  tv_coil_min_pct: !input coil_min_pct
+  tv_power: !input power_sensor
+  tv_power_full: !input power_full
+  tv_no_load_pct: !input no_load_pct
+  tv_not_full_pct: !input not_full_pct
+  tv_stuck_pct: !input stuck_pct
+  tv_protection: !input protection_sensors
+  tv_auto_on: !input auto_turn_on
+  tv_latch: !input fault_latch
+
+triggers:
+  # Kontaktoren skal alltid være PÅ, men er AV eller utilgjengelig.
+  - trigger: template
+    id: fault_not_on
+    value_template: >-
+      {{ tv_expected == 'alltid_pa' and not is_state(tv_switch, 'on') }}
+    for:
+      minutes: !input not_on_delay_min
+
+  # Kontaktoren er PÅ, men spolen trekker for lite.
+  - trigger: template
+    id: fault_coil_low
+    value_template: >-
+      {{ tv_coil is string and tv_coil != ''
+         and (tv_coil_expected | float(0)) > 0
+         and is_state(tv_switch, 'on')
+         and (states(tv_coil) | float(-1)) >= 0
+         and (states(tv_coil) | float(0)) < ((tv_coil_expected | float(0)) * (tv_coil_min_pct | float(30)) / 100) }}
+    for:
+      minutes: !input coil_delay_min
+
+  # Kontaktoren er PÅ, men det måles (nesten) ingen last.
+  - trigger: template
+    id: fault_no_load
+    value_template: >-
+      {{ tv_power is string and tv_power != ''
+         and (tv_power_full | float(0)) > 0
+         and is_state(tv_switch, 'on')
+         and (states(tv_power) | float(-1)) >= 0
+         and (states(tv_power) | float(0)) < ((tv_power_full | float(0)) * (tv_no_load_pct | float(10)) / 100) }}
+    for:
+      minutes: !input no_load_delay_min
+
+  # Lasten har ikke vært oppe på full effekt i hele perioden.
+  - trigger: template
+    id: fault_not_full
+    value_template: >-
+      {{ tv_power is string and tv_power != ''
+         and (tv_power_full | float(0)) > 0
+         and (tv_not_full_pct | float(0)) > 0
+         and is_state(tv_switch, 'on')
+         and (states(tv_power) | float(-1)) >= 0
+         and (states(tv_power) | float(0)) < ((tv_power_full | float(0)) * (tv_not_full_pct | float(0)) / 100) }}
+    for:
+      hours: !input not_full_hours
+
+  # Kontaktoren er AV, men det måles fortsatt last.
+  - trigger: template
+    id: fault_stuck_on
+    value_template: >-
+      {{ tv_power is string and tv_power != ''
+         and (tv_power_full | float(0)) > 0
+         and is_state(tv_switch, 'off')
+         and (states(tv_power) | float(0)) > ((tv_power_full | float(0)) * (tv_stuck_pct | float(10)) / 100) }}
+    for:
+      minutes: !input stuck_delay_min
+
+  # Reléet melder vern (overstrøm, overoppheting osv.).
+  - trigger: template
+    id: fault_protection
+    value_template: >-
+      {% set prot = ([tv_protection] if tv_protection is string else (tv_protection or [])) | reject('eq', '') | list %}
+      {{ prot | select('is_state', 'on') | list | count > 0 }}
+    for:
+      minutes: !input protection_delay_min
+
+  # Bekreftet OK: kontaktoren er PÅ og målingene er normale (eller AV uten last når den
+  # ikke skal være alltid PÅ). Bare aktuell når feil-hjelperen står PÅ, slik at
+  # sporloggen ikke fylles med kjøringer som ikke gjør noe.
+  - trigger: template
+    id: ok_verified
+    value_template: >-
+      {% set latch_on = tv_latch is string and tv_latch != '' and is_state(tv_latch, 'on') %}
+      {% set has_coil = tv_coil is string and tv_coil != '' and (tv_coil_expected | float(0)) > 0 %}
+      {% set has_power = tv_power is string and tv_power != '' and (tv_power_full | float(0)) > 0 %}
+      {% set prot = ([tv_protection] if tv_protection is string else (tv_protection or [])) | reject('eq', '') | list %}
+      {% set prot_ok = prot | select('is_state', 'on') | list | count == 0 %}
+      {% set ok_pct = (tv_not_full_pct | float(0)) if (tv_not_full_pct | float(0)) > 0 else (tv_no_load_pct | float(10)) %}
+      {% if not latch_on %}
+        false
+      {% elif is_state(tv_switch, 'on') %}
+        {% set coil_ok = (not has_coil) or (states(tv_coil) | float(-1)) >= ((tv_coil_expected | float(0)) * (tv_coil_min_pct | float(30)) / 100) %}
+        {% set power_ok = (not has_power) or (states(tv_power) | float(-1)) >= ((tv_power_full | float(0)) * ok_pct / 100) %}
+        {{ coil_ok and power_ok and prot_ok }}
+      {% elif tv_expected != 'alltid_pa' and is_state(tv_switch, 'off') %}
+        {% set stuck_ok = (not has_power) or ((states(tv_power) | float(-1)) >= 0 and (states(tv_power) | float(0)) <= ((tv_power_full | float(0)) * (tv_stuck_pct | float(10)) / 100)) %}
+        {{ stuck_ok and prot_ok }}
+      {% else %}
+        false
+      {% endif %}
+    for:
+      minutes: 2
+
+  # Kun med «Slå PÅ igjen automatisk»: nytt forsøk hvert 15. minutt.
+  - trigger: time_pattern
+    minutes: /15
+    id: retry_check
+    enabled: "{{ tv_auto_on and tv_expected == 'alltid_pa' }}"
+
+  - trigger: time
+    at: !input check_time
+    weekday: !input check_weekdays
+    id: scheduled_check
+
+  - trigger: homeassistant
+    event: start
+    id: ha_start
+
+  # Automasjonen blir skrudd PÅ: kjør med en gang. «this» er automasjonen selv.
+  - trigger: template
+    id: automation_enabled
+    value_template: "{{ this is defined and this is not none and is_state(this.entity_id, 'on') }}"
+
+actions:
+  - alias: Steg 1 – Les innstillinger fra blueprint
+    variables:
+      io_switch: !input output_switch
+      io_output_name: !input output_name
+      io_notify_prefix: !input notify_prefix
+      io_expected: !input expected_state
+      io_fault_latch: !input fault_latch
+      io_coil: !input coil_sensor
+      io_coil_expected: !input coil_expected
+      io_coil_min_pct: !input coil_min_pct
+      io_coil_delay_min: !input coil_delay_min
+      io_power: !input power_sensor
+      io_power_full: !input power_full
+      io_no_load_pct: !input no_load_pct
+      io_no_load_delay_min: !input no_load_delay_min
+      io_not_full_pct: !input not_full_pct
+      io_not_full_hours: !input not_full_hours
+      io_stuck_pct: !input stuck_pct
+      io_stuck_delay_min: !input stuck_delay_min
+      io_not_on_delay_min: !input not_on_delay_min
+      io_protection: !input protection_sensors
+      io_protection_delay_min: !input protection_delay_min
+      io_auto_turn_on: !input auto_turn_on
+      pushover_destination: !input pushover_destination
+      pushover_priority: !input pushover_priority
+      pushover_priority_not_full: !input pushover_priority_not_full
+      pushover_ttl_hours: !input pushover_ttl_hours
+      io_varsel_ved_ok: !input varsel_ved_ok
+      io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
+
+  - alias: Steg 2 – Hvorfor kjører automasjonen nå
+    variables:
+      is_manual_run: "{{ trigger is none or trigger.platform not in ['time_pattern', 'homeassistant', 'template', 'time'] }}"
+      trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
+      trigger_text: >-
+        {{ {
+          'fault_not_on': 'Overvåking: kontaktoren har ikke vært PÅ i hele forsinkelsen',
+          'fault_coil_low': 'Overvåking: lav spoleeffekt i hele forsinkelsen',
+          'fault_no_load': 'Overvåking: ingen last i hele forsinkelsen',
+          'fault_not_full': 'Overvåking: lasten har ikke nådd full effekt i hele perioden',
+          'fault_stuck_on': 'Overvåking: last mens kontaktoren er AV i hele forsinkelsen',
+          'fault_protection': 'Overvåking: reléet har meldt vern i hele forsinkelsen',
+          'ok_verified': 'Overvåking: kontaktoren bekreftet OK i 2 minutter',
+          'retry_check': 'Nytt forsøk hvert 15. minutt (slå PÅ igjen automatisk)',
+          'scheduled_check': 'Planlagt sjekk',
+          'ha_start': 'Home Assistant startet',
+          'automation_enabled': 'Automasjonen ble skrudd på',
+          'manual_run': 'Kjørt manuelt'
+        }.get(trigger_id, trigger_id) }}
+
+  - alias: Steg 3 – Navn på kontaktoren og varseltittel
+    variables:
+      output_name: >-
+        {% if io_output_name is string and (io_output_name | trim) != '' %}
+          {{ io_output_name | trim }}
+        {% else %}
+          {{ state_attr(io_switch, 'friendly_name') or io_switch }}
+        {% endif %}
+      notify_prefix: "{{ (io_notify_prefix | string | trim) if (io_notify_prefix | string | trim) != '' else 'Kontaktor' }}"
+
+  - alias: Steg 4 – Hvilke sjekker er i bruk
+    variables:
+      protection_list: >-
+        {{ (([io_protection] if io_protection is string else (io_protection or [])) | reject('eq', '') | list) }}
+      has_not_on_check: "{{ io_expected == 'alltid_pa' }}"
+      has_coil: "{{ io_coil is string and io_coil != '' and (io_coil_expected | float(0)) > 0 }}"
+      has_power: "{{ io_power is string and io_power != '' and (io_power_full | float(0)) > 0 }}"
+      has_not_full: "{{ io_power is string and io_power != '' and (io_power_full | float(0)) > 0 and (io_not_full_pct | float(0)) > 0 }}"
+      has_protection: "{{ (([io_protection] if io_protection is string else (io_protection or [])) | reject('eq', '') | list | count) > 0 }}"
+
+  - alias: Steg 5 – Grenser regnet ut fra forventet verdi og prosent
+    variables:
+      coil_limit: "{{ ((io_coil_expected | float(0)) * (io_coil_min_pct | float(30)) / 100) | round(1) }}"
+      no_load_limit: "{{ ((io_power_full | float(0)) * (io_no_load_pct | float(10)) / 100) | round(0) | int }}"
+      not_full_limit: "{{ ((io_power_full | float(0)) * (io_not_full_pct | float(0)) / 100) | round(0) | int }}"
+      stuck_limit: "{{ ((io_power_full | float(0)) * (io_stuck_pct | float(10)) / 100) | round(0) | int }}"
+      ok_power_limit: "{{ not_full_limit if has_not_full else no_load_limit }}"
+
+  - alias: Steg 6 – Les kontaktoren slik den sto da kjøringen startet
+    variables:
+      switch_state_start: "{{ states(io_switch) }}"
+      switch_off_minutes: >-
+        {% set s = states[io_switch] %}
+        {{ ((as_timestamp(now()) - as_timestamp(s.last_changed)) / 60) | round(1) if (s is not none and s.state != 'on') else 0 }}
+      auto_on_attempted: false
+
+  - alias: Steg 7 – Slå kontaktoren PÅ igjen (kun hvis valgt)
+    if:
+      - condition: template
+        value_template: >-
+          {{ io_auto_turn_on and has_not_on_check
+             and switch_state_start == 'off'
+             and trigger_id in ['fault_not_on', 'retry_check']
+             and (switch_off_minutes | float(0)) >= (io_not_on_delay_min | float(5)) }}
+    then:
+      - alias: Steg 7-A – Slå PÅ
+        action: switch.turn_on
+        target:
+          entity_id: "{{ io_switch }}"
+        continue_on_error: true
+      - alias: Steg 7-B – Vent litt så målingene oppdateres
+        delay:
+          seconds: 10
+      - alias: Steg 7-C – Husk at den ble forsøkt slått PÅ
+        variables:
+          auto_on_attempted: true
+
+  - alias: Steg 8 – Les kontaktor og måleverdier (etter eventuell innkobling)
+    variables:
+      switch_state_now: "{{ states(io_switch) }}"
+      switch_state_text: "{{ {'on': 'PÅ', 'off': 'AV', 'unavailable': 'utilgjengelig', 'unknown': 'ukjent'}.get(states(io_switch), states(io_switch)) }}"
+      switch_state_start_text: "{{ {'on': 'PÅ', 'off': 'AV', 'unavailable': 'utilgjengelig', 'unknown': 'ukjent'}.get(switch_state_start, switch_state_start) }}"
+      coil_value: "{{ (states(io_coil) | float(-1) | round(1)) if has_coil else -1 }}"
+      power_value: "{{ (states(io_power) | float(-1) | round(0) | int) if has_power else -1 }}"
+      protection_on: >-
+        {{ protection_list | select('is_state', 'on') | map('state_attr', 'friendly_name') | list }}
+
+  - alias: Steg 9 – Hvilke feil står akkurat nå
+    variables:
+      fault_now_not_on: "{{ has_not_on_check and switch_state_now != 'on' }}"
+      fault_now_coil_low: "{{ has_coil and switch_state_now == 'on' and (coil_value | float(-1)) >= 0 and (coil_value | float(0)) < (coil_limit | float(0)) }}"
+      fault_now_no_load: "{{ has_power and switch_state_now == 'on' and (power_value | float(-1)) >= 0 and (power_value | float(0)) < (no_load_limit | float(0)) }}"
+      fault_now_not_full: "{{ has_not_full and switch_state_now == 'on' and (power_value | float(-1)) >= 0 and (power_value | float(0)) < (not_full_limit | float(0)) }}"
+      fault_now_stuck: "{{ has_power and switch_state_now == 'off' and (power_value | float(0)) > (stuck_limit | float(0)) }}"
+      fault_now_protection: "{{ has_protection and (protection_on | count) > 0 }}"
+
+  - alias: Steg 10 – Overvåkingstabell – målt verdi mot grense for hver sjekk
+    variables:
+      monitor_table: >-
+        {{ [
+          {'sjekk': 'Ikke på', 'i_bruk': has_not_on_check, 'malt': 'kontaktor ' ~ switch_state_text, 'grense': 'on', 'feil_na': fault_now_not_on},
+          {'sjekk': 'Spole', 'i_bruk': has_coil, 'malt': coil_value, 'grense': 'minst ' ~ coil_limit, 'feil_na': fault_now_coil_low},
+          {'sjekk': 'Ingen last', 'i_bruk': has_power, 'malt': power_value, 'grense': 'minst ' ~ no_load_limit ~ ' (i ' ~ io_no_load_delay_min ~ ' min)', 'feil_na': fault_now_no_load},
+          {'sjekk': 'Ikke full last', 'i_bruk': has_not_full, 'malt': power_value, 'grense': 'minst ' ~ not_full_limit ~ ' en gang per ' ~ io_not_full_hours ~ ' t', 'feil_na': fault_now_not_full},
+          {'sjekk': 'Henger inne', 'i_bruk': has_power, 'malt': power_value, 'grense': 'maks ' ~ stuck_limit ~ ' når av', 'feil_na': fault_now_stuck},
+          {'sjekk': 'Vern', 'i_bruk': has_protection, 'malt': protection_on, 'grense': 'ingen på', 'feil_na': fault_now_protection}
+        ] }}
+
+  - alias: Steg 11 – Er kontaktoren bekreftet OK akkurat nå
+    variables:
+      ok_now: >-
+        {% if switch_state_now == 'on' %}
+          {{ (not has_coil or (coil_value | float(-1)) >= (coil_limit | float(0)))
+             and (not has_power or (power_value | float(-1)) >= (ok_power_limit | float(0)))
+             and not fault_now_protection }}
+        {% elif not has_not_on_check and switch_state_now == 'off' %}
+          {{ (not has_power or ((power_value | float(-1)) >= 0 and (power_value | float(0)) <= (stuck_limit | float(0))))
+             and not fault_now_protection }}
+        {% else %}
+          false
+        {% endif %}
+
+  - alias: Steg 12 – Feil-hjelper og om varsel kan sendes
+    variables:
+      latch_configured: "{{ io_fault_latch is string and (io_fault_latch | trim) != '' }}"
+      latch_was_on: "{{ (io_fault_latch is string and (io_fault_latch | trim) != '') and is_state(io_fault_latch, 'on') }}"
+      can_notify: "{{ (pushover_destination | string | trim) != '' }}"
+
+  - alias: Steg 13 – Feiltekster for feilene som står nå (brukes av planlagt sjekk og manuell kjøring)
+    variables:
+      fault_now_lines: >-
+        {% set ns = namespace(l=[]) %}
+        {% if fault_now_not_on %}{% set ns.l = ns.l + ['Kontaktoren er ikke PÅ (' ~ switch_state_text ~ ').'] %}{% endif %}
+        {% if fault_now_coil_low %}{% set ns.l = ns.l + ['Lav spoleeffekt: ' ~ coil_value ~ ' (grense ' ~ coil_limit ~ ').'] %}{% endif %}
+        {% if fault_now_no_load %}{% set ns.l = ns.l + ['Ingen last nå: ' ~ power_value ~ ' (grense ' ~ no_load_limit ~ ').'] %}{% endif %}
+        {% if fault_now_stuck %}{% set ns.l = ns.l + ['Kontaktoren er AV, men det måles last: ' ~ power_value ~ '.'] %}{% endif %}
+        {% if fault_now_protection %}{% set ns.l = ns.l + ['Vern: ' ~ (protection_on | join(', ')) ~ '.'] %}{% endif %}
+        {% if latch_was_on and ns.l | length == 0 %}{% set ns.l = ns.l + ['Feil er registrert tidligere, og kontaktoren er ikke bekreftet OK siden (f.eks. ikke nådd full last).'] %}{% endif %}
+        {{ ns.l }}
+
+  - alias: Steg 14 – Feil oppdaget av overvåkingen
+    if:
+      - condition: template
+        value_template: "{{ trigger_id in ['fault_not_on', 'fault_coil_low', 'fault_no_load', 'fault_not_full', 'fault_stuck_on', 'fault_protection'] }}"
+    then:
+      - alias: Steg 14-A – Bygg feiltekst
+        variables:
+          fault_message: >-
+            {% if trigger_id == 'fault_not_on' %}
+              Kontaktoren skal alltid være PÅ, men har vært {{ switch_state_start_text }} i minst {{ io_not_on_delay_min }} min. Sjekk at reléet svarer og ikke er slått av for hånd.{{ (' Den ble forsøkt slått PÅ automatisk, og er nå ' ~ switch_state_text ~ '.') if auto_on_attempted else '' }}
+            {% elif trigger_id == 'fault_coil_low' %}
+              Kontaktoren er PÅ, men spoleeffekten er {{ coil_value }} (forventet ca. {{ io_coil_expected }}, grense {{ coil_limit }}). Kontaktoren trekker trolig ikke inn. Sjekk reléutgang, styresikring og spole.
+            {% elif trigger_id == 'fault_no_load' %}
+              Kontaktoren er PÅ, men lasten har vært under {{ no_load_limit }} i {{ io_no_load_delay_min }} min (nå {{ power_value }}, full last ca. {{ io_power_full }}). Sjekk sikring, kontaktor og last (f.eks. element eller termostat).
+            {% elif trigger_id == 'fault_not_full' %}
+              Lasten har ikke nådd full effekt (grense {{ not_full_limit }}, full last ca. {{ io_power_full }}) på {{ io_not_full_hours }} timer. Nå: {{ power_value }}. Mulig feil på en del av lasten, f.eks. ett element.
+            {% elif trigger_id == 'fault_stuck_on' %}
+              Kontaktoren er AV, men det måles fortsatt last: {{ power_value }} (grense {{ stuck_limit }}). Kontaktoren kan henge inne.
+            {% else %}
+              Reléet melder vern: {{ protection_on | join(', ') }}. Sjekk last og kabling.
+            {% endif %}
+          fault_priority: "{{ (pushover_priority_not_full | int(0)) if trigger_id == 'fault_not_full' else (pushover_priority | int(0)) }}"
+      - alias: Steg 14-B – Slå på feil-hjelper (valgfri)
+        if:
+          - condition: template
+            value_template: "{{ latch_configured and not latch_was_on }}"
+        then:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: "{{ io_fault_latch }}"
+      - alias: Steg 14-C – Send feilvarsel
+        if:
+          - condition: template
+            value_template: "{{ can_notify }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "🔔 {{ notify_prefix }} feil - {{ output_name | trim }}"
+              message: "{{ fault_message | trim }}"
+              destination: "{{ pushover_destination }}"
+              priority: "{{ fault_priority | int(0) }}"
+              ttl_hours: "{{ pushover_ttl_hours }}"
+
+  - alias: Steg 15 – Planlagt sjekk på faste ukedager (påminnelse hvis feil står)
+    if:
+      - condition: template
+        value_template: "{{ trigger_id == 'scheduled_check' and (fault_now_lines | length) > 0 and can_notify }}"
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "🔔 {{ notify_prefix }} feil (påminnelse) - {{ output_name | trim }}"
+          message: "{{ fault_now_lines | join('\n') }}"
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl_hours: "{{ pushover_ttl_hours }}"
+
+  - alias: Steg 16 – Bekreftet OK igjen (kun med feil-hjelper)
+    if:
+      - condition: template
+        value_template: >-
+          {{ latch_configured and latch_was_on
+             and (trigger_id == 'ok_verified'
+                  or (trigger_id in ['automation_enabled', 'ha_start', 'scheduled_check', 'manual_run'] and ok_now)) }}
+    then:
+      - alias: Steg 16-A – Slå av feil-hjelper
+        action: input_boolean.turn_off
+        target:
+          entity_id: "{{ io_fault_latch }}"
+      - alias: Steg 16-B – Send varsel om at feilen er borte (valgfri)
+        if:
+          - condition: template
+            value_template: "{{ io_varsel_ved_ok and can_notify }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            data:
+              title: "✅ {{ notify_prefix }} OK igjen - {{ output_name | trim }}"
+              message: "Kontaktoren er {{ switch_state_text }} og målingene er normale igjen. Last: {{ power_value if has_power else 'ikke målt' }}, spole: {{ coil_value if has_coil else 'ikke målt' }}."
+              destination: "{{ pushover_destination }}"
+              priority: 0
+              ttl_hours: "{{ pushover_ttl_hours }}"
+
+  - alias: Steg 17 – Varsling ved manuell kjøring (valgfri)
+    if:
+      - condition: template
+        value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring and can_notify }}"
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "🔌 {{ notify_prefix }} - Kontaktor overvåking (manuell kjøring)"
+          message: |-
+            {{ output_name | trim }}
+            Kontaktor: {{ switch_state_text }} · Forventet: {{ 'alltid PÅ' if has_not_on_check else 'ingen fast tilstand' }}
+            Last: {{ power_value if has_power else 'ikke målt' }} (ingen last under {{ no_load_limit }}, full fra {{ not_full_limit }}) · Spole: {{ coil_value if has_coil else 'ikke målt' }} (grense {{ coil_limit }})
+            Feil-hjelper: {{ ('PÅ' if latch_was_on else 'AV') if latch_configured else 'ikke i bruk' }}
+            {{ ('Feil nå: ' ~ (fault_now_lines | join(' '))) if (fault_now_lines | length) > 0 else 'Ingen feil nå.' }}
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(0) }}"
+          ttl_hours: "{{ pushover_ttl_hours }}"
