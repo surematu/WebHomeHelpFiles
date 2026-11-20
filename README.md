@@ -214,6 +214,9 @@ Eksempel på antall feil, tavlestatus og fellesfeil ligger i [packages/kontaktor
 Detaljert funksjonsbeskrivelse:
 - [README_kontaktor_overvaking.md](./README_kontaktor_overvaking.md)
 
+Installasjon på et nytt anlegg, steg for steg:
+- [README_kontaktor_installasjon.md](./README_kontaktor_installasjon.md)
+
 ---
 
 ### kontaktor_fellesfeil.yaml — Kontaktor - Fellesfeil varsel
@@ -222,6 +225,9 @@ Overordnet robot for en gruppe kontaktorer som overvåkes med «Kontaktor - Over
 
 Detaljert funksjonsbeskrivelse:
 - [README_kontaktor_fellesfeil.md](./README_kontaktor_fellesfeil.md)
+
+Installasjon på et nytt anlegg, steg for steg:
+- [README_kontaktor_installasjon.md](./README_kontaktor_installasjon.md)
 
 ---
 

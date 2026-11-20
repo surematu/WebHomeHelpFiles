@@ -4,7 +4,7 @@ Oppskrift for å sette opp hele snøsmelt-løsningen på en ny Home Assistant-in
 
 Oppskriften er skrevet slik at den kan følges både for hånd og av en AI-assistent som jobber i nettleseren (se §9).
 
-Versjon: 2026.11.03
+Versjon: 2026.11.04
 
 ## 1. Hva løsningen består av
 
@@ -176,7 +176,7 @@ Bruk [dashboards/snosmelt_dashbord_eksempel.yaml](./dashboards/snosmelt_dashbord
 |---|---|---|
 | Startside (`snosmelt`) | Bruker | Statusboks, Snø og Rim, knapp for manuell kjøring med statusboks, én flis per tavle, knapp til feilsøking (bare admin) |
 | Feilsøking (`feilsoking`) | Admin | Alle statusene i hver sin boks, automatikk, historikk, værdata og tidspunkter |
-| Tavleside (`tavle-a`) | Bruker og admin | Én boks per kontaktor med effekt, rød bjelle ved feil og robot for automatikken. Egen admin-seksjon med målinger og merknader |
+| Tavleside (`tavle-a`) | Bruker og admin | Én boks per kontaktor med effekt, spoleeffekt (når bryteren er PÅ), rød bjelle ved feil og robot («<bryternavn> - Robot»). Egen admin-seksjon med målinger og merknader |
 
 Valg som er gjort, og som bør beholdes for at anleggene skal se like ut:
 
@@ -187,7 +187,8 @@ Valg som er gjort, og som bør beholdes for at anleggene skal se like ut:
 | Tavle-fliser | Tre like `tile`-kort med `visibility`, grå / gul / rød | Standardkort kan ikke bytte farge etter tekst-tilstand |
 | Feil på kontaktor | Underknapp med rød bjelle som bare vises ved feil | Ingen støy i normal drift |
 | Manuell kjøring | Standard `button`-kort: trykk starter og stopper, hold inne åpner «Snøsmelt - Manuellkjøring til» for å velge sluttid selv | Samme knapp dekker både fast varighet og egen sluttid |
-| Automatikk per kontaktor | Underknapp med robot som åpner automasjonen | Viser om automatikken er på. Slås den av, gir det feil og varsel |
+| Spole per kontaktor | Underknapp med spoleeffekt, vises når bryteren er PÅ | Viser at kontaktoren trekker inn. Feilknappen er da nr. 3 (`.bubble-sub-button-3`) |
+| Robot per kontaktor | Underknapp med robot som åpner «<bryternavn> - Robot» | Viser om automatikken er på. Slås den av, gir det feil og varsel |
 | Merknader for admin | Egen seksjon som bare admin ser, med overskrift som slutter på «(Admin)» | Brukeren ser bare det som er relevant |
 
 Begrensninger i Home Assistant som styrer utformingen:

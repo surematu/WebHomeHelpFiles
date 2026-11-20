@@ -184,3 +184,4 @@ Ingen egne debug-varsler. Se `decision_text` i steg 6 i sporloggen. Kjør automa
 
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kontaktor_fellesfeil.yaml
 - Robot per kontaktor: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md
+- Installasjon på nytt anlegg: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_installasjon.md

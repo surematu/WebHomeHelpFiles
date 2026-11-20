@@ -238,7 +238,9 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) sendes en påminnelse m
 1. Lag feil-hjelperen og automasjonen for én kontaktor og sjekk sporloggen.
 2. Lag resten, én automasjon per kontaktor, med grenser fra 10.7.
 3. Skru hver automasjon av og på én gang, så oppstartsjekken kjører og feil som allerede står (f.eks. en kontaktor som er AV) blir registrert.
-4. Legg feil-hjelperne og automasjonene inn i listen per tavle i status-sensorene (10.2).
+4. Legg feil-hjelperne og automasjonene inn i listen per tavle i status-sensorene og i Fellesfeil årsak (10.2).
+
+Hele installasjonen, med status-sensorer, overordnet robot og dashbord: [README_kontaktor_installasjon.md](./README_kontaktor_installasjon.md).
 
 ### 10.2 Eksempler
 
@@ -356,5 +358,7 @@ Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjo
 - Blueprint: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kontaktor_overvaking.yaml
 - Eksempel på status-sensorer: https://github.com/surematu/WebHomeHelpFiles/blob/main/packages/kontaktor_overvaking_status_eksempel.yaml
 - Eksempel på dashbord: https://github.com/surematu/WebHomeHelpFiles/blob/main/dashboards/kontaktor_overvaking_dashbord_eksempel.yaml
+- Installasjon på nytt anlegg: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_installasjon.md
+- Overordnet robot: https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_fellesfeil.md
 - Template-trigger: https://www.home-assistant.io/docs/automation/trigger/#template-trigger
 - Bubble Card: https://github.com/Clooos/Bubble-Card

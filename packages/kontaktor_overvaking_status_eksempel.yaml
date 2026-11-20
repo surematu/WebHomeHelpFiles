@@ -1,7 +1,9 @@
 # Kontaktor – Overvåking: eksempel på antall feil, tavlestatus og fellesfeil
 #
-# Hører til blueprinten
+# Hører til blueprintene
 #   blueprints/automation/kontaktor_overvaking.yaml
+#   blueprints/automation/kontaktor_fellesfeil.yaml
+# Installasjon steg for steg: README_kontaktor_installasjon.md
 #
 # Dette er et EKSEMPEL som må tilpasses anlegget: bytt ut entitetene merket
 # «TILPASS» med anleggets egne feil-hjelpere og automasjoner, og lag én blokk per
@@ -28,7 +30,7 @@
 # (Innstillinger → Enheter og tjenester → Hjelpere → Mal), med de samme malene.
 # Det er gjort slik på vtoppen.
 #
-# Versjon: 2026.11.03
+# Versjon: 2026.11.04
 
 template:
   - sensor:
@@ -63,6 +65,33 @@ template:
           {% elif not is_number(n) or (n | int) > 0 %}Problem
           {% else %}I drift{% endif %}
 
+      # --- Tavle nr. 2: samme mal, egen liste --------------------------------
+      - name: "Tappevann - RS60-62 Antall feil"
+        unique_id: tappevann_rs60_62_antall_feil
+        icon: mdi:bell-alert
+        state: >-
+          {% set kontaktorer = [
+            ['input_boolean.tavle_rs60_vvb_xk5_rs60_434_001_xo01_3_feil', 'automation.tavle_rs60_vvb_xk5_rs60_434_001_xo01_3_robot'],
+          ] %}                                                           {# TILPASS #}
+          {% if kontaktorer | count == 0 %}
+            {{ none }}
+          {% else %}
+            {% set ns = namespace(n=0) %}
+            {% for feil, auto in kontaktorer %}
+              {% if is_state(feil, 'on') or not is_state(auto, 'on') %}{% set ns.n = ns.n + 1 %}{% endif %}
+            {% endfor %}
+            {{ ns.n }}
+          {% endif %}
+
+      - name: "Tappevann - RS60-62 Status"
+        unique_id: tappevann_rs60_62_status
+        icon: mdi:water-boiler
+        state: >-
+          {% set n = states('sensor.tappevann_rs60_62_antall_feil') %}
+          {% if n == 'unknown' %}Ikke overvåket
+          {% elif not is_number(n) or (n | int) > 0 %}Problem
+          {% else %}I drift{% endif %}
+
       # --- Hele anlegget: antall kontaktorer med feil ----------------------
       - name: "Tappevann - Antall feil"
         unique_id: tappevann_antall_feil
@@ -83,6 +112,9 @@ template:
           {% set tavler = [
             ['RS50-54', [
               ['XK1', 'input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot'],
+            ]],
+            ['RS60-62', [
+              ['XK5', 'input_boolean.tavle_rs60_vvb_xk5_rs60_434_001_xo01_3_feil', 'automation.tavle_rs60_vvb_xk5_rs60_434_001_xo01_3_robot'],
             ]],
           ] %}                                                           {# TILPASS: alle tavlene og kontaktorene #}
           {% set ns = namespace(a=[]) %}
