@@ -21,7 +21,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md
 
-    Blueprint versjon: 2026.11.00
+    Blueprint versjon: 2026.11.01
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kontaktor_overvaking.yaml
@@ -86,7 +86,7 @@ blueprint:
 
     spole:
       name: Spole (Valgfri)
-      icon: mdi:electro-magnet
+      icon: mdi:magnet-on
       collapsed: true
       input:
         coil_sensor:

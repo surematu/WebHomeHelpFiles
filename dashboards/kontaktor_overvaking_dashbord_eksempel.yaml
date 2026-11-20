@@ -1,0 +1,301 @@
+# Kontaktor – Overvåking: eksempel på dashbord (oversikt og tavleside)
+#
+# Hører til blueprinten
+#   blueprints/automation/kontaktor_overvaking.yaml
+# og bruker entitetene fra
+#   packages/kontaktor_overvaking_status_eksempel.yaml
+#
+# Dette er et EKSEMPEL som må tilpasses anlegget. Alt som må byttes ut er
+# merket «TILPASS». Eksemplet er hentet fra tappevann på vtoppen
+# (/dashboard-tappevann/v2), der elkolbene i berederne overvåkes.
+#
+# To visninger:
+#   1. v2           Oversikt: samlet status, antall feil, fellesfeil, én knapp per tavle
+#   2. v2-rs50-54   Én side per tavle: status, ett Bubble Card per kontaktor, admin-del
+#                   (kopieres per tavle)
+#
+# Bruk:
+#   1. Åpne dashbordet → Rediger → ⋮ → Rå konfigurasjonsredigering.
+#   2. Lim inn visningene under `views:` og tilpass entiteter og stier.
+#   3. Lenke fra en eksisterende side: knapp med
+#        tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2}
+#
+# Egendefinerte kort (HACS):
+#   - Bubble Card   brukes for kontaktorene på tavlesiden (testet med 3.2.0)
+# Oversikten bruker bare standardkortene i Home Assistant.
+#
+# Vis bare for admin under testing: la `visible:` stå på visningene, og fjern
+# det når løsningen er godkjent. Admin-delen har `visibility:` og skal stå.
+# Bruker-ID: Innstillinger → Personer → Brukere → ID.
+#
+# Kontaktorkortet er «state» (bare visning), ikke «switch», slik at et trykk
+# aldri kan slå av en kontaktor ved et uhell.
+#
+# Versjon: 2026.11.00
+
+views:
+  # ===========================================================================
+  # 1. OVERSIKT
+  # ===========================================================================
+  - type: sections
+    max_columns: 4
+    title: Tappevann v2                                # TILPASS
+    path: v2
+    subview: true
+    back_path: /dashboard-tappevann/0                  # TILPASS: siden det lenkes fra
+    visible:
+      - user: <bruker-ID>                              # TILPASS (fjernes etter test)
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Tappevann                         # TILPASS
+            heading_style: title
+
+          # Samlet status: grønn når alt er i drift, rød med tavlene som har feil.
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set antall = states('sensor.tappevann_antall_feil') | int(0) %}
+              {% set tavler = [
+                ['RS50-54', 'sensor.tappevann_rs50_54_status', 'sensor.tappevann_rs50_54_antall_feil'],
+                ['RS60-62', 'sensor.tappevann_rs60_62_status', 'sensor.tappevann_rs60_62_antall_feil'],
+              ] %}{# TILPASS: alle tavlene #}
+              {% set ns = namespace(l=[]) %}
+              {% for navn, st, cnt in tavler %}
+                {% if is_state(st, 'Problem') %}
+                  {% set n = states(cnt) %}
+                  {% set ns.l = ns.l + [navn ~ ': ' ~ ((n ~ (' kontaktor' if (n | int(0)) == 1 else ' kontaktorer') ~ ' med feil') if is_number(n) else 'status kan ikke leses') ~ '.'] %}
+                {% endif %}
+              {% endfor %}
+              {% if is_state('binary_sensor.tappevann_fellesfeil', 'on') %}
+              <ha-alert alert-type="error" title="Fellesfeil – {{ antall }} {{ 'kontaktor' if antall == 1 else 'kontaktorer' }} med feil">{{ ns.l | join('<br>') }}<br><br><small>Trykk på tavla under for detaljer.</small></ha-alert>
+              {% else %}
+              <ha-alert alert-type="success" title="Tappevann i drift">Ingen feil på overvåkede elkolber.</ha-alert>
+              {% endif %}
+
+          - type: tile
+            entity: binary_sensor.tappevann_fellesfeil
+            name: Fellesfeil
+            icon: mdi:bell-alert
+            vertical: false
+            tap_action: {action: more-info}
+            grid_options: {columns: 6, rows: 1}
+
+          # Antall feil: grønn ved 0, rød ellers (to kort med synlighet).
+          - type: tile
+            entity: sensor.tappevann_antall_feil
+            name: Kontaktorer med feil
+            icon: mdi:check-circle
+            color: green
+            vertical: false
+            tap_action: {action: more-info}
+            grid_options: {columns: 6, rows: 1}
+            visibility:
+              - {condition: numeric_state, entity: sensor.tappevann_antall_feil, below: 1}
+          - type: tile
+            entity: sensor.tappevann_antall_feil
+            name: Kontaktorer med feil
+            icon: mdi:bell-alert
+            color: red
+            vertical: false
+            tap_action: {action: more-info}
+            grid_options: {columns: 6, rows: 1}
+            visibility:
+              - {condition: numeric_state, entity: sensor.tappevann_antall_feil, above: 0}
+
+          - type: heading
+            heading: Tavler
+            heading_style: title
+
+          # Én tavlelinje = tre kort med synlighet: I drift (grønn), Problem (rød),
+          # Ikke overvåket (grå). Kopieres per tavle.
+          - type: tile
+            entity: sensor.tappevann_rs50_54_status        # TILPASS
+            name: RS50-54                                  # TILPASS
+            icon: mdi:water-boiler
+            color: green
+            vertical: false
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}        # TILPASS
+            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}   # TILPASS
+            grid_options: {columns: 12, rows: 1}
+            visibility:
+              - {condition: state, entity: sensor.tappevann_rs50_54_status, state: I drift}
+          - type: tile
+            entity: sensor.tappevann_rs50_54_status
+            name: RS50-54
+            icon: mdi:bell-alert
+            color: red
+            vertical: false
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}
+            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}
+            grid_options: {columns: 12, rows: 1}
+            visibility:
+              - {condition: state, entity: sensor.tappevann_rs50_54_status, state: Problem}
+          - type: tile
+            entity: sensor.tappevann_rs50_54_status
+            name: RS50-54
+            icon: mdi:water-boiler-off
+            color: grey
+            vertical: false
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}
+            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/v2-rs50-54}
+            grid_options: {columns: 12, rows: 1}
+            visibility:
+              - {condition: state, entity: sensor.tappevann_rs50_54_status, state: Ikke overvåket}
+
+          - type: markdown
+            text_only: true
+            content: Grønn = alle overvåkede elkolber i drift, rød = problem, grå = ikke overvåket ennå. Trykk på en tavle for detaljer.
+
+      - type: grid
+        visibility:
+          - condition: user
+            users: [<bruker-ID>]                         # TILPASS
+        cards:
+          - type: heading
+            heading: Admin
+            heading_style: title
+          - type: entities
+            title: Status (hjelpere)
+            show_header_toggle: false
+            entities:
+              - {entity: binary_sensor.tappevann_fellesfeil, secondary_info: last-changed}
+              - {entity: sensor.tappevann_antall_feil, secondary_info: last-changed}
+              - {entity: sensor.tappevann_rs50_54_status, secondary_info: last-changed}
+              - {entity: sensor.tappevann_rs50_54_antall_feil, secondary_info: last-changed}
+          - type: entities
+            title: Overvåking (automasjoner)
+            show_header_toggle: false
+            entities:
+              - {entity: automation.tappevann_kontaktor_overvaking_rs50_54_xk1, name: RS50-54 XK1, secondary_info: last-triggered}   # TILPASS: én per kontaktor
+
+  # ===========================================================================
+  # 2. TAVLESIDE (kopieres per tavle)
+  # ===========================================================================
+  - type: sections
+    max_columns: 4
+    title: RS50-54 v2                                  # TILPASS
+    path: v2-rs50-54                                   # TILPASS
+    subview: true
+    back_path: /dashboard-tappevann/v2
+    visible:
+      - user: <bruker-ID>                              # TILPASS (fjernes etter test)
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: 434.002 (Beredertavle) - Varmtvannsbereder   # TILPASS
+            heading_style: title
+
+          # Tavlestatus med hvilke kontaktorer som har feil.
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set status = states('sensor.tappevann_rs50_54_status') %}
+              {% set kontaktorer = [
+                ['XK1', 'input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tappevann_kontaktor_overvaking_rs50_54_xk1'],
+              ] %}{# TILPASS: [navn, feil-hjelper, automasjon] for alle kontaktorene på tavla #}
+              {% set ns = namespace(l=[], navn=[]) %}
+              {% for navn, feil, auto in kontaktorer %}
+                {% set ns.navn = ns.navn + [navn] %}
+                {% if not is_state(auto, 'on') %}{% set ns.l = ns.l + [navn ~ ': overvåkingen er skrudd av.'] %}
+                {% elif is_state(feil, 'on') %}{% set ns.l = ns.l + [navn ~ ': feil siden ' ~ (as_timestamp(states[feil].last_changed) | timestamp_custom('%d.%m. kl. %H:%M')) ~ '.'] %}{% endif %}
+              {% endfor %}
+              {% if status == 'Problem' %}
+              <ha-alert alert-type="error" title="Problem på RS50-54">{{ ns.l | join('<br>') if ns.l | count > 0 else 'Status kan ikke leses.' }}<br><br><small>Årsaken står i Pushover-varselet og i sporloggen til automasjonen (robot-knappen).</small></ha-alert>
+              {% elif status == 'I drift' %}
+              <ha-alert alert-type="success" title="Alle overvåkede elkolber i drift">Overvåket: {{ ns.navn | join(', ') }}.</ha-alert>
+              {% else %}
+              <ha-alert alert-type="info" title="Ikke overvåket ennå">Ingen kontaktorer på denne tavla er lagt inn.</ha-alert>
+              {% endif %}
+
+          # Ett kort per kontaktor. Underknapper: last, spole, rød bjelle ved feil
+          # (bare synlig ved feil), robot = automasjonen.
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: switch.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1          # TILPASS
+            name: VVB XK1                                                  # TILPASS
+            icon: mdi:water-boiler
+            show_state: true
+            button_action:
+              tap_action: {action: more-info}
+            sub_button:
+              main:
+                - entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk1_effekt_kalkulert   # TILPASS: last
+                  name: Last
+                  icon: mdi:flash
+                  show_icon: true
+                  show_name: false
+                  show_state: true
+                  show_background: true
+                  tap_action: {action: more-info}
+                - entity: sensor.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_kontaktor_effekt   # TILPASS: spole
+                  name: Spole
+                  icon: mdi:magnet-on
+                  show_icon: true
+                  show_name: false
+                  show_state: true
+                  show_background: true
+                  tap_action: {action: more-info}
+                - entity: input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil   # TILPASS: feil-hjelper
+                  name: Feil
+                  icon: mdi:bell-alert
+                  show_icon: true
+                  show_name: false
+                  show_state: false
+                  show_background: true
+                  tap_action: {action: more-info}
+                  visibility:
+                    - {condition: state, entity: input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil, state: "on"}   # TILPASS
+                - entity: automation.tappevann_kontaktor_overvaking_rs50_54_xk1      # TILPASS: automasjon
+                  name: Automatikk
+                  icon: mdi:robot
+                  show_icon: true
+                  show_name: false
+                  show_state: false
+                  show_background: true
+                  tap_action: {action: more-info}
+              bottom: []
+            # Underknapp nr. 3 (feil) får rød bakgrunn.
+            styles: |-
+              .bubble-sub-button-3 { background-color: var(--error-color, #db4437) !important; }
+              .bubble-sub-button-3 * { color: white !important; }
+
+          - type: markdown
+            content: |-
+              **Ikke lagt inn ennå.** Overvåkes ikke før de er lagt inn.
+
+              - XK2 (full effekt ca. 6,5 kW målt, spole 1,9 W)
+            # TILPASS: fjern når alle kontaktorene er lagt inn
+
+      - type: grid
+        visibility:
+          - condition: user
+            users: [<bruker-ID>]                         # TILPASS
+        cards:
+          - type: heading
+            heading: 434.002 - Tappevann (Admin)          # TILPASS
+            heading_style: title
+          - type: entities
+            title: XK1 (full effekt 6,5 kW målt, spole 1,7 W)   # TILPASS: én per kontaktor
+            show_header_toggle: false
+            entities:
+              - {entity: switch.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1, secondary_info: last-changed}
+              - {entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk1_effekt_kalkulert, secondary_info: last-changed}
+              - {entity: sensor.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_kontaktor_effekt, name: Kontaktor - Effekt, secondary_info: last-changed}
+              - {entity: input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil, secondary_info: last-changed}
+              - {entity: automation.tappevann_kontaktor_overvaking_rs50_54_xk1, name: Kontaktor overvåking, secondary_info: last-triggered}
+          # Statistikkgraf (5-minutters snitt) i stedet for historikkgraf: lastsensorer som
+          # oppdateres hvert par sekund gir svært mye data i en vanlig historikkgraf.
+          - type: statistics-graph
+            title: Last alle elkolber – snitt per 5 min, siste 24 timer
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types: [mean]
+            entities:                                    # TILPASS: alle lastsensorene på tavla
+              - {entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk1_effekt_kalkulert, name: XK1}
+              - {entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk2_effekt_kalkulert, name: XK2}
