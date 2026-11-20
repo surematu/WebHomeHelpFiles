@@ -14,7 +14,8 @@
 #                   knapp til admin info (bare admin) og systembilder med temperaturer
 #   2. v2-rs50-54   Én side per tavle: status, ett Bubble Card per kontaktor, admin-del
 #                   (kopieres per tavle)
-#   3. v2-admin     Admin info: status-hjelpere, alle roboter og alle feil-hjelpere
+#   3. v2-admin     Admin info: statusboks med feilinformasjon og Bubble Card for
+#                   alle status-hjelperne
 #
 # Bruk:
 #   1. Åpne dashbordet → Rediger → ⋮ → Rå konfigurasjonsredigering.
@@ -30,10 +31,11 @@
 # det når løsningen er godkjent. Admin-delen har `visibility:` og skal stå.
 # Bruker-ID: Innstillinger → Personer → Brukere → ID.
 #
-# Kontaktorkortet er «state» (bare visning), ikke «switch», slik at et trykk
-# aldri kan slå av en kontaktor ved et uhell.
+# Kontaktorkortet er «switch», så hele kortet lyser når kontaktoren er PÅ, men
+# alle trykk er satt til å åpne info (more-info / none). Et trykk kan derfor
+# ikke slå av en kontaktor ved et uhell.
 #
-# Versjon: 2026.11.02
+# Versjon: 2026.11.03
 
 views:
   # ===========================================================================
@@ -226,14 +228,17 @@ views:
           # (bare synlig ved feil), robot = automasjonen.
           - type: custom:bubble-card
             card_type: button
-            button_type: state
+            button_type: switch                                            # lyser når PÅ
             scrolling_effect: false
             entity: switch.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1          # TILPASS
             name: VVB XK1                                                  # TILPASS
             icon: mdi:water-boiler
             show_state: true
-            button_action:
+            tap_action: {action: more-info}                                # ikonet
+            button_action:                                                 # resten av kortet: aldri av/på
               tap_action: {action: more-info}
+              double_tap_action: {action: none}
+              hold_action: {action: more-info}
             sub_button:
               main:
                 - entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk1_effekt_kalkulert   # TILPASS: last
@@ -322,38 +327,69 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Status
+            heading: Status (Admin)
             heading_style: title
+
+          # Feilinformasjon: hvilke kontaktorer som har feil (Fellesfeil årsak).
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set antall = states('sensor.tappevann_antall_feil') | int(0) %}
+              {% if is_state('binary_sensor.tappevann_fellesfeil', 'on') %}
+              <ha-alert alert-type="error" title="Fellesfeil – {{ antall }} {{ 'kontaktor' if antall == 1 else 'kontaktorer' }} med feil">{{ states('sensor.tappevann_fellesfeil_arsak') }}<br><br><small>Årsaken til hver feil står i Pushover-varselet og i sporloggen til roboten. Feil-hjelperen slås AV av roboten når kontaktoren er OK igjen, eller for hånd som kvittering.</small></ha-alert>
+              {% else %}
+              <ha-alert alert-type="success" title="Tappevann i drift">Ingen feil, og alle roboter er PÅ.</ha-alert>
+              {% endif %}
+
+          # Ett Bubble Card per status-hjelper (bare visning, trykk = info).
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: binary_sensor.tappevann_fellesfeil
+            name: Tappevann - Fellesfeil
+            icon: mdi:bell-alert
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: sensor.tappevann_fellesfeil_arsak
+            name: Tappevann - Fellesfeil årsak
+            icon: mdi:bell-alert
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: sensor.tappevann_antall_feil
+            name: Tappevann - Antall feil
+            icon: mdi:bell-alert
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+          - type: custom:bubble-card                     # TILPASS: ett par per tavle
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: sensor.tappevann_rs50_54_status
+            name: Tappevann - RS50-54 Status
+            icon: mdi:water-boiler
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: sensor.tappevann_rs50_54_antall_feil
+            name: Tappevann - RS50-54 Antall feil
+            icon: mdi:bell-alert
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+
           - type: markdown
             content: |-
               Hver kontaktor overvåkes av sin egen robot fra blueprinten **Kontaktor - Overvåking** ([dokumentasjon](https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md)). Grenser justeres i roboten for kontaktoren.
 
               En kontaktor teller som feil når feil-hjelperen er PÅ eller roboten er AV. Feil-hjelperen slås AV av roboten når kontaktoren er OK igjen, og kan slås AV for hånd som kvittering.
-          - type: entities
-            title: Status (hjelpere)
-            show_header_toggle: false
-            entities:
-              - {entity: binary_sensor.tappevann_fellesfeil, secondary_info: last-changed}
-              - {entity: sensor.tappevann_antall_feil, secondary_info: last-changed}
-              - {entity: sensor.tappevann_rs50_54_status, secondary_info: last-changed}
-              - {entity: sensor.tappevann_rs50_54_antall_feil, secondary_info: last-changed}
-      - type: grid
-        cards:
-          - type: heading
-            heading: Roboter
-            heading_style: title
-          - type: entities
-            title: Roboter RS50-54                       # TILPASS: én liste per tavle
-            show_header_toggle: false
-            entities:
-              - {entity: automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot, name: XK1, secondary_info: last-triggered}
-      - type: grid
-        cards:
-          - type: heading
-            heading: Feil-hjelpere
-            heading_style: title
-          - type: entities
-            title: Feil-hjelpere RS50-54                 # TILPASS: én liste per tavle
-            show_header_toggle: false
-            entities:
-              - {entity: input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil, name: XK1, secondary_info: last-changed}

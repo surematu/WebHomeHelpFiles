@@ -12,6 +12,7 @@
 #   Feil-hjelper per kontaktor + automasjonen PÅ/AV
 #     → Antall feil per tavle → Status per tavle (I drift / Problem / Ikke overvåket)
 #     → Antall feil totalt     → Fellesfeil
+#   Fellesfeil årsak: kort tekst om hvilke kontaktorer som har feil (maks 255 tegn)
 #
 # En kontaktor teller som feil når feil-hjelperen er PÅ, eller når automasjonen
 # for kontaktoren er AV (da overvåkes den ikke).
@@ -27,7 +28,7 @@
 # (Innstillinger → Enheter og tjenester → Hjelpere → Mal), med de samme malene.
 # Det er gjort slik på vtoppen.
 #
-# Versjon: 2026.11.01
+# Versjon: 2026.11.02
 
 template:
   - sensor:
@@ -71,6 +72,30 @@ template:
             'sensor.tappevann_rs50_54_antall_feil',
             'sensor.tappevann_rs60_62_antall_feil'
           ] | map('states') | select('is_number') | map('int') | sum }}   {# TILPASS: alle tavlene #}
+
+      # --- Hele anlegget: hvilke kontaktorer som har feil, i klartekst ------
+      # Vises i statusboksen og som eget kort på admin info-siden.
+      # Eksempel: «RS60-62: feil på XK3, XK4.» eller «Ingen feil».
+      - name: "Tappevann - Fellesfeil årsak"
+        unique_id: tappevann_fellesfeil_arsak
+        icon: mdi:bell-alert
+        state: >-
+          {% set tavler = [
+            ['RS50-54', [
+              ['XK1', 'input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot'],
+            ]],
+          ] %}                                                           {# TILPASS: alle tavlene og kontaktorene #}
+          {% set ns = namespace(a=[]) %}
+          {% for tavle, kontaktorer in tavler %}
+            {% set t = namespace(feil=[], av=[]) %}
+            {% for navn, feil, auto in kontaktorer %}
+              {% if not is_state(auto, 'on') %}{% set t.av = t.av + [navn] %}
+              {% elif is_state(feil, 'on') %}{% set t.feil = t.feil + [navn] %}{% endif %}
+            {% endfor %}
+            {% if t.feil | count > 0 %}{% set ns.a = ns.a + [tavle ~ ': feil på ' ~ (t.feil | join(', ')) ~ '.'] %}{% endif %}
+            {% if t.av | count > 0 %}{% set ns.a = ns.a + [tavle ~ ': robot AV for ' ~ (t.av | join(', ')) ~ '.'] %}{% endif %}
+          {% endfor %}
+          {{ ((ns.a | join(' ')) if ns.a | count > 0 else 'Ingen feil') | truncate(250) }}
 
   - binary_sensor:
       # --- Hele anlegget: fellesfeil når en tavle har problem ---------------
