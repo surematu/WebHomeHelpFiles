@@ -221,7 +221,7 @@ Installasjon på et nytt anlegg, steg for steg:
 
 ### kontaktor_fellesfeil.yaml — Kontaktor - Fellesfeil varsel
 
-Overordnet robot for en gruppe kontaktorer som overvåkes med «Kontaktor - Overvåking» (én robot per kontaktor). Den sender Pushover for anlegget som helhet: straks når en robot for en kontaktor er skrudd av, en samlet påminnelse så lenge fellesfeilen står, og «Tilbake i normal drift» når feilen er borte. Den gjentar ikke det robotene per kontaktor allerede har varslet, slik at det ikke blir dobbeltvarsling.
+Overordnet robot for en gruppe kontaktorer som overvåkes med «Kontaktor - Overvåking» (én robot per kontaktor). Den sender Pushover for anlegget som helhet: straks når en robot for en kontaktor er skrudd av, en samlet påminnelse så lenge fellesfeilen står, og «Tilbake i normal drift» når feilen er borte. Den gjentar ikke det robotene per kontaktor allerede har varslet, slik at det ikke blir dobbeltvarsling. Valgfritt varsler den også andre feil på anlegget, f.eks. kaldt varmtvann eller varmepumpe som ikke leverer varme, uten egen automasjon.
 
 Detaljert funksjonsbeskrivelse:
 - [README_kontaktor_fellesfeil.md](./README_kontaktor_fellesfeil.md)

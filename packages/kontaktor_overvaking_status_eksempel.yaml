@@ -19,6 +19,13 @@
 # En kontaktor teller som feil når feil-hjelperen er PÅ, eller når automasjonen
 # for kontaktoren er AV (da overvåkes den ikke).
 #
+# Andre feil (valgfritt): andre feil på tavla enn kontaktorene, f.eks. kaldt
+# varmtvann eller varmepumpe som ikke leverer varme. Det er binary_sensor-er med
+# forsinkelse (se eksemplene nederst). De gjør tavla til «Problem» (og dermed
+# Fellesfeil PÅ), står i Fellesfeil årsak, og legges i «Andre feil» i den
+# overordnede roboten (Kontaktor - Fellesfeil varsel), som varsler dem.
+# Tom liste [] = ingen andre feil på tavla.
+#
 # Bruk:
 #   1. Kopier filen til /config/packages/ og tilpass den.
 #   2. Sørg for at packages er aktivert i configuration.yaml:
@@ -30,7 +37,7 @@
 # (Innstillinger → Enheter og tjenester → Hjelpere → Mal), med de samme malene.
 # Det er gjort slik på vtoppen.
 #
-# Versjon: 2026.11.04
+# Versjon: 2026.11.05
 
 template:
   - sensor:
@@ -56,12 +63,18 @@ template:
           {% endif %}
 
       # --- Én per tavle: I drift / Problem / Ikke overvåket -----------------
+      # Andre feil på tavla (f.eks. varmtvann og varmepumpe) gir også Problem.
       - name: "Tappevann - RS50-54 Status"
         unique_id: tappevann_rs50_54_status
         icon: mdi:water-boiler
         state: >-
+          {% set andre_feil = [
+            'binary_sensor.tappevann_rs50_54_varmtvann_feil',
+            'binary_sensor.tappevann_rs50_54_varmepumpe_feil',
+          ] %}                                                           {# TILPASS: andre feil på tavla, eller [] #}
           {% set n = states('sensor.tappevann_rs50_54_antall_feil') %}   {# TILPASS #}
-          {% if n == 'unknown' %}Ikke overvåket
+          {% if andre_feil | select('is_state', 'on') | list | count > 0 %}Problem
+          {% elif n == 'unknown' %}Ikke overvåket
           {% elif not is_number(n) or (n | int) > 0 %}Problem
           {% else %}I drift{% endif %}
 
@@ -87,8 +100,10 @@ template:
         unique_id: tappevann_rs60_62_status
         icon: mdi:water-boiler
         state: >-
+          {% set andre_feil = [] %}                                      {# TILPASS: andre feil på tavla, eller [] #}
           {% set n = states('sensor.tappevann_rs60_62_antall_feil') %}
-          {% if n == 'unknown' %}Ikke overvåket
+          {% if andre_feil | select('is_state', 'on') | list | count > 0 %}Problem
+          {% elif n == 'unknown' %}Ikke overvåket
           {% elif not is_number(n) or (n | int) > 0 %}Problem
           {% else %}I drift{% endif %}
 
@@ -105,6 +120,8 @@ template:
       # --- Hele anlegget: hvilke kontaktorer som har feil, i klartekst ------
       # Vises i statusboksen og som eget kort på admin info-siden.
       # Eksempel: «RS60-62: feil på XK3, XK4.» eller «Ingen feil».
+      # Per tavle: [navn, kontaktorer, andre feil]. Andre feil er [tekst, binary_sensor].
+      # Teksten kan ta med en måling, f.eks. 'kaldt varmtvann (' ~ (states('sensor.x') | float(0) | round(0) | int) ~ ' °C ut)'.
       - name: "Tappevann - Fellesfeil årsak"
         unique_id: tappevann_fellesfeil_arsak
         icon: mdi:bell-alert
@@ -112,14 +129,17 @@ template:
           {% set tavler = [
             ['RS50-54', [
               ['XK1', 'input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot'],
+            ], [
+              ['kaldt varmtvann', 'binary_sensor.tappevann_rs50_54_varmtvann_feil'],
+              ['varmepumpa leverer ikke varme', 'binary_sensor.tappevann_rs50_54_varmepumpe_feil'],
             ]],
             ['RS60-62', [
               ['XK5', 'input_boolean.tavle_rs60_vvb_xk5_rs60_434_001_xo01_3_feil', 'automation.tavle_rs60_vvb_xk5_rs60_434_001_xo01_3_robot'],
-            ]],
-          ] %}                                                           {# TILPASS: alle tavlene og kontaktorene #}
+            ], []],
+          ] %}                                                           {# TILPASS: alle tavlene, kontaktorene og andre feil #}
           {% set ns = namespace(a=[]) %}
           {% if not is_state('automation.tappevann_robot', 'on') %}{% set ns.a = ns.a + ['Hovedroboten er AV.'] %}{% endif %}   {# TILPASS #}
-          {% for tavle, kontaktorer in tavler %}
+          {% for tavle, kontaktorer, andre in tavler %}
             {% set t = namespace(feil=[], av=[]) %}
             {% for navn, feil, auto in kontaktorer %}
               {% if not is_state(auto, 'on') %}{% set t.av = t.av + [navn] %}
@@ -127,6 +147,9 @@ template:
             {% endfor %}
             {% if t.feil | count > 0 %}{% set ns.a = ns.a + [tavle ~ ': feil på ' ~ (t.feil | join(', ')) ~ '.'] %}{% endif %}
             {% if t.av | count > 0 %}{% set ns.a = ns.a + [tavle ~ ': robot AV for ' ~ (t.av | join(', ')) ~ '.'] %}{% endif %}
+            {% for tekst, e in andre %}
+              {% if is_state(e, 'on') %}{% set ns.a = ns.a + [tavle ~ ': ' ~ tekst ~ '.'] %}{% endif %}
+            {% endfor %}
           {% endfor %}
           {{ ((ns.a | join(' ')) if ns.a | count > 0 else 'Ingen feil') | truncate(250) }}
 
@@ -142,3 +165,38 @@ template:
             'sensor.tappevann_rs60_62_status'
           ] | select('is_state', 'Problem') | list | count > 0            {# TILPASS: alle tavlene #}
              or not is_state('automation.tappevann_robot', 'on') }}     {# TILPASS: overordnet robot (Kontaktor - Fellesfeil varsel) #}
+
+      # --- Andre feil (valgfritt): eksempel med varmtvann og varmepumpe ------
+      # Forsinkelsen (delay_on) er hvor lenge feilen må stå før den slår inn.
+      # delay_off hindrer at et kort hopp over grensen gir «OK igjen» og ny feil.
+      # Legg dem i «Andre feil» i den overordnede roboten, i tavlestatus og i årsak.
+      # Navnet står i varselet («🔔 Tappevann feil - RS50-54 Varmtvann»). Entitets-ID
+      # lages av navnet; endre den etterpå til ..._varmtvann_feil og ..._varmepumpe_feil
+      # (README_kontaktor_installasjon.md §8).
+      - name: "Tappevann - RS50-54 Varmtvann"
+        unique_id: tappevann_rs50_54_varmtvann_feil
+        device_class: problem
+        icon: mdi:bell-alert
+        delay_on:
+          minutes: 30
+        delay_off:
+          minutes: 10
+        state: >-
+          {% set t = states('sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt401') %}   {# TILPASS: temperatur ut av bereder #}
+          {{ is_number(t) and (t | float) < 50 }}
+
+      # Varmepumpe: både tur fra varmepumpa og sirkulasjon til forvarmetank er kalde.
+      # 10 t fordi varmepumpa på RS50-54 står om natta (støy). Bruk kortere tid
+      # der varmepumpa skal gå hele døgnet (2 t på RS60-62).
+      - name: "Tappevann - RS50-54 Varmepumpe"
+        unique_id: tappevann_rs50_54_varmepumpe_feil
+        device_class: problem
+        icon: mdi:bell-alert
+        delay_on:
+          hours: 10
+        delay_off:
+          minutes: 15
+        state: >-
+          {% set vp = states('sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_vp_rs52_434_002_rt405') %}   {# TILPASS #}
+          {% set sk = states('sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt404') %}      {# TILPASS #}
+          {{ is_number(vp) and is_number(sk) and (vp | float) < 35 and (sk | float) < 35 }}

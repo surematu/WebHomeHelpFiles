@@ -6,7 +6,7 @@ Oppskriften er skrevet slik at den kan følges både for hånd og av en AI-assis
 
 I eksemplene står **«Tappevann»** for anlegget og **«RS50-54»** for en tavle. Bytt med anleggets egne navn.
 
-Versjon: 2026.11.01
+Versjon: 2026.11.02
 
 ## 1. Hva løsningen består av
 
@@ -15,7 +15,8 @@ Versjon: 2026.11.01
 | Kontaktor - Overvåking | [blueprints/automation/kontaktor_overvaking.yaml](./blueprints/automation/kontaktor_overvaking.yaml) | 1 robot per kontaktor | Sjekker ikke på, spole, ingen last, ikke full last, henger inne og vern. Varsler hva som er feil, og «OK igjen» |
 | Feil-hjelper | – | 1 per kontaktor | input_boolean som roboten slår PÅ ved feil og AV når kontaktoren er OK |
 | Status-sensorer | [packages/kontaktor_overvaking_status_eksempel.yaml](./packages/kontaktor_overvaking_status_eksempel.yaml) | 2 per tavle, 3 for anlegget | Antall feil og status per tavle, antall feil totalt, Fellesfeil og Fellesfeil årsak |
-| Kontaktor - Fellesfeil varsel | [blueprints/automation/kontaktor_fellesfeil.yaml](./blueprints/automation/kontaktor_fellesfeil.yaml) | 1 robot for anlegget | Varsler straks når en robot er AV, samlet påminnelse og «Tilbake i normal drift» |
+| Kontaktor - Fellesfeil varsel | [blueprints/automation/kontaktor_fellesfeil.yaml](./blueprints/automation/kontaktor_fellesfeil.yaml) | 1 robot for anlegget | Varsler straks når en robot er AV eller en annen feil slår inn, samlet påminnelse, «OK igjen» og «Tilbake i normal drift» |
+| Andre feil (valgfri) | Samme eksempelfil som status-sensorene | Etter behov per tavle | F.eks. kaldt varmtvann eller varmepumpe som ikke leverer varme. binary_sensor med forsinkelse |
 | Feil sist varslet | – | 1 for anlegget | input_datetime som den overordnede roboten bruker |
 | Dashbord | [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/kontaktor_overvaking_dashbord_eksempel.yaml) | 3 typer visninger | Oversikt, én side per tavle, admin info |
 | Pushover-script | [blueprints/scripts/varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | 1 script | Sender varslene. Versjon 2026.08.01 eller nyere |
@@ -28,6 +29,8 @@ Kjeden er:
 bryter + spole + last → <bryternavn> - Robot → <bryternavn> Feil (feil-hjelper)
                                                         ↓
            Antall feil per tavle → Status per tavle → Antall feil totalt → Fellesfeil + Fellesfeil årsak
+                                       ↑
+               Andre feil per tavle (f.eks. varmtvann, varmepumpe)
                                                         ↓
                                   <Anlegg> - Robot (overordnet) → Pushover
 ```
@@ -37,7 +40,7 @@ Hvem varsler hva:
 | Hvem | Sender |
 |---|---|
 | Robot per kontaktor | Feilvarsel med hva som er feil, og «OK igjen» |
-| Overordnet robot | Straks-varsel når en robot er AV, samlet påminnelse hver 24. time så lenge Fellesfeil står, «Tilbake i normal drift» bare hvis den selv har varslet |
+| Overordnet robot | Straks-varsel når en robot er AV, feilvarsel og «OK igjen» for andre feil, samlet påminnelse hver 24. time så lenge Fellesfeil står, «Tilbake i normal drift» bare hvis den selv har varslet |
 
 ## 2. Arbeidsregler
 
@@ -145,12 +148,15 @@ Bruk [packages/kontaktor_overvaking_status_eksempel.yaml](./packages/kontaktor_o
 | Nivå | Entitets-ID | Navn | Regel |
 |---|---|---|---|
 | Tavle | `sensor.<anlegg>_<tavle>_antall_feil` | `<Anlegg> - <tavle> Antall feil` | Antall kontaktorer der feil-hjelperen er PÅ eller roboten er AV. Tom liste = ukjent |
-| Tavle | `sensor.<anlegg>_<tavle>_status` | `<Anlegg> - <tavle> Status` | I drift / Problem / Ikke overvåket |
+| Tavle | `sensor.<anlegg>_<tavle>_status` | `<Anlegg> - <tavle> Status` | I drift / Problem / Ikke overvåket. Problem også når en av andre feil på tavla er PÅ |
+| Tavle (valgfri) | `binary_sensor.<anlegg>_<tavle>_<hva>_feil` | `<Anlegg> - <tavle> <Hva>`, f.eks. `Tappevann - RS50-54 Varmtvann` | Andre feil. Mal med «Forsinkelse på» (hvor lenge feilen må stå) og «Forsinkelse av». `device_class: problem`. Navnet står i varselet |
 | Anlegg | `sensor.<anlegg>_antall_feil` | `<Anlegg> - Antall feil` | Summen av tavlene |
 | Anlegg | `binary_sensor.<anlegg>_fellesfeil` | `<Anlegg> - Fellesfeil` | En tavle har Problem, eller den overordnede roboten er AV. `device_class: problem` |
 | Anlegg | `sensor.<anlegg>_fellesfeil_arsak` | `<Anlegg> - Fellesfeil årsak` | F.eks. «RS60-62: feil på XK3, XK4.» eller «Ingen feil» (maks 255 tegn) |
 
 - Listene over kontaktorer står i malen for Antall feil på hver tavle og i Fellesfeil årsak. Legges en kontaktor til eller fjernes, må begge oppdateres (og robot-listen i den overordnede roboten, §9).
+- Andre feil står i tre lister: Status for tavla, Fellesfeil årsak (med tekst) og «Andre feil» i den overordnede roboten (§9).
+- Eksempel fra vtoppen: varmtvann er feil når temperaturen ut av berederen er under 50 °C i 30 min. Varmepumpe er feil når både tur fra varmepumpa og sirkulasjon til forvarmetank er under 35 °C i 10 t (RS50-54, der varmepumpa står om natta) eller 2 t (RS60-62). Finn grensene i historikken først, slik som i §4.
 - Ikon: `mdi:bell-alert` på feil og antall, `mdi:water-boiler` (eller passende) på tavlestatus.
 - Endres en mal-hjelper senere, må alle feltene sendes inn på nytt (f.eks. `device_class: problem` på Fellesfeil), ellers forsvinner de.
 
@@ -172,9 +178,14 @@ use_blueprint:
     robots:
       - automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot
       # … alle robotene per kontaktor
+    other_faults:                     # valgfri: andre feil (§8)
+      - binary_sensor.tappevann_rs50_54_varmtvann_feil
+      - binary_sensor.tappevann_rs50_54_varmepumpe_feil
 ```
 
 Ta med `automation.<anlegg>_robot` i Fellesfeil og Fellesfeil årsak (se eksempelfila), så den vises som feil når den er AV.
+
+Andre feil trenger ingen egen automasjon. Den overordnede roboten varsler dem.
 
 **Kontroll:** skru roboten av og på. Sporloggen (steg 6, `decision_text`) skal si hva den vurderte. Står Fellesfeil fordi en kontaktor har feil, skal den ikke sende noe (kontaktorens robot har varslet).
 
@@ -224,7 +235,7 @@ Bruk de samme kallene som i [README_snosmelt_installasjon.md](./README_snosmelt_
 | 3 | Feil-hjelper PÅ i noen sekunder | Tavla Problem og Fellesfeil PÅ, tilbake når den slås AV |
 | 4 | Skru av én robot i over 1 minutt (avtales med mottaker) | «🔔 <Anlegg> - Fellesfeil: Overvåkingen er skrudd AV for …» |
 | 5 | Skru den på igjen | Står ingen annen feil: «✅ <Anlegg> - Tilbake i normal drift» etter 1 minutt |
-| 6 | Kjør den overordnede roboten manuelt | Statusmelding på Pushover |
+| 6 | Kjør den overordnede roboten manuelt | Statusmelding på Pushover, også med andre feil som er PÅ |
 | 7 | Vanlig bruker | Ser ikke admin-delene |
 
 Testene som gir Pushover (nr. 4–6) avtales på forhånd med den som mottar varslene.
@@ -233,6 +244,6 @@ Testene som gir Pushover (nr. 4–6) avtales på forhånd med den som mottar var
 
 - Med én strømtang per kurs vises ikke et dødt element som ikke henger på den målte lederen. Spolesjekken viser at kontaktoren trekker inn, ikke at hovedkontaktene leder.
 - Oppstartsjekken dekker ikke på, spole, henger inne og vern. «Ingen last» og «Ikke full last» fanges når avviket oppstår på nytt etter en omstart.
-- Forsinkelsene (f.eks. 24 t for «Ikke full last») starter på nytt ved omstart av Home Assistant.
+- Forsinkelsene (f.eks. 24 t for «Ikke full last», 10 t for varmepumpe) starter på nytt ved omstart av Home Assistant. En feil som allerede står, blir stående.
 - Er den overordnede roboten AV, sendes ingen fellesfeil-varsler. Fellesfeil-lampa blir rød.
 - Listene over kontaktorer må holdes like i Antall feil per tavle og Fellesfeil årsak.

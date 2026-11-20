@@ -4,6 +4,8 @@
 
 Overordnet robot for en gruppe kontaktorer som overvåkes med «Kontaktor - Overvåking» (én robot per kontaktor). Den sender Pushover for anlegget som helhet: straks når en robot for en kontaktor er skrudd av, en samlet påminnelse så lenge fellesfeilen står, og «Tilbake i normal drift» når feilen er borte. Den gjentar ikke det robotene per kontaktor allerede har varslet, slik at det ikke blir dobbeltvarsling.
 
+Valgfritt kan den også varsle **andre feil** på anlegget enn kontaktorene, f.eks. kaldt varmtvann eller varmepumpe som ikke leverer varme. Feilen avgjøres av en binary_sensor (gjerne en mal-hjelper med forsinkelse). Roboten varsler straks den slår inn, sender «OK igjen» når den er borte, og tar den med i påminnelsen. Det trengs ingen egen automasjon for varslingen.
+
 ## 2. Eksempler på bruk
 
 ### 2.1 Elkolbe får feil og blir rettet samme dag
@@ -23,6 +25,13 @@ Overordnet robot for en gruppe kontaktorer som overvåkes med «Kontaktor - Over
 
 Roboten for en kontaktor skrus av. Kontaktoren overvåkes ikke og kan ikke varsle selv. Etter 1 minutt sender fellesfeil-roboten «🔔 Tappevann - Fellesfeil: Overvåkingen er skrudd AV for: …». Når roboten skrus på igjen og fellesfeilen er borte, kommer «Tilbake i normal drift».
 
+### 2.4 Varmtvannet blir kaldt (andre feil)
+
+1. «Tappevann - RS50-54 Varmtvann» går PÅ når temperaturen ut av berederen har vært under 50 °C i 30 minutter (forsinkelsen ligger i sensoren). Tavla går til Problem og fellesfeilen slår inn.
+2. Etter 1 minutt sender roboten «🔔 Tappevann feil - RS50-54 Varmtvann» med årsaken (f.eks. «RS50-54: kaldt varmtvann (44 °C ut).»).
+3. Står feilen, kommer den med i den samlede påminnelsen etter 24 timer.
+4. Når den er borte: «✅ Tappevann OK igjen - RS50-54 Varmtvann». Er det sendt påminnelse og alt er OK, kommer også «Tilbake i normal drift».
+
 ## 3. FAQ – Ofte stilte spørsmål
 
 **Hvorfor sender den ikke varsel med en gang ved alle feil?**
@@ -37,11 +46,18 @@ Da sendes ingen fellesfeil-varsler. Robotene per kontaktor varsler fortsatt. Ta 
 **Når kommer påminnelsen?**
 Når det har gått valgt antall timer (standard 24) siden fellesfeilen kom, eller siden forrige varsel fra denne roboten. Etter omstart av Home Assistant regnes tiden fra omstarten.
 
+**Trenger jeg en egen automasjon for andre feil (f.eks. varmtvann)?**
+Nei. Legg sensoren i «Andre feil». Selve feilen (grense og hvor lenge den må stå) avgjøres i sensoren. Roboten varsler, minner på og sender «OK igjen».
+
+**Hvorfor kommer ikke påminnelsen for en annen feil?**
+Påminnelsen følger fellesfeilen. Den andre feilen må gi «Problem» på tavla (se eksempelfila), ellers står ikke fellesfeilen.
+
 ## 4. Hva slags info trengs
 
 - Fellesfeil (binary_sensor), f.eks. «Tappevann - Fellesfeil».
 - Valgfritt: fellesfeil-årsak (sensor med kort tekst), f.eks. «Tappevann - Fellesfeil årsak».
 - Robotene per kontaktor (automasjonene fra «Kontaktor - Overvåking»).
+- Valgfritt: andre feil (binary_sensor), f.eks. «Tappevann - RS50-54 Varmtvann» og «Tappevann - RS50-54 Varmepumpe».
 - Hjelperen «<Anlegg> - Feil sist varslet» (input_datetime med dato og tid).
 - Scriptet `script.varsel_pushover_send_melding_webhome`.
 
@@ -54,6 +70,7 @@ Når det har gått valgt antall timer (standard 24) siden fellesfeilen kom, elle
 | Fellesfeil | – | binary_sensor som er PÅ når anlegget har feil |
 | Fellesfeil årsak (valgfri) | tom | Sensor med kort tekst om hva som er feil. Brukes i varselteksten |
 | Roboter per kontaktor | tom | Robotene fra «Kontaktor - Overvåking». Er én AV, varsles det med en gang |
+| Andre feil (valgfri) | tom | binary_sensor-er for andre feil enn kontaktorene. Varsles når én er PÅ i 1 minutt, «OK igjen» når den er AV. Forsinkelsen legges i sensoren |
 | Feil sist varslet | – | input_datetime (dato og tid). 2000-01-01 00:00 = ikke varslet |
 | Anlegg i varseltittel | Kontaktor | F.eks. «Tappevann» gir «🔔 Tappevann - Fellesfeil» |
 
@@ -64,7 +81,7 @@ Når det har gått valgt antall timer (standard 24) siden fellesfeilen kom, elle
 | Pushover destination (valgfri) | pushover | Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres slik at den blir sendt ulikt. |
 | Pushover priority | 1 | −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd), 1 (Høy prioritet, rødt varsel, omgår stilleperiode), 2 (nødvarsel som gjentas til det bekreftes). Brukes for fellesfeil, påminnelse og «Tilbake i normal drift» |
 | Levetid varsel og gjentakelse (timer) | 24 | Hvor lenge skal varslet være synlig før det forsvinner? Påminnelsen sendes også så ofte |
-| Send varsel når feilen er borte | true | «Tilbake i normal drift», bare hvis denne roboten har varslet om feilen |
+| Send varsel når feilen er borte | true | «Tilbake i normal drift», bare hvis denne roboten har varslet om feilen. Også «OK igjen» for andre feil |
 | Send varsel ved manuell kjøring | true | Sett til true for å sende varsel når automasjonen kjøres manuelt. Sett til false for å ikke sende varsel ved manuell kjøring. |
 
 > Levetid sendes til scriptet i timer. Scriptet regner om til sekunder, som er det Pushover bruker.
@@ -75,11 +92,13 @@ Når det har gått valgt antall timer (standard 24) siden fellesfeilen kom, elle
 |---|---|---|
 | En robot for en kontaktor har vært AV i 1 minutt | `robot_off` | Varsel med en gang med hvilke roboter som er AV |
 | Fellesfeil har vært PÅ i 1 minutt | `common_fault` | Varsel bare hvis en robot er AV og det ikke er varslet fra før. Ellers ingenting (kontaktorens robot varsler) |
+| En av «Andre feil» har vært PÅ i 1 minutt (ikke rett fra «unavailable») | `other_fault` | Varsel med en gang: navnet på feilen og årsaken |
+| En av «Andre feil» har vært AV i 1 minutt | `other_fault_cleared` | «OK igjen» for feilen. Står det fortsatt feil, står de i meldingen |
 | Fellesfeilen har stått i «gjentakelse» timer siden den kom eller forrige varsel | `reminder_due` | Samlet påminnelse med årsak og hvor lenge feilen har stått |
 | Fellesfeil har vært AV i 1 minutt | `common_fault_cleared` | «Tilbake i normal drift», bare hvis det er varslet om feilen. «Feil sist varslet» nullstilles |
 | Home Assistant starter / automasjonen skrus på | `ha_start`, `automation_enabled` | Som `common_fault` når fellesfeilen står, og som `common_fault_cleared` når den er borte |
 
-Hver gang det sendes feilvarsel eller påminnelse, settes «Feil sist varslet» til nå. Det er det som gjør at påminnelsen kommer på riktig tid, og at «Tilbake i normal drift» bare sendes når det er varslet om feilen.
+Hver gang det sendes robot AV-varsel eller påminnelse, settes «Feil sist varslet» til nå (ikke ved varsel for andre feil, på samme måte som robotene per kontaktor). Det er det som gjør at påminnelsen kommer på riktig tid, og at «Tilbake i normal drift» bare sendes når det er varslet om feilen.
 
 ## 7. Resultat
 
@@ -94,6 +113,16 @@ Hver gang det sendes feilvarsel eller påminnelse, settes «Feil sist varslet» 
 - **Tittel:** `🔔 <anlegg> - Fellesfeil`
 - **Melding:** `Overvåkingen er skrudd AV for: VVB XK2 (+RS52=434.002-XO01.2) - Robot. Kontaktoren overvåkes ikke før roboten er PÅ igjen. Status: RS50-54: robot AV for XK2. Varselet gjentas etter 24 timer hvis feilen står.`
 
+**Andre feil:**
+
+- **Tittel:** `🔔 <anlegg> feil - <navn på feilen>`, f.eks. `🔔 Tappevann feil - RS50-54 Varmepumpe`. «<Anlegg> - » foran navnet på sensoren tas bort.
+- **Melding:** `RS50-54 Varmepumpe har feil siden 20.11. kl. 21:48. Status: RS50-54: varmepumpa leverer ikke varme (tur VP 25 °C, sirkulasjon 25 °C). Påminnelse etter 24 timer hvis feilen står.`
+
+**Andre feil OK igjen:**
+
+- **Tittel:** `✅ <anlegg> OK igjen - <navn på feilen>`
+- **Melding:** `RS50-54 Varmepumpe er OK igjen.` Står det fortsatt feil: `Fortsatt feil: …`
+
 **Påminnelse:**
 
 - **Tittel:** `🔔 <anlegg> - Fellesfeil (påminnelse)`
@@ -106,7 +135,7 @@ Hver gang det sendes feilvarsel eller påminnelse, settes «Feil sist varslet» 
 
 **Manuell kjøring:**
 
-- **Tittel:** `🔔 <anlegg> - Fellesfeil varsel (manuell kjøring)` med fellesfeil, årsak, roboter som er AV og om det er varslet.
+- **Tittel:** `🔔 <anlegg> - Fellesfeil varsel (manuell kjøring)` med fellesfeil, årsak, roboter som er AV, andre feil som er PÅ og om det er varslet.
 
 ## 9. Annet
 
@@ -139,7 +168,12 @@ use_blueprint:
       - automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot
       - automation.tavle_rs52_vvb_xk2_rs52_434_002_xo01_2_robot
       # … alle robotene per kontaktor
+    other_faults:                     # valgfri
+      - binary_sensor.tappevann_rs50_54_varmtvann_feil
+      - binary_sensor.tappevann_rs50_54_varmepumpe_feil
 ```
+
+Andre feil lages som mal-hjelpere (binary_sensor) med forsinkelse. Eksempel på varmtvann og varmepumpe, og hvordan de tas med i tavlestatus og årsak, ligger i [packages/kontaktor_overvaking_status_eksempel.yaml](./packages/kontaktor_overvaking_status_eksempel.yaml).
 
 Ta med hovedroboten i fellesfeilen, så den vises som feil når den er AV:
 
@@ -162,10 +196,11 @@ state: >-
 
 | Steg | Variabel | Beskrivelse |
 |---|---|---|
-| 2 | `trigger_id`, `trigger_text`, `trigger_robot` | Hvorfor den kjørte, og hvilken robot som ble skrudd av |
+| 2 | `trigger_id`, `trigger_text`, `trigger_robot`, `trigger_other` | Hvorfor den kjørte, hvilken robot som ble skrudd av, og hvilken annen feil som slo inn eller er borte |
 | 4 | `fault_on`, `fault_since`, `reason_text`, `robot_list`, `robots_off` | Fellesfeil, siden når, årsak og hvilke roboter som er AV |
+| 4 | `others_on`, `trigger_other_name`, `trigger_other_since` | Andre feil som er PÅ, og navn og tidspunkt for den som utløste kjøringen |
 | 5 | `notified_ts`, `notified`, `can_notify` | Om det er varslet om feilen |
-| 6 | `send_robot_alert`, `send_reminder`, `send_ok`, `decision_text` | Hva som sendes, og hele vurderingen i én setning |
+| 6 | `send_robot_alert`, `send_other_alert`, `send_other_ok`, `send_reminder`, `send_ok`, `decision_text` | Hva som sendes, og hele vurderingen i én setning |
 
 ### 10.5 Feilhåndtering
 
@@ -174,11 +209,13 @@ state: >-
 | Fellesfeil hopper av og på i under 1 minutt | Ingen kjøring |
 | Årsak-sensoren mangler eller er utilgjengelig | Varselet sier «Fellesfeil er aktiv.» |
 | En robot i listen finnes ikke | Regnes som AV og vises med entitets-ID |
+| En av «Andre feil» lastes inn på nytt (PÅ → unavailable → PÅ) | Ikke nytt varsel |
+| En av «Andre feil» er ikke med i tavlestatus | Varsel og «OK igjen» kommer, men ingen påminnelse og ingen rød fellesfeil |
 | Omstart av Home Assistant | Påminnelsen regnes fra omstarten. Er feilen borte og det er varslet, sendes «Tilbake i normal drift» |
 
 ### 10.6 Varsling og debug info
 
-Ingen egne debug-varsler. Se `decision_text` i steg 6 i sporloggen. Kjør automasjonen manuelt for å få status på Pushover.
+Ingen egne debug-varsler. Se `decision_text` i steg 6 i sporloggen (steg 7–12 sender). Kjør automasjonen manuelt for å få status på Pushover.
 
 ## 11. Dokumentasjon
 

@@ -13,6 +13,10 @@ blueprint:
       roboten for kontaktoren, ikke her.
     - Tilbake i normal drift: når fellesfeilen er borte, men bare hvis denne
       automasjonen har varslet om feilen.
+    - Andre feil (valgfri): andre feil på anlegget enn kontaktorene, f.eks. kaldt
+      varmtvann eller varmepumpe som ikke leverer varme. Det varsles med en gang en
+      av dem slår inn, og med «OK igjen» når den er borte. Påminnelsen kommer med
+      fellesfeilen.
 
     Forutsetter en fellesfeil (binary_sensor), gjerne en årsak-sensor, og hjelperen
     «<Anlegg> - Feil sist varslet» (input_datetime med dato og tid).
@@ -20,7 +24,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_fellesfeil.md
 
-    Blueprint versjon: 2026.11.00
+    Blueprint versjon: 2026.11.01
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kontaktor_fellesfeil.yaml
@@ -59,6 +63,21 @@ blueprint:
           selector:
             entity:
               domain: automation
+              multiple: true
+
+        other_faults:
+          name: Andre feil (valgfri)
+          description: >
+            binary_sensor-er for andre feil enn kontaktorene, f.eks. «Tappevann - RS50-54
+            Varmtvann» (kaldt varmtvann) eller «Tappevann - RS50-54 Varmepumpe». Er én
+            PÅ i 1 minutt, varsles det med en gang. Når den er AV igjen, sendes «OK igjen».
+            Forsinkelsen (hvor lenge feilen må stå) legges i selve sensoren, f.eks. en
+            mal-hjelper med «Forsinkelse på». Ta dem også med i tavlestatus og årsak, så de
+            gir fellesfeil og kommer med i påminnelsen.
+          default: []
+          selector:
+            entity:
+              domain: binary_sensor
               multiple: true
 
         fault_notified:
@@ -125,7 +144,8 @@ blueprint:
           name: Send varsel når feilen er borte
           description: >
             Sender «Tilbake i normal drift» når fellesfeilen er borte, men bare hvis
-            denne automasjonen har varslet om feilen.
+            denne automasjonen har varslet om feilen. Sender også «OK igjen» når en av
+            «Andre feil» er borte.
           default: true
           selector:
             boolean:
@@ -183,6 +203,26 @@ triggers:
       minutes: 1
     id: robot_off
 
+  # En av «Andre feil» slår inn. Ikke fra «unavailable», så en omlasting av
+  # sensoren ikke gir nytt varsel.
+  - trigger: state
+    entity_id: !input other_faults
+    to: "on"
+    not_from:
+      - "unavailable"
+    for:
+      minutes: 1
+    id: other_fault
+
+  # En av «Andre feil» er borte.
+  - trigger: state
+    entity_id: !input other_faults
+    from: "on"
+    to: "off"
+    for:
+      minutes: 1
+    id: other_fault_cleared
+
   # Påminnelse: fellesfeilen har stått så lenge siden den kom eller forrige varsel.
   - trigger: template
     id: reminder_due
@@ -211,6 +251,7 @@ actions:
       io_common_fault: !input common_fault
       io_common_fault_reason: !input common_fault_reason
       io_robots: !input robots
+      io_other_faults: !input other_faults
       io_fault_notified: !input fault_notified
       io_notify_prefix: !input notify_prefix
       pushover_destination: !input pushover_destination
@@ -228,12 +269,15 @@ actions:
           'common_fault': 'Fellesfeil slo inn',
           'common_fault_cleared': 'Fellesfeil er borte',
           'robot_off': 'En robot for en kontaktor ble skrudd av',
+          'other_fault': 'En av «Andre feil» slo inn',
+          'other_fault_cleared': 'En av «Andre feil» er borte',
           'reminder_due': 'Tid for påminnelse (fellesfeilen står fortsatt)',
           'ha_start': 'Home Assistant startet',
           'automation_enabled': 'Automasjonen ble skrudd på',
           'manual_run': 'Kjørt manuelt'
         }.get(trigger_id, trigger_id) }}
       trigger_robot: "{{ trigger.entity_id if trigger is not none and trigger.id is defined and trigger.id == 'robot_off' else '' }}"
+      trigger_other: "{{ trigger.entity_id if trigger is not none and trigger.id is defined and trigger.id in ['other_fault', 'other_fault_cleared'] else '' }}"
 
   - alias: Steg 3 – Anlegg i varseltittel
     variables:
@@ -255,6 +299,24 @@ actions:
           {% if not is_state(r, 'on') %}{% set ns.l = ns.l + [state_attr(r, 'friendly_name') or r] %}{% endif %}
         {% endfor %}
         {{ ns.l }}
+      # Navn på «Andre feil» uten «<anlegg> - » foran (står allerede i varseltittelen).
+      others_on: >-
+        {% set p = notify_prefix ~ ' - ' %}
+        {% set ns = namespace(l=[]) %}
+        {% for e in (([io_other_faults] if io_other_faults is string else (io_other_faults or [])) | reject('eq', '') | list) %}
+          {% if is_state(e, 'on') %}
+            {% set n = state_attr(e, 'friendly_name') or e %}
+            {% set ns.l = ns.l + [n[(p | length):] if n.startswith(p) else n] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.l }}
+      trigger_other_name: >-
+        {% set p = notify_prefix ~ ' - ' %}
+        {% set n = (state_attr(trigger_other, 'friendly_name') or trigger_other) if trigger_other != '' else '' %}
+        {{ n[(p | length):] if n.startswith(p) else n }}
+      trigger_other_since: >-
+        {% set s = states[trigger_other] if trigger_other != '' else none %}
+        {{ (as_timestamp(s.last_changed) | timestamp_custom('%d.%m. kl. %H:%M')) if s is not none else '' }}
 
   - alias: Steg 5 – Er det varslet om denne feilen allerede
     variables:
@@ -268,6 +330,8 @@ actions:
         {{ (robots_off | count) > 0
            and (trigger_id == 'robot_off'
                 or (trigger_id in ['common_fault', 'automation_enabled', 'ha_start'] and not notified)) }}
+      send_other_alert: "{{ trigger_id == 'other_fault' and trigger_other != '' and is_state(trigger_other, 'on') }}"
+      send_other_ok: "{{ trigger_id == 'other_fault_cleared' and trigger_other != '' and is_state(trigger_other, 'off') }}"
       send_reminder: "{{ trigger_id == 'reminder_due' and fault_on }}"
       send_ok: >-
         {{ trigger_id in ['common_fault_cleared', 'automation_enabled', 'ha_start', 'manual_run']
@@ -275,8 +339,9 @@ actions:
       decision_text: >-
         Fellesfeil {{ 'PÅ siden ' ~ fault_since if fault_on else 'AV' }}.
         Roboter AV: {{ (robots_off | join(', ')) if (robots_off | count) > 0 else 'ingen' }}.
+        Andre feil PÅ: {{ (others_on | join(', ')) if (others_on | count) > 0 else 'ingen' }}.
         Varslet fra før: {{ 'ja' if notified else 'nei' }}.
-        → {{ 'robot AV-varsel' if send_robot_alert else ('påminnelse' if send_reminder else ('tilbake i normal drift' if send_ok else 'ingen varsel (kontaktor-robotene varsler selv)')) }}.
+        → {% if send_robot_alert %}robot AV-varsel{% elif send_other_alert %}feilvarsel for {{ trigger_other_name }}{% elif send_other_ok %}OK igjen for {{ trigger_other_name }}{% elif send_reminder %}påminnelse{% elif send_ok %}tilbake i normal drift{% else %}ingen varsel (kontaktor-robotene varsler selv){% endif %}.
 
   - alias: Steg 7 – Robot AV – varsle med en gang
     if:
@@ -306,18 +371,49 @@ actions:
               priority: "{{ pushover_priority | int(1) }}"
               ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
 
-  - alias: Steg 8 – Påminnelse så lenge fellesfeilen står
+  - alias: Steg 8 – Annen feil – varsle med en gang
+    if:
+      - condition: template
+        value_template: "{{ send_other_alert and can_notify }}"
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "🔔 {{ notify_prefix }} feil - {{ trigger_other_name }}"
+          message: |-
+            {{ trigger_other_name }} har feil siden {{ trigger_other_since }}.
+            {{ ('Status: ' ~ reason_text) if reason_text != '' else '' }}
+            Påminnelse etter {{ io_feilvarsel_timer | int }} timer hvis feilen står.
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(1) }}"
+          ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
+
+  - alias: Steg 9 – Annen feil er borte – OK igjen (valgfri)
+    if:
+      - condition: template
+        value_template: "{{ send_other_ok and io_varsel_ved_ok and can_notify }}"
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        data:
+          title: "✅ {{ notify_prefix }} OK igjen - {{ trigger_other_name }}"
+          message: |-
+            {{ trigger_other_name }} er OK igjen.
+            {{ ('Fortsatt feil: ' ~ reason_text) if (fault_on and reason_text != '') else '' }}
+          destination: "{{ pushover_destination }}"
+          priority: "{{ pushover_priority | int(1) }}"
+          ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
+
+  - alias: Steg 10 – Påminnelse så lenge fellesfeilen står
     if:
       - condition: template
         value_template: "{{ send_reminder }}"
     then:
-      - alias: Steg 8-A – Husk at det er varslet
+      - alias: Steg 10-A – Husk at det er varslet
         action: input_datetime.set_datetime
         target:
           entity_id: "{{ io_fault_notified }}"
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-      - alias: Steg 8-B – Send påminnelse
+      - alias: Steg 10-B – Send påminnelse
         if:
           - condition: template
             value_template: "{{ can_notify }}"
@@ -327,18 +423,18 @@ actions:
               title: "🔔 {{ notify_prefix }} - Fellesfeil (påminnelse)"
               message: |-
                 {{ reason_text if reason_text != '' else 'Fellesfeil er aktiv.' }}
-                Feilen har stått siden {{ fault_since }}.{{ (' Overvåking AV for: ' ~ (robots_off | join(', ')) ~ '.') if (robots_off | count) > 0 else '' }}
+                Feilen har stått siden {{ fault_since }}.{{ (' Overvåking AV for: ' ~ (robots_off | join(', ')) ~ '.') if (robots_off | count) > 0 else '' }}{{ (' Andre feil: ' ~ (others_on | join(', ')) ~ '.') if ((others_on | count) > 0 and reason_text == '') else '' }}
                 Varselet gjentas etter {{ io_feilvarsel_timer | int }} timer hvis feilen står.
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(1) }}"
               ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
 
-  - alias: Steg 9 – Tilbake i normal drift (bare hvis det er varslet om feilen)
+  - alias: Steg 11 – Tilbake i normal drift (bare hvis det er varslet om feilen)
     if:
       - condition: template
         value_template: "{{ send_ok }}"
     then:
-      - alias: Steg 9-A – Send «Tilbake i normal drift» (valgfri)
+      - alias: Steg 11-A – Send «Tilbake i normal drift» (valgfri)
         if:
           - condition: template
             value_template: "{{ io_varsel_ved_ok and can_notify }}"
@@ -350,14 +446,14 @@ actions:
               destination: "{{ pushover_destination }}"
               priority: "{{ pushover_priority | int(1) }}"
               ttl_hours: "{{ io_feilvarsel_timer | int(24) }}"
-      - alias: Steg 9-B – Nullstill «feil sist varslet»
+      - alias: Steg 11-B – Nullstill «feil sist varslet»
         action: input_datetime.set_datetime
         target:
           entity_id: "{{ io_fault_notified }}"
         data:
           datetime: "2000-01-01 00:00:00"
 
-  - alias: Steg 10 – Varsling ved manuell kjøring (valgfri)
+  - alias: Steg 12 – Varsling ved manuell kjøring (valgfri)
     if:
       - condition: template
         value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring and can_notify }}"
@@ -369,6 +465,7 @@ actions:
             Fellesfeil: {{ ('PÅ siden ' ~ fault_since) if fault_on else 'AV' }}
             {{ ('Årsak: ' ~ reason_text) if reason_text != '' else 'Ingen feil.' }}
             Roboter: {{ robot_list | count }}, AV: {{ (robots_off | join(', ')) if (robots_off | count) > 0 else 'ingen' }}
+            Andre feil PÅ: {{ (others_on | join(', ')) if (others_on | count) > 0 else 'ingen' }}
             Varslet om feilen: {{ 'ja' if notified else 'nei' }}
           destination: "{{ pushover_destination }}"
           priority: 0
