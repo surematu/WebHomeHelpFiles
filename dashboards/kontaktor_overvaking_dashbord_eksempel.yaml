@@ -1,53 +1,57 @@
-# Kontaktor – Overvåking: eksempel på dashbord (oversikt og tavleside)
+# Kontaktor – Overvåking: eksempel på dashbord (oversikt, tavleside, admin) og hjemsideknapp
 #
-# Hører til blueprinten
+# Hører til blueprintene
 #   blueprints/automation/kontaktor_overvaking.yaml
+#   blueprints/automation/kontaktor_fellesfeil.yaml
 # og bruker entitetene fra
 #   packages/kontaktor_overvaking_status_eksempel.yaml
 #
 # Dette er et EKSEMPEL som må tilpasses anlegget. Alt som må byttes ut er
 # merket «TILPASS». Eksemplet er hentet fra tappevann på vtoppen
-# (/dashboard-tappevann), der elkolbene i berederne overvåkes.
+# (/dashboard-tappevann), der elkolbene i berederne, varmtvannet og
+# varmepumpene overvåkes.
 #
-# Tre visninger:
-#   1. oversikt     Oversikt (første visning): samlet status, antall feil, fellesfeil, én knapp per tavle,
-#                   knapp til admin info (bare admin) og systembilder med temperaturer
-#   2. rs50-54      Én side per tavle: status, ett Bubble Card per kontaktor, admin-del
-#                   (kopieres per tavle)
-#   3. admin        Admin info (bare admin): statusboks med feilinformasjon og Bubble Card for
-#                   alle status-hjelperne
+# Fire typer visninger:
+#   1. oversikt        Oversikt (første visning): tre statustekster (beredere, varmtvann,
+#                      varmepumper), én knapp per tavle (grønn / gul / rød / grå), knapp til
+#                      admin info (bare admin) og systembilder med temperaturer
+#   2. rs50-54         Én side per tavle: de samme tre tekstene for tavla, ett Bubble Card per
+#                      bereder (kontaktor), total effekt, varmepumpe, knapp til admin for tavla
+#   3. rs50-54-admin   Admin for tavla (bare admin): målinger per kontaktor, graf over last,
+#                      grenser og graf for varmtvann og varmepumpe
+#   4. admin           Admin info (bare admin): status-hjelperne og den overordnede roboten.
+#                      Admin for hver tavle nås fra admin-knappen på tavlesiden.
+# Visning 2 og 3 kopieres per tavle.
+#
+# Ord og farger:
+#   - Sidene som vaktmester og brukere ser, sier «bereder», ikke «kontaktor».
+#     Admin-sidene bruker de tekniske ordene.
+#   - Grønn = I drift, gul = Avvik eller Under sjekk, rød = Problem, grå = Ikke overvåket
+#     (reglene står i packages/kontaktor_overvaking_status_eksempel.yaml).
+#   - Statustekstene bruker ha-alert: success (grønn), warning (gul), error (rød).
 #
 # Bruk:
 #   1. Åpne dashbordet → Rediger → ⋮ → Rå konfigurasjonsredigering.
 #   2. Lim inn visningene under `views:` og tilpass entiteter og stier.
-#   3. Knapp på hjemsiden (blå i normal drift, rød ved fellesfeil, samme
-#      oppbygging som snøsmelt-knappen):
-#        - type: button
-#          entity: binary_sensor.tappevann_fellesfeil   # TILPASS
-#          icon: mdi:water-boiler
-#          show_name: false
-#          show_state: false
-#          grid_options: {columns: 3, rows: 1}
-#          tap_action: {action: navigate, navigation_path: /dashboard-tappevann}   # TILPASS
+#   3. Hjemsiden: lang knapp med farge og tekst, se «HJEMSIDE» nederst i fila.
 #
 # Egendefinerte kort (HACS):
-#   - Bubble Card   brukes for kontaktorene på tavlesiden (testet med 3.2.0)
-# Oversikten bruker bare standardkortene i Home Assistant.
+#   - Bubble Card   brukes for kontaktorene, admin-kortene og hjemsideknappen (testet med 3.2.0)
 #
 # Under testing ved siden av en gammel side: legg visningene inn som undersider
 # (`subview: true`) med `visible: [{user: <bruker-ID>}]` og en knapp fra den
 # gamle siden som bare admin ser. Når løsningen er godkjent: fjern de gamle
 # visningene, gjør oversikten til første visning (uten subview) og fjern
 # `visible` fra oversikt og tavlesider. Gi tavlesidene samme `path` som de
-# gamle sidene hadde, så eksisterende lenker virker. Admin info og
-# admin-delene har `visible`/`visibility` og skal stå.
+# gamle sidene hadde, så eksisterende lenker virker. Admin-sidene har
+# `visible`/`visibility` og skal stå.
 # Bruker-ID: Innstillinger → Personer → Brukere → ID.
 #
 # Kontaktorkortet er «switch», så hele kortet lyser når kontaktoren er PÅ, men
 # alle trykk er satt til å åpne info (more-info / none). Et trykk kan derfor
 # ikke slå av en kontaktor ved et uhell.
 #
-# Versjon: 2026.11.07
+# Versjon: 2026.11.08
 
 views:
   # ===========================================================================
@@ -64,64 +68,90 @@ views:
             heading: Tappevann                         # TILPASS
             heading_style: title
 
-          # Samlet status: grønn når alt er i drift, rød med tavlene som har feil.
+          # Beredere: grønn, gul (halvparten eller færre med feil på en tavle) eller
+          # rød (flere enn halvparten). Kontaktorene finnes ut fra entitets-ID-ene.
           - type: markdown
             text_only: true
             content: |-
-              {% set antall = states('sensor.tappevann_antall_feil') | int(0) %}
-              {% set tavler = [
-                ['RS50-54', 'sensor.tappevann_rs50_54_status', 'sensor.tappevann_rs50_54_antall_feil'],
-                ['RS60-62', 'sensor.tappevann_rs60_62_status', 'sensor.tappevann_rs60_62_antall_feil'],
-              ] %}{# TILPASS: alle tavlene #}
-              {% set ns = namespace(l=[]) %}
-              {% for navn, st, cnt in tavler %}
-                {% if is_state(st, 'Problem') %}
-                  {% set n = states(cnt) %}
-                  {% set ns.l = ns.l + [navn ~ ': ' ~ ((n ~ (' kontaktor' if (n | int(0)) == 1 else ' kontaktorer') ~ ' med feil') if is_number(n) else 'status kan ikke leses') ~ '.'] %}
+              {% set tavler = [['RS50-54', 'rs52'], ['RS60-62', 'rs60']] %}{# TILPASS: [navn, kode i entitets-ID-ene] per tavle #}
+              {% set ns = namespace(l=[], n=0, rod=false) %}
+              {% for navn, kode in tavler %}
+                {% set alle = states.automation | map(attribute='entity_id') | select('search', '^automation.tavle_' ~ kode ~ '_vvb_xk.*_robot$') | list %}
+                {% set feil = states.input_boolean | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | select('search', '^input_boolean.tavle_' ~ kode ~ '_vvb_xk') | list %}
+                {% set av = alle | reject('is_state', 'on') | list %}
+                {% set xk = (feil + av) | map('regex_findall_index', '_(xk[0-9]+)_') | map('upper') | unique | sort | list %}
+                {% if xk | count > 0 %}
+                  {% set ns.n = ns.n + (xk | count) %}
+                  {% if (xk | count) * 2 > (alle | count) %}{% set ns.rod = true %}{% endif %}
+                  {% set ns.l = ns.l + [navn ~ ': ' ~ (xk | count) ~ ' av ' ~ (alle | count) ~ ' beredere med feil (' ~ (xk | join(', ')) ~ ').'] %}
                 {% endif %}
               {% endfor %}
-              {% if is_state('binary_sensor.tappevann_fellesfeil', 'on') %}
-              <ha-alert alert-type="error" title="Fellesfeil – {{ antall }} {{ 'kontaktor' if antall == 1 else 'kontaktorer' }} med feil">{{ ns.l | join('<br>') }}<br><br><small>Trykk på tavla under for detaljer.</small></ha-alert>
+              {% if not is_state('automation.tappevann_robot', 'on') %}
+              <ha-alert alert-type="warning" title="Varsling er AV">Tappevann - Robot er skrudd av. Det sendes ingen samlede varsler.</ha-alert>
+              {% endif %}
+              {% if ns.n > 0 %}
+              <ha-alert alert-type="{{ 'error' if ns.rod else 'warning' }}" title="{{ ns.n }} {{ 'bereder' if ns.n == 1 else 'beredere' }} med feil">{{ ns.l | join('<br>') }}<br><small>Trykk på tavla under for detaljer.</small></ha-alert>
               {% else %}
-              <ha-alert alert-type="success" title="Tappevann i drift">Ingen feil på overvåkede elkolber.</ha-alert>
+              <ha-alert alert-type="success" title="Beredere i drift">Alle beredere er i drift.</ha-alert>
               {% endif %}
 
-          - type: tile
-            entity: binary_sensor.tappevann_fellesfeil
-            name: Fellesfeil
-            icon: mdi:bell-alert
-            vertical: false
-            tap_action: {action: more-info}
-            grid_options: {columns: 6, rows: 1}
+          # Varmtvann: rød ved alarm, gul når temperaturen er lav nå (under sjekk).
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set anlegg = [
+                ['RS50-54', 'binary_sensor.tappevann_rs50_54_varmtvann_feil', 'sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt401'],
+                ['RS60-62', 'binary_sensor.tappevann_rs60_62_varmtvann_feil', 'sensor.tavle_rs60_vp_rs60_434_001_xi4_tur_rs60_434_001_rt401'],
+              ] %}{# TILPASS: [navn, alarm, temperatur ut av berederne] per tavle #}
+              {% set ns = namespace(feil=[], sjekk=[], ok=[]) %}
+              {% for navn, f, s in anlegg %}
+                {% set t = states(s) %}
+                {% set v = ((t | float(0) | round(0) | int) ~ ' °C') if is_number(t) else 'ukjent' %}
+                {% if is_state(f, 'on') %}{% set ns.feil = ns.feil + [navn ~ ': ' ~ v ~ ' ut av berederne. Har vært under 50 °C i over 30 min.'] %}
+                {% elif is_number(t) and (t | float) < 50 %}{% set ns.sjekk = ns.sjekk + [navn ~ ': ' ~ v ~ ' ut av berederne. Alarm hvis det er under 50 °C i 30 min.'] %}
+                {% else %}{% set ns.ok = ns.ok + [navn ~ ': ' ~ v ~ ' ut av berederne.'] %}{% endif %}
+              {% endfor %}
+              {% if ns.feil | count > 0 %}
+              <ha-alert alert-type="error" title="Kaldt varmtvann">{{ (ns.feil + ns.sjekk + ns.ok) | join('<br>') }}</ha-alert>
+              {% elif ns.sjekk | count > 0 %}
+              <ha-alert alert-type="warning" title="Varmtvann under sjekk">{{ (ns.sjekk + ns.ok) | join('<br>') }}</ha-alert>
+              {% else %}
+              <ha-alert alert-type="success" title="Varmtvann OK">Temperatur ut av berederne: {{ ns.ok | map('regex_replace', ' ut av berederne\\.$', '') | map('replace', ': ', ' ') | join(', ') }}.</ha-alert>
+              {% endif %}
 
-          # Antall feil: grønn ved 0, rød ellers (to kort med synlighet).
-          - type: tile
-            entity: sensor.tappevann_antall_feil
-            name: Kontaktorer med feil
-            icon: mdi:check-circle
-            color: green
-            vertical: false
-            tap_action: {action: more-info}
-            grid_options: {columns: 6, rows: 1}
-            visibility:
-              - {condition: numeric_state, entity: sensor.tappevann_antall_feil, below: 1}
-          - type: tile
-            entity: sensor.tappevann_antall_feil
-            name: Kontaktorer med feil
-            icon: mdi:bell-alert
-            color: red
-            vertical: false
-            tap_action: {action: more-info}
-            grid_options: {columns: 6, rows: 1}
-            visibility:
-              - {condition: numeric_state, entity: sensor.tappevann_antall_feil, above: 0}
+          # Varmepumper: rød ved alarm, gul når tur og sirkulasjon er lave nå (under sjekk).
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set anlegg = [
+                ['RS50-54', 'binary_sensor.tappevann_rs50_54_varmepumpe_feil', 'sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_vp_rs52_434_002_rt405', 'sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt404', 'sensor.tavle_rs52_vp_rs52_434_002_xi4_effekt_kalkulert', '10 t', ' Den står normalt om natta på grunn av støy.'],
+                ['RS60-62', 'binary_sensor.tappevann_rs60_62_varmepumpe_feil', 'sensor.tavle_rs60_vp_rs60_434_001_xi4_tur_vp_rs60_434_001_rt404', 'sensor.tavle_rs60_vp_rs60_434_001_xi4_tur_rs60_434_001_rt403', 'sensor.tavle_rs60_vp_rs60_434_001_xi4_effekt_kalkulert', '2 t', ''],
+              ] %}{# TILPASS: [navn, alarm, tur fra VP, sirkulasjon, effekt VP, alarmtid, merknad] per tavle #}
+              {% set ns = namespace(feil=[], lav=[], ok=[]) %}
+              {% for navn, f, vp, sk, eff, tid, merk in anlegg %}
+                {% set vpv = ((states(vp) | float(0) | round(0) | int) ~ ' °C') if is_number(states(vp)) else 'ukjent' %}
+                {% set skv = ((states(sk) | float(0) | round(0) | int) ~ ' °C') if is_number(states(sk)) else 'ukjent' %}
+                {% set kw = ((states(eff) | float(0)) / 1000) | round(1) | string | replace('.', ',') %}
+                {% set lav = is_number(states(vp)) and is_number(states(sk)) and (states(vp) | float) < 35 and (states(sk) | float) < 35 %}
+                {% if is_state(f, 'on') %}{% set ns.feil = ns.feil + [navn ~ ': leverer ikke varme (tur ' ~ vpv ~ ', sirkulasjon ' ~ skv ~ ', ' ~ kw ~ ' kW).'] %}
+                {% elif lav %}{% set ns.lav = ns.lav + [navn ~ ': lite varme nå (tur ' ~ vpv ~ ', sirkulasjon ' ~ skv ~ '). Alarm hvis det varer i ' ~ tid ~ '.' ~ merk] %}
+                {% else %}{% set ns.ok = ns.ok + [navn ~ ': i drift (tur ' ~ vpv ~ ', ' ~ kw ~ ' kW).'] %}{% endif %}
+              {% endfor %}
+              {% if ns.feil | count > 0 %}
+              <ha-alert alert-type="error" title="Feil på varmepumpe">{{ (ns.feil + ns.lav + ns.ok) | join('<br>') }}<br><small>Berederne holder varmtvannet oppe med strøm, men det koster mer.</small></ha-alert>
+              {% elif ns.lav | count > 0 %}
+              <ha-alert alert-type="warning" title="Varmepumpe under sjekk">{{ (ns.lav + ns.ok) | join('<br>') }}</ha-alert>
+              {% else %}
+              <ha-alert alert-type="success" title="Varmepumper i drift">{{ ns.ok | join('<br>') }}</ha-alert>
+              {% endif %}
 
           - type: heading
             heading: Tavler
             heading_style: title
 
-          # Én tavlelinje = tre kort med synlighet: I drift (grønn), Problem (rød),
-          # Ikke overvåket (grå). Kopieres per tavle.
+          # Én tavleknapp = fire kort med synlighet: I drift (grønn), Avvik eller
+          # Under sjekk (gul), Problem (rød), Ikke overvåket (grå). Kopieres per tavle.
+          # Standardkortene kan ikke bytte farge etter tekst-tilstand, derfor fire kort.
           - type: tile
             entity: sensor.tappevann_rs50_54_status        # TILPASS
             name: RS50-54                                  # TILPASS
@@ -133,6 +163,20 @@ views:
             grid_options: {columns: 12, rows: 1}
             visibility:
               - {condition: state, entity: sensor.tappevann_rs50_54_status, state: I drift}
+          - type: tile
+            entity: sensor.tappevann_rs50_54_status
+            name: RS50-54
+            icon: mdi:alert-circle
+            color: amber
+            vertical: false
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54}
+            icon_tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54}
+            grid_options: {columns: 12, rows: 1}
+            visibility:
+              - condition: or
+                conditions:
+                  - {condition: state, entity: sensor.tappevann_rs50_54_status, state: Avvik}
+                  - {condition: state, entity: sensor.tappevann_rs50_54_status, state: Under sjekk}
           - type: tile
             entity: sensor.tappevann_rs50_54_status
             name: RS50-54
@@ -155,10 +199,6 @@ views:
             grid_options: {columns: 12, rows: 1}
             visibility:
               - {condition: state, entity: sensor.tappevann_rs50_54_status, state: Ikke overvåket}
-
-          - type: markdown
-            text_only: true
-            content: Grønn = alle elkolber på tavla i drift, rød = problem (trykk for detaljer), grå = ikke overvåket.
 
           # Admin info: egen underside, knappen vises bare for admin.
           - type: button
@@ -208,30 +248,63 @@ views:
             heading: 434.002 (Beredertavle) - Varmtvannsbereder   # TILPASS
             heading_style: title
 
-          # Tavlestatus med hvilke kontaktorer som har feil.
+          # Beredere på tavla: gul når halvparten eller færre har feil, rød når flere.
           - type: markdown
             text_only: true
             content: |-
-              {% set status = states('sensor.tappevann_rs50_54_status') %}
               {% set kontaktorer = [
                 ['XK1', 'input_boolean.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_feil', 'automation.tavle_rs52_vvb_xk1_rs52_434_002_xo01_1_robot'],
               ] %}{# TILPASS: [navn, feil-hjelper, automasjon] for alle kontaktorene på tavla #}
               {% set ns = namespace(l=[], navn=[]) %}
               {% for navn, feil, auto in kontaktorer %}
                 {% set ns.navn = ns.navn + [navn] %}
-                {% if not is_state(auto, 'on') %}{% set ns.l = ns.l + [navn ~ ': overvåkingen er skrudd av.'] %}
-                {% elif is_state(feil, 'on') %}{% set ns.l = ns.l + [navn ~ ': feil siden ' ~ (as_timestamp(states[feil].last_changed) | timestamp_custom('%d.%m. kl. %H:%M')) ~ '.'] %}{% endif %}
+                {% if not is_state(auto, 'on') %}{% set ns.l = ns.l + ['Bereder ' ~ navn ~ ': overvåkingen er skrudd av.'] %}
+                {% elif is_state(feil, 'on') %}{% set ns.l = ns.l + ['Bereder ' ~ navn ~ ': feil siden ' ~ (as_timestamp(states[feil].last_changed) | timestamp_custom('%d.%m. kl. %H:%M')) ~ '.'] %}{% endif %}
               {% endfor %}
-              {% if status == 'Problem' %}
-              <ha-alert alert-type="error" title="Problem på RS50-54">{{ ns.l | join('<br>') if ns.l | count > 0 else 'Status kan ikke leses.' }}<br><br><small>Årsaken står i Pushover-varselet og i sporloggen til automasjonen (robot-knappen).</small></ha-alert>
-              {% elif status == 'I drift' %}
-              <ha-alert alert-type="success" title="Alle overvåkede elkolber i drift">Overvåket: {{ ns.navn | join(', ') }}.</ha-alert>
+              {% set n = ns.l | count %}
+              {% set b = kontaktorer | count %}
+              {% if n > 0 %}
+              <ha-alert alert-type="{{ 'error' if n * 2 > b else 'warning' }}" title="{{ n }} av {{ b }} beredere med feil">{{ ns.l | join('<br>') }}<br><br><small>Årsaken står i Pushover-varselet og i sporloggen til roboten (robot-knappen på bereder-kortet).</small></ha-alert>
+              {% elif b == 0 %}
+              <ha-alert alert-type="info" title="Ikke overvåket">Ingen beredere på denne tavla overvåkes.</ha-alert>
               {% else %}
-              <ha-alert alert-type="info" title="Ikke overvåket ennå">Ingen kontaktorer på denne tavla er lagt inn.</ha-alert>
+              <ha-alert alert-type="success" title="Beredere i drift">Alle beredere er i drift ({{ ns.navn | join(', ') }}).</ha-alert>
               {% endif %}
 
-          # Ett kort per kontaktor. Underknapper: last, spole, rød bjelle ved feil
-          # (bare synlig ved feil), robot = automasjonen.
+          # Varmtvann på tavla.
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set t = states('sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt401') %}{# TILPASS #}
+              {% set v = ((t | float(0) | round(0) | int) ~ ' °C') if is_number(t) else 'ukjent' %}
+              {% if is_state('binary_sensor.tappevann_rs50_54_varmtvann_feil', 'on') %}
+              <ha-alert alert-type="error" title="Kaldt varmtvann">{{ v }} ut av berederne. Har vært under 50 °C i over 30 min.</ha-alert>
+              {% elif is_number(t) and (t | float) < 50 %}
+              <ha-alert alert-type="warning" title="Varmtvann under sjekk">{{ v }} ut av berederne. Alarm hvis det er under 50 °C i 30 min.</ha-alert>
+              {% else %}
+              <ha-alert alert-type="success" title="Varmtvann OK">{{ v }} ut av berederne.</ha-alert>
+              {% endif %}
+
+          # Varmepumpe på tavla.
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set vp = states('sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_vp_rs52_434_002_rt405') %}{# TILPASS: tur fra varmepumpa #}
+              {% set sk = states('sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt404') %}{# TILPASS: sirkulasjon til forvarmetank #}
+              {% set vpv = ((vp | float(0) | round(0) | int) ~ ' °C') if is_number(vp) else 'ukjent' %}
+              {% set skv = ((sk | float(0) | round(0) | int) ~ ' °C') if is_number(sk) else 'ukjent' %}
+              {% set kw = ((states('sensor.tavle_rs52_vp_rs52_434_002_xi4_effekt_kalkulert') | float(0)) / 1000) | round(1) | string | replace('.', ',') %}
+              {% set lav = is_number(vp) and is_number(sk) and (vp | float) < 35 and (sk | float) < 35 %}
+              {% if is_state('binary_sensor.tappevann_rs50_54_varmepumpe_feil', 'on') %}
+              <ha-alert alert-type="error" title="Varmepumpa leverer ikke varme">Tur fra varmepumpa {{ vpv }} og sirkulasjon til forvarmetank {{ skv }} har vært under 35 °C i over 10 t (normalt 40–50 °C). Effekt nå {{ kw }} kW.<br><small>Berederne holder varmtvannet oppe med strøm, men det koster mer.</small></ha-alert>
+              {% elif lav %}
+              <ha-alert alert-type="warning" title="Varmepumpe under sjekk">Leverer lite varme nå: tur {{ vpv }}, sirkulasjon {{ skv }} (normalt 40–50 °C). Alarm hvis det varer i 10 t. Den står normalt om natta på grunn av støy.</ha-alert>
+              {% else %}
+              <ha-alert alert-type="success" title="Varmepumpe i drift">Tur {{ vpv }}, sirkulasjon {{ skv }}, {{ kw }} kW.</ha-alert>
+              {% endif %}
+
+          # Ett kort per kontaktor (bereder). Underknapper: last, spole, rød bjelle ved
+          # feil (bare synlig ved feil), robot = automasjonen.
           - type: custom:bubble-card
             card_type: button
             button_type: switch                                            # lyser når PÅ
@@ -298,10 +371,50 @@ views:
             features_position: bottom
             grid_options: {columns: 12, rows: 2}
 
+          - type: heading
+            heading: Varmepumpe
+            heading_style: title
+          - type: tile
+            entity: sensor.tavle_rs52_vp_rs52_434_002_xi4_effekt_kalkulert   # TILPASS
+            vertical: false
+            features:
+              - type: trend-graph
+            features_position: bottom
+            grid_options: {columns: 12, rows: 2}
+
+      # Knapp til admin for tavla, bare for admin.
       - type: grid
         visibility:
           - condition: user
             users: [<bruker-ID>]                         # TILPASS
+        cards:
+          - type: heading
+            heading: Admin
+            heading_style: title
+          - type: button
+            name: RS50-54 Admin                          # TILPASS
+            icon: mdi:wrench
+            show_name: true
+            show_icon: true
+            grid_options: {columns: 12, rows: 2}
+            tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54-admin}   # TILPASS
+            visibility:
+              - condition: user
+                users: [<bruker-ID>]                     # TILPASS
+
+  # ===========================================================================
+  # 3. ADMIN FOR TAVLA (kopieres per tavle, bare admin)
+  # ===========================================================================
+  - type: sections
+    max_columns: 4
+    title: RS50-54 Admin                               # TILPASS
+    path: rs50-54-admin                                # TILPASS
+    subview: true
+    back_path: /dashboard-tappevann/rs50-54            # TILPASS
+    visible:
+      - user: <bruker-ID>                              # TILPASS (skal stå, bare for admin)
+    sections:
+      - type: grid
         cards:
           - type: heading
             heading: 434.002 - Tappevann (Admin)          # TILPASS
@@ -327,8 +440,80 @@ views:
               - {entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk1_effekt_kalkulert, name: XK1}
               - {entity: sensor.tavle_rs52_rs52_434_002_xi1_vvb_xk2_effekt_kalkulert, name: XK2}
 
+      # Varmtvann og varmepumpe: målinger nå, grenser og hvorfor det er alarm.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Varmtvann og varmepumpe (Admin)
+            heading_style: title
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set vvf = is_state('binary_sensor.tappevann_rs50_54_varmtvann_feil', 'on') %}
+              {% set vpf = is_state('binary_sensor.tappevann_rs50_54_varmepumpe_feil', 'on') %}
+              {% set rows = [
+                ['Varmtvann ut (RT401)', 'sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt401', 50, 'ca. 64–68 °C'],
+                ['Tur fra varmepumpe (RT405)', 'sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_vp_rs52_434_002_rt405', 35, '40–50 °C'],
+                ['Sirkulasjon til forvarmetank (RT404)', 'sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt404', 35, '40–50 °C'],
+              ] %}{# TILPASS: [navn, sensor, alarmgrense, normalt] #}
+              <ha-alert alert-type="{{ 'error' if (vvf or vpf) else 'success' }}" title="RS50-54: varmtvann {{ 'ALARM' if vvf else 'OK' }}, varmepumpe {{ 'ALARM' if vpf else 'OK' }}"><small>Varmtvann: alarm når RT401 er under 50 °C i 30 min. Varmepumpe: alarm når både RT405 og RT404 er under 35 °C i 10 t (varmepumpa står om natta pga. støy).</small></ha-alert>
+
+              | Måling | Nå | Alarm under | Normalt | |
+              |:--|--:|--:|--:|:-:|
+              {% for navn, e, g, n in rows %}| {{ navn }} | {{ ((states(e) | float(0)) | round(1)) if is_number(states(e)) else states(e) }} °C | {{ g }} °C | {{ n }} | {{ '✅' if is_number(states(e)) and (states(e) | float) >= g else '❌' }} |
+              {% endfor %}| Effekt varmepumpe | {{ ((states('sensor.tavle_rs52_vp_rs52_434_002_xi4_effekt_kalkulert') | float(0)) / 1000) | round(1) }} kW | | | |
+              {% set vpv = states('sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_vp_rs52_434_002_rt405') %}{% set skv = states('sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt404') %}{% if not is_state('binary_sensor.tappevann_rs50_54_varmepumpe_feil', 'on') and is_number(vpv) and is_number(skv) and (vpv | float) < 35 and (skv | float) < 35 %}
+
+              ⏳ <small>Begge er under 35 °C nå. Alarm hvis det varer i 10 t.</small>{% endif %}
+          - type: statistics-graph
+            title: RS50-54 – temperaturer siste 48 t
+            chart_type: line
+            period: 5minute
+            days_to_show: 2
+            stat_types: [mean]
+            entities:                                    # TILPASS
+              - {entity: sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt401, name: Varmtvann ut (RT401)}
+              - {entity: sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_vp_rs52_434_002_rt405, name: Tur VP (RT405)}
+              - {entity: sensor.tavle_rs52_vp_rs52_434_002_xi4_tur_rs52_434_002_rt404, name: Sirkulasjon (RT404)}
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: binary_sensor.tappevann_rs50_54_varmtvann_feil   # TILPASS
+            name: Tappevann - RS50-54 Varmtvann
+            icon: mdi:bell-alert
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: binary_sensor.tappevann_rs50_54_varmepumpe_feil  # TILPASS
+            name: Tappevann - RS50-54 Varmepumpe
+            icon: mdi:bell-alert
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+          - type: custom:bubble-card
+            card_type: button
+            button_type: switch
+            scrolling_effect: false
+            entity: automation.tappevann_robot           # TILPASS
+            name: Tappevann - Robot
+            icon: mdi:robot
+            show_last_changed: true
+            tap_action: {action: more-info}
+            button_action:
+              tap_action: {action: more-info}
+              double_tap_action: {action: none}
+              hold_action: {action: more-info}
+          - type: markdown
+            content: |-
+              Varmtvann og varmepumpe avgjøres i mal-hjelperne **Tappevann - RS50-54 Varmtvann** og **Tappevann - RS50-54 Varmepumpe**. Grensen står i malen, og hvor lenge den må stå står under «Forsinkelse på» (avanserte innstillinger).
+
+              De gjør tavla til Problem, står i Fellesfeil årsak og i «Andre feil» i **Tappevann - Robot**. Den sender alarm, påminnelse hver 24. time og «OK igjen». Det er ingen egen automasjon for dette.
+
   # ===========================================================================
-  # 3. ADMIN INFO
+  # 4. ADMIN INFO (bare admin)
   # ===========================================================================
   - type: sections
     max_columns: 4
@@ -345,13 +530,13 @@ views:
             heading: Status (Admin)
             heading_style: title
 
-          # Feilinformasjon: hvilke kontaktorer som har feil (Fellesfeil årsak).
+          # Feilinformasjon fra Fellesfeil årsak (samme tekst som i Pushover).
           - type: markdown
             text_only: true
             content: |-
               {% set antall = states('sensor.tappevann_antall_feil') | int(0) %}
               {% if is_state('binary_sensor.tappevann_fellesfeil', 'on') %}
-              <ha-alert alert-type="error" title="Fellesfeil – {{ antall }} {{ 'kontaktor' if antall == 1 else 'kontaktorer' }} med feil">{{ states('sensor.tappevann_fellesfeil_arsak') }}<br><br><small>Årsaken til hver feil står i Pushover-varselet og i sporloggen til roboten. Feil-hjelperen slås AV av roboten når kontaktoren er OK igjen, eller for hånd som kvittering.</small></ha-alert>
+              <ha-alert alert-type="error" title="{{ 'Fellesfeil' ~ ((' – ' ~ antall ~ (' bereder' if antall == 1 else ' beredere') ~ ' med feil') if antall > 0 else '') }}">{{ states('sensor.tappevann_fellesfeil_arsak') }}<br><br><small>Årsaken til hver feil står i Pushover-varselet og i sporloggen til roboten. Feil-hjelperen slås AV av roboten når kontaktoren er OK igjen, eller for hånd som kvittering.</small></ha-alert>
               {% else %}
               <ha-alert alert-type="success" title="Tappevann i drift">Ingen feil, og alle roboter er PÅ.</ha-alert>
               {% endif %}
@@ -373,6 +558,24 @@ views:
             entity: sensor.tappevann_fellesfeil_arsak
             name: Tappevann - Fellesfeil årsak
             icon: mdi:bell-alert
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: false
+            entity: sensor.tappevann_status
+            name: Tappevann - Status
+            icon: mdi:water-boiler
+            show_state: true
+            button_action: {tap_action: {action: more-info}}
+          - type: custom:bubble-card
+            card_type: button
+            button_type: state
+            scrolling_effect: true
+            entity: sensor.tappevann_status_tekst
+            name: Tappevann - Status tekst
+            icon: mdi:water-boiler
             show_state: true
             button_action: {tap_action: {action: more-info}}
           - type: custom:bubble-card
@@ -429,6 +632,54 @@ views:
 
           - type: markdown
             content: |-
-              Hver kontaktor overvåkes av sin egen robot fra blueprinten **Kontaktor - Overvåking** ([dokumentasjon](https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md)). Grenser justeres i roboten for kontaktoren.
+              Hver kontaktor overvåkes av sin egen robot fra blueprinten **Kontaktor - Overvåking** ([dokumentasjon](https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md)). Den varsler hva som er feil på kontaktoren og når den er OK igjen. Grenser justeres i roboten for kontaktoren.
+
+              **Tappevann - Robot** ([Kontaktor - Fellesfeil varsel](https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_fellesfeil.md)) varsler straks når en robot per kontaktor er AV, varsler varmtvann- og varmepumpefeil («Andre feil») med alarm og «OK igjen», sender en samlet påminnelse hver 24. time så lenge Fellesfeil står, og «Tilbake i normal drift» bare hvis den selv har varslet.
 
               En kontaktor teller som feil når feil-hjelperen er PÅ eller roboten er AV. Feil-hjelperen slås AV av roboten når kontaktoren er OK igjen, og kan slås AV for hånd som kvittering.
+
+              Farger: grønn = I drift, gul = Avvik (halvparten eller færre beredere med feil) eller Under sjekk (lav temperatur, ikke lenge nok til alarm), rød = Problem. Grenser og grafer står på admin-siden for hver tavle.
+
+# =============================================================================
+# HJEMSIDE: lang knapp for tappevann
+# =============================================================================
+# Legg kortet inn på hjemsiden (på vtoppen under «Diverse», under Internett).
+# Farge fra «Tappevann - Status»: grønn = I drift, gul = Avvik / Under sjekk,
+# rød = Problem. Teksten er «Tappevann - Status tekst». Underknappene viser status
+# per tavle og går rett til tavlesiden (gul eller rød ved avvik).
+# `rows: 1.719` gir plass til underknappene på egen linje.
+#
+# - type: custom:bubble-card
+#   card_type: button
+#   button_type: state
+#   entity: sensor.tappevann_status_tekst                      # TILPASS
+#   name: Tappevann
+#   icon: mdi:water-boiler
+#   show_name: true
+#   show_icon: true
+#   show_state: true
+#   show_last_changed: false
+#   show_last_updated: false
+#   show_attribute: false
+#   force_icon: false
+#   rows: 1.719
+#   grid_options: {columns: 12}
+#   tap_action: {action: navigate, navigation_path: /dashboard-tappevann}                     # TILPASS
+#   button_action: {tap_action: {action: navigate, navigation_path: /dashboard-tappevann}}    # TILPASS
+#   sub_button:
+#     main: []
+#     bottom:                                                   # TILPASS: én per tavle
+#       - {entity: sensor.tappevann_rs50_54_status, name: 50-54, show_name: true, show_state: true, show_icon: false, show_attribute: false, show_last_changed: false, tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs50-54}}
+#       - {entity: sensor.tappevann_rs60_62_status, name: 60-62, show_name: true, show_state: true, show_icon: false, show_attribute: false, show_last_changed: false, tap_action: {action: navigate, navigation_path: /dashboard-tappevann/rs60-62}}
+#   styles: |-
+#     .bubble-button-background {
+#       opacity: 0.3 !important;
+#       background-color: ${ ({'Problem':'var(--error-color, #db4437)','Avvik':'var(--warning-color, #ffa600)','Under sjekk':'var(--warning-color, #ffa600)','I drift':'var(--success-color, #43a047)'})[hass.states['sensor.tappevann_status']?.state] || 'transparent' } !important;
+#     }
+#     .bubble-icon-container {
+#       opacity: 1 !important;
+#       background-color: ${ ({'Problem':'var(--error-color, #db4437)','Avvik':'var(--warning-color, #ffa600)','Under sjekk':'var(--warning-color, #ffa600)','I drift':'var(--success-color, #43a047)'})[hass.states['sensor.tappevann_status']?.state] || '' } !important;
+#     }
+#     .bubble-icon { color: white !important; }
+#     .bubble-sub-button-1 { background-color: ${ ({'Problem':'var(--error-color, #db4437)','Avvik':'var(--warning-color, #ffa600)','Under sjekk':'var(--warning-color, #ffa600)'})[hass.states['sensor.tappevann_rs50_54_status']?.state] || '' } !important; }
+#     .bubble-sub-button-2 { background-color: ${ ({'Problem':'var(--error-color, #db4437)','Avvik':'var(--warning-color, #ffa600)','Under sjekk':'var(--warning-color, #ffa600)'})[hass.states['sensor.tappevann_rs60_62_status']?.state] || '' } !important; }

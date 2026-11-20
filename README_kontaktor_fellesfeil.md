@@ -52,6 +52,9 @@ Nei. Legg sensoren i «Andre feil». Selve feilen (grense og hvor lenge den må 
 **Hvorfor kommer ikke påminnelsen for en annen feil?**
 Påminnelsen følger fellesfeilen. Den andre feilen må gi «Problem» på tavla (se eksempelfila), ellers står ikke fellesfeilen.
 
+**Får jeg varsel når temperaturen er lav, men ikke har vært det lenge nok?**
+Nei. Tavla viser da «Under sjekk» (gul) på dashbordet og hjemsiden, men det er ikke fellesfeil og sendes ingen varsler. Varselet kommer når forsinkelsen i sensoren har gått.
+
 ## 4. Hva slags info trengs
 
 - Fellesfeil (binary_sensor), f.eks. «Tappevann - Fellesfeil».
@@ -175,12 +178,12 @@ use_blueprint:
 
 Andre feil lages som mal-hjelpere (binary_sensor) med forsinkelse. Eksempel på varmtvann og varmepumpe, og hvordan de tas med i tavlestatus og årsak, ligger i [packages/kontaktor_overvaking_status_eksempel.yaml](./packages/kontaktor_overvaking_status_eksempel.yaml).
 
-Ta med hovedroboten i fellesfeilen, så den vises som feil når den er AV:
+Fellesfeilen står når en tavle har «Avvik» (gul) eller «Problem» (rød). «Under sjekk» (gul, lav temperatur som ikke har vart lenge nok) er ikke feil og gir ingen varsler. Ta med hovedroboten i fellesfeilen, så den vises som feil når den er AV:
 
 ```yaml
 state: >-
   {{ ['sensor.tappevann_rs50_54_status', 'sensor.tappevann_rs60_62_status']
-     | select('is_state', 'Problem') | list | count > 0
+     | select('is_state', ['Avvik', 'Problem']) | list | count > 0
      or not is_state('automation.tappevann_robot', 'on') }}
 ```
 

@@ -270,19 +270,23 @@ Se [packages/kontaktor_overvaking_status_eksempel.yaml](./packages/kontaktor_ove
 
 ```
 Feil-hjelper per kontaktor + automasjonen PÅ/AV
-  → Antall feil per tavle  → Status per tavle (I drift / Problem / Ikke overvåket)
-  → Antall feil totalt     → Fellesfeil
-  → Fellesfeil årsak       (kort tekst: hvilke kontaktorer som har feil)
+  → Antall feil per tavle  → Status per tavle (I drift / Under sjekk / Avvik / Problem / Ikke overvåket)
+  → Antall feil totalt     → Fellesfeil (Avvik eller Problem)
+  → Fellesfeil årsak       (kort tekst: hva som er feil)
+Status per tavle → <Anlegg> - Status (farge) og Status tekst (hjemsideknappen)
 ```
 
-En kontaktor teller som feil når feil-hjelperen er PÅ eller når automasjonen er AV (da overvåkes den ikke).
+En kontaktor teller som feil når feil-hjelperen er PÅ eller når automasjonen er AV (da overvåkes den ikke). Halvparten eller færre kontaktorer med feil på en tavle gir «Avvik» (gul), flere enn halvparten gir «Problem» (rød).
 
 **Dashbord:**
 Se [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/kontaktor_overvaking_dashbord_eksempel.yaml):
 
-- **Oversikt:** samlet status, fellesfeil, antall kontaktorer med feil, én knapp per tavle, knapp til admin info (bare admin) og systembildene med temperaturer.
-- **Tavleside:** status for tavla og ett Bubble Card per kontaktor (lyser når kontaktoren er PÅ, last og spole som underknapper, rød bjelle ved feil, robot-knapp til roboten), varmepumpe og admin-del. Alle trykk på kontaktorkortet åpner info, så det kan ikke slå kontaktoren av.
+- **Oversikt:** tre statustekster (beredere, varmtvann, varmepumper) i grønt, gult eller rødt, én knapp per tavle i samme farge, knapp til admin info (bare admin) og systembildene med temperaturer.
+- **Tavleside:** de samme tre tekstene for tavla og ett Bubble Card per kontaktor (lyser når kontaktoren er PÅ, last og spole som underknapper, rød bjelle ved feil, robot-knapp til roboten), varmepumpe og knapp til admin for tavla. Alle trykk på kontaktorkortet åpner info, så det kan ikke slå kontaktoren av.
+- **Admin for tavla:** målinger per kontaktor, graf over last, og grenser og graf for varmtvann og varmepumpe.
 - **Admin info:** statusboks med feilinformasjon (Fellesfeil årsak) og ett Bubble Card per status-hjelper.
+- **Hjemsiden:** lang Bubble Card-knapp i grønt, gult eller rødt med kort tekst og én underknapp per tavle.
+- Sidene som brukere og vaktmester ser, sier «bereder», ikke «kontaktor».
 
 ### 10.3 Relevante automasjoner og script
 

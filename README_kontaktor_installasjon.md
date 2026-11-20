@@ -6,7 +6,7 @@ Oppskriften er skrevet slik at den kan følges både for hånd og av en AI-assis
 
 I eksemplene står **«Tappevann»** for anlegget og **«RS50-54»** for en tavle. Bytt med anleggets egne navn.
 
-Versjon: 2026.11.02
+Versjon: 2026.11.03
 
 ## 1. Hva løsningen består av
 
@@ -14,11 +14,11 @@ Versjon: 2026.11.02
 |---|---|---|---|
 | Kontaktor - Overvåking | [blueprints/automation/kontaktor_overvaking.yaml](./blueprints/automation/kontaktor_overvaking.yaml) | 1 robot per kontaktor | Sjekker ikke på, spole, ingen last, ikke full last, henger inne og vern. Varsler hva som er feil, og «OK igjen» |
 | Feil-hjelper | – | 1 per kontaktor | input_boolean som roboten slår PÅ ved feil og AV når kontaktoren er OK |
-| Status-sensorer | [packages/kontaktor_overvaking_status_eksempel.yaml](./packages/kontaktor_overvaking_status_eksempel.yaml) | 2 per tavle, 3 for anlegget | Antall feil og status per tavle, antall feil totalt, Fellesfeil og Fellesfeil årsak |
+| Status-sensorer | [packages/kontaktor_overvaking_status_eksempel.yaml](./packages/kontaktor_overvaking_status_eksempel.yaml) | 2 per tavle, 5 for anlegget | Antall feil og status per tavle (grønn / gul / rød), antall feil totalt, Fellesfeil, Fellesfeil årsak, samlet status og statustekst til hjemsiden |
 | Kontaktor - Fellesfeil varsel | [blueprints/automation/kontaktor_fellesfeil.yaml](./blueprints/automation/kontaktor_fellesfeil.yaml) | 1 robot for anlegget | Varsler straks når en robot er AV eller en annen feil slår inn, samlet påminnelse, «OK igjen» og «Tilbake i normal drift» |
 | Andre feil (valgfri) | Samme eksempelfil som status-sensorene | Etter behov per tavle | F.eks. kaldt varmtvann eller varmepumpe som ikke leverer varme. binary_sensor med forsinkelse |
 | Feil sist varslet | – | 1 for anlegget | input_datetime som den overordnede roboten bruker |
-| Dashbord | [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/kontaktor_overvaking_dashbord_eksempel.yaml) | 3 typer visninger | Oversikt, én side per tavle, admin info |
+| Dashbord | [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/kontaktor_overvaking_dashbord_eksempel.yaml) | 4 typer visninger og 1 hjemsideknapp | Oversikt, side og admin-side per tavle, admin info, lang knapp på hjemsiden |
 | Pushover-script | [blueprints/scripts/varsel_pushover.yaml](./blueprints/scripts/varsel_pushover.yaml) | 1 script | Sender varslene. Versjon 2026.08.01 eller nyere |
 
 Funksjonen er beskrevet i [README_kontaktor_overvaking.md](./README_kontaktor_overvaking.md) og [README_kontaktor_fellesfeil.md](./README_kontaktor_fellesfeil.md).
@@ -33,7 +33,19 @@ bryter + spole + last → <bryternavn> - Robot → <bryternavn> Feil (feil-hjelp
                Andre feil per tavle (f.eks. varmtvann, varmepumpe)
                                                         ↓
                                   <Anlegg> - Robot (overordnet) → Pushover
+
+Status per tavle → <Anlegg> - Status + <Anlegg> - Status tekst → hjemsideknappen (grønn / gul / rød)
 ```
+
+Farger (status per tavle):
+
+| Status | Farge | Når | Fellesfeil og Pushover |
+|---|---|---|---|
+| I drift | Grønn | Alt OK | Nei |
+| Under sjekk | Gul | Temperaturen er lav nå, men ikke lenge nok til alarm | Nei |
+| Avvik | Gul | Halvparten eller færre av kontaktorene (berederne) på tavla har feil | Ja |
+| Problem | Rød | Flere enn halvparten har feil, eller en av andre feil er PÅ (alarm etter forsinkelsen) | Ja |
+| Ikke overvåket | Grå | Ingen kontaktorer lagt inn | Nei |
 
 Hvem varsler hva:
 
@@ -148,19 +160,22 @@ Bruk [packages/kontaktor_overvaking_status_eksempel.yaml](./packages/kontaktor_o
 | Nivå | Entitets-ID | Navn | Regel |
 |---|---|---|---|
 | Tavle | `sensor.<anlegg>_<tavle>_antall_feil` | `<Anlegg> - <tavle> Antall feil` | Antall kontaktorer der feil-hjelperen er PÅ eller roboten er AV. Tom liste = ukjent |
-| Tavle | `sensor.<anlegg>_<tavle>_status` | `<Anlegg> - <tavle> Status` | I drift / Problem / Ikke overvåket. Problem også når en av andre feil på tavla er PÅ |
+| Tavle | `sensor.<anlegg>_<tavle>_status` | `<Anlegg> - <tavle> Status` | I drift / Under sjekk / Avvik / Problem / Ikke overvåket, se fargetabellen i §1. Trenger antall kontaktorer på tavla og grensene for «lav nå» |
 | Tavle (valgfri) | `binary_sensor.<anlegg>_<tavle>_<hva>_feil` | `<Anlegg> - <tavle> <Hva>`, f.eks. `Tappevann - RS50-54 Varmtvann` | Andre feil. Mal med «Forsinkelse på» (hvor lenge feilen må stå) og «Forsinkelse av». `device_class: problem`. Navnet står i varselet |
 | Anlegg | `sensor.<anlegg>_antall_feil` | `<Anlegg> - Antall feil` | Summen av tavlene |
-| Anlegg | `binary_sensor.<anlegg>_fellesfeil` | `<Anlegg> - Fellesfeil` | En tavle har Problem, eller den overordnede roboten er AV. `device_class: problem` |
-| Anlegg | `sensor.<anlegg>_fellesfeil_arsak` | `<Anlegg> - Fellesfeil årsak` | F.eks. «RS60-62: feil på XK3, XK4.» eller «Ingen feil» (maks 255 tegn) |
+| Anlegg | `binary_sensor.<anlegg>_fellesfeil` | `<Anlegg> - Fellesfeil` | En tavle har Avvik eller Problem, eller den overordnede roboten er AV. `device_class: problem`. «Under sjekk» gir ikke fellesfeil |
+| Anlegg | `sensor.<anlegg>_fellesfeil_arsak` | `<Anlegg> - Fellesfeil årsak` | F.eks. «RS60-62: feil på XK3, XK4.» eller «Ingen feil» (maks 255 tegn). Brukes i Pushover |
+| Anlegg | `sensor.<anlegg>_status` | `<Anlegg> - Status` | Verste status av tavlene: Problem / Avvik / Under sjekk / I drift. Den overordnede roboten AV gir Avvik. Farge på hjemsideknappen |
+| Anlegg | `sensor.<anlegg>_status_tekst` | `<Anlegg> - Status tekst` | Kort tekst til hjemsideknappen, skrevet for vaktmester, f.eks. «2 av 6 beredere med feil på RS60-62, varmepumpe RS50-54 under sjekk» eller «Alt i drift» |
 
 - Listene over kontaktorer står i malen for Antall feil på hver tavle og i Fellesfeil årsak. Legges en kontaktor til eller fjernes, må begge oppdateres (og robot-listen i den overordnede roboten, §9).
-- Andre feil står i tre lister: Status for tavla, Fellesfeil årsak (med tekst) og «Andre feil» i den overordnede roboten (§9).
+- Andre feil står i fire lister: Status for tavla, Fellesfeil årsak (med tekst), Status tekst og «Andre feil» i den overordnede roboten (§9).
+- Grensene for «Under sjekk» (lav nå) er de samme som i andre feil, men uten forsinkelse. De står i Status for tavla, i Status tekst og i statustekstene på dashbordet. Endres en grense, må alle stedene endres.
 - Eksempel fra vtoppen: varmtvann er feil når temperaturen ut av berederen er under 50 °C i 30 min. Varmepumpe er feil når både tur fra varmepumpa og sirkulasjon til forvarmetank er under 35 °C i 10 t (RS50-54, der varmepumpa står om natta) eller 2 t (RS60-62). Finn grensene i historikken først, slik som i §4.
 - Ikon: `mdi:bell-alert` på feil og antall, `mdi:water-boiler` (eller passende) på tavlestatus.
 - Endres en mal-hjelper senere, må alle feltene sendes inn på nytt (f.eks. `device_class: problem` på Fellesfeil), ellers forsvinner de.
 
-**Kontroll:** i normal drift viser tavlene «I drift», Antall feil 0 og Fellesfeil OK. Slå feil-hjelperen for én kontaktor PÅ i noen sekunder (under 2 minutter, ellers nullstiller roboten den og sender «OK igjen»): tavla skal gå til Problem og Fellesfeil til PÅ, og tilbake når den slås AV.
+**Kontroll:** i normal drift viser tavlene «I drift», Antall feil 0 og Fellesfeil OK. Slå feil-hjelperen for én kontaktor PÅ i noen sekunder (under 2 minutter, ellers nullstiller roboten den og sender «OK igjen»): tavla skal gå til Avvik (gul) og Fellesfeil til PÅ, og tilbake når den slås AV.
 
 ## 9. Overordnet robot
 
@@ -195,20 +210,24 @@ Bruk [dashboards/kontaktor_overvaking_dashbord_eksempel.yaml](./dashboards/konta
 
 | Visning | For hvem | Innhold |
 |---|---|---|
-| Oversikt (`oversikt`, første visning) | Bruker | Statusboks med årsak, Fellesfeil, antall kontaktorer med feil, én flis per tavle (grønn / rød / grå), systembilder med temperaturer, knapp til admin info (bare admin) |
-| Tavleside (`<tavle>`, f.eks. `rs50-54`) | Bruker og admin | Statusboks for tavla, ett Bubble Card per kontaktor, varmepumpe, admin-del med målinger og 24 t graf |
+| Oversikt (`oversikt`, første visning) | Bruker | Tre statustekster: beredere, varmtvann og varmepumper (grønn / gul / rød). Én knapp per tavle (grønn / gul / rød / grå), systembilder med temperaturer, knapp til admin info (bare admin) |
+| Tavleside (`<tavle>`, f.eks. `rs50-54`) | Bruker og admin | De samme tre tekstene for tavla, ett Bubble Card per kontaktor, total effekt, varmepumpe, knapp til admin for tavla (bare admin) |
+| Admin for tavla (`<tavle>-admin`) | Admin | Målinger per kontaktor og 24 t graf over last. Tabell med målinger, alarmgrenser og hvorfor det er alarm for varmtvann og varmepumpe, 48 t temperaturgraf, alarmsensorene og den overordnede roboten |
 | Admin info (`admin`) | Admin | Statusboks med feilinformasjon, Bubble Card for alle status-hjelperne, den overordnede roboten og «Feil sist varslet» |
+| Hjemsiden | Alle | Lang Bubble Card-knapp: farge fra `<Anlegg> - Status`, tekst fra `<Anlegg> - Status tekst`, én underknapp per tavle (se nederst i eksempelfila) |
 
 Valg som er gjort, og som bør beholdes for at anleggene skal se like ut:
 
 | Element | Løsning | Hvorfor |
 |---|---|---|
+| Ord | Sidene som bruker og vaktmester ser, sier «bereder», ikke «kontaktor» (f.eks. «2 av 6 beredere med feil») | En vaktmester forstår det, og kan si hva som er feil når de ringer |
 | Kontaktorkort | Bubble Card `switch`, lyser når PÅ. `tap_action`, `button_action` med `double_tap_action: none` og `hold_action: more-info` | Ser ut som snøsmelt, men et trykk kan aldri slå av kontaktoren |
 | Underknapper | Last, spole, rød bjelle (bare ved feil), robot. `.bubble-sub-button-3` rød | Feil vises bare når den står |
-| Statusboks | Markdown med `ha-alert` og teksten fra Fellesfeil årsak | Samme som snøsmelt |
-| Tavle-fliser | Tre `tile`-kort med `visibility` | Standardkort kan ikke bytte farge etter tekst-tilstand |
+| Statustekster | Tre markdown-kort med `ha-alert`: success (grønn), warning (gul), error (rød) | Samme farger som z - System (nettverk) |
+| Tavle-fliser | Fire `tile`-kort med `visibility`: grønn, gul (`or` for Avvik og Under sjekk), rød, grå | Standardkort kan ikke bytte farge etter tekst-tilstand |
+| Hjemsideknapp | Bubble Card med `styles` som setter bakgrunn og ikon etter `<Anlegg> - Status`, `rows: 1.719` | Gul brukes også på hjemsiden, så det synes at noe er under sjekk |
 | Graf over last | `statistics-graph` med 5-minutters snitt | En vanlig historikkgraf av lastsensorer som oppdateres hvert par sekund henter over en million punkter per visning |
-| Admin | Egen underside med knapp fra oversikten | Brukeren ser bare det som er relevant |
+| Admin | Admin info og egen admin-side per tavle, knapper bare for admin | Brukeren ser bare det som er relevant |
 
 **Erstatte et eksisterende dashbord:** bygg de nye visningene som undersider som bare admin ser, med en admin-knapp fra den gamle oversikten. Når de er godkjent: ta en kopi av dashbordet (f.eks. som eget skjult dashbord som bare admin ser), fjern de gamle visningene, gjør oversikten til første visning og gi tavlesidene de gamle adressene, så lenker fra andre sider virker.
 
@@ -231,8 +250,8 @@ Bruk de samme kallene som i [README_snosmelt_installasjon.md](./README_snosmelt_
 | Nr. | Test | Forventet |
 |---|---|---|
 | 1 | Sporlogg for hver robot etter av/på | Fullført, riktige målinger, ingen feil for kontaktorer som virker |
-| 2 | Kontaktor som står AV med vilje | Feil-hjelper PÅ etter 5 min, rød bjelle, tavla Problem, Pushover fra roboten |
-| 3 | Feil-hjelper PÅ i noen sekunder | Tavla Problem og Fellesfeil PÅ, tilbake når den slås AV |
+| 2 | Kontaktor som står AV med vilje | Feil-hjelper PÅ etter 5 min, rød bjelle, tavla gul (Avvik), Pushover fra roboten |
+| 3 | Feil-hjelper PÅ i noen sekunder | Tavla gul (Avvik), Fellesfeil PÅ og hjemsideknappen gul, tilbake når den slås AV |
 | 4 | Skru av én robot i over 1 minutt (avtales med mottaker) | «🔔 <Anlegg> - Fellesfeil: Overvåkingen er skrudd AV for …» |
 | 5 | Skru den på igjen | Står ingen annen feil: «✅ <Anlegg> - Tilbake i normal drift» etter 1 minutt |
 | 6 | Kjør den overordnede roboten manuelt | Statusmelding på Pushover, også med andre feil som er PÅ |
@@ -245,5 +264,7 @@ Testene som gir Pushover (nr. 4–6) avtales på forhånd med den som mottar var
 - Med én strømtang per kurs vises ikke et dødt element som ikke henger på den målte lederen. Spolesjekken viser at kontaktoren trekker inn, ikke at hovedkontaktene leder.
 - Oppstartsjekken dekker ikke på, spole, henger inne og vern. «Ingen last» og «Ikke full last» fanges når avviket oppstår på nytt etter en omstart.
 - Forsinkelsene (f.eks. 24 t for «Ikke full last», 10 t for varmepumpe) starter på nytt ved omstart av Home Assistant. En feil som allerede står, blir stående.
-- Er den overordnede roboten AV, sendes ingen fellesfeil-varsler. Fellesfeil-lampa blir rød.
+- Er den overordnede roboten AV, sendes ingen fellesfeil-varsler. Fellesfeil står, og hjemsideknappen blir gul.
 - Listene over kontaktorer må holdes like i Antall feil per tavle og Fellesfeil årsak.
+- En varmepumpe som står med vilje (f.eks. nattstopp på grunn av støy) gir «Under sjekk» (gul) så lenge den står. Det sendes ikke varsel.
+- Grensene for «Under sjekk» står flere steder (§8).
