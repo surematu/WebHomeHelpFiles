@@ -246,6 +246,7 @@ Felles watchdog for en WebHome-installasjon. Én automasjon per Home Assistant p
 
 - **Alt. 1 Climate:** termostater i Versatile Thermostat som har stått AV i 10 sekunder skrus PÅ igjen (heat). Har termostaten mistet preset, settes den tilbake når settpunktet passer til en preset.
 - **Alt. 2 Tailscale:** Tailscale-tillegget startes når det ikke har kjørt på 10 minutter.
+- **Alt. 3 Cloudflare-tunnel:** tillegget Cloudflared startes når det ikke har kjørt på 10 minutter.
 
 Automasjonen kjører bare når noe er galt, pluss ved oppstart av Home Assistant og en sikkerhetssjekk én gang i timen. Sender Pushover-varsel når den griper inn.
 

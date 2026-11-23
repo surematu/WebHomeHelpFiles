@@ -11,19 +11,24 @@ blueprint:
       av preset-temperaturene, settes den preseten tilbake.
     - Alt. 2 Tailscale: tillegget startes når det ikke har kjørt på valgt antall
       minutter (standard 10).
+    - Alt. 3 Cloudflare-tunnel: tillegget Cloudflared startes når det ikke har
+      kjørt på valgt antall minutter (standard 10).
 
     Automasjonen kjører bare når noe er galt, pluss ved oppstart av Home Assistant
-    og en sikkerhetssjekk én gang i timen. Bare ett alternativ kjøres per kjøring.
+    og en sikkerhetssjekk én gang i timen. Hvert alternativ er sin egen blokk, så
+    flere ting kan rettes i samme kjøring.
 
     Skal en termostat stå av med vilje, legg den i «Climate som holdes utenfor»
     eller skru av denne automasjonen.
 
-    Forutsetter scriptet script.varsel_pushover_send_melding_webhome for varsling.
+    Forutsetter scriptet script.varsel_pushover_send_melding_webhome for varsling,
+    og at «Running»-sensoren for Tailscale og Cloudflared er aktivert (de er
+    deaktivert som standard i Home Assistant).
 
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_webhome_watchdog.md
 
-    Blueprint versjon: 2026.11.00
+    Blueprint versjon: 2026.11.01
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/webhome_watchdog.yaml
@@ -118,6 +123,46 @@ blueprint:
           selector:
             text:
 
+    cloudflare:
+      name: Alt. 3 Cloudflare-tunnel
+      icon: mdi:cloud-lock
+      input:
+        cloudflare_aktiv:
+          name: Overvåk Cloudflare-tunnel
+          description: Start tillegget Cloudflared når det ikke kjører.
+          default: true
+          selector:
+            boolean:
+
+        cloudflare_sensor:
+          name: Cloudflared kjører
+          description: >
+            binary_sensor som er PÅ når tillegget Cloudflared kjører. Sensoren er
+            deaktivert som standard og må aktiveres under tillegget i Home Assistant.
+          default: binary_sensor.cloudflared_running
+          selector:
+            entity:
+              domain: binary_sensor
+
+        cloudflare_minutter:
+          name: Cloudflared må ha stått av i (minutter)
+          description: Hvor lenge Cloudflared må ha vært AV før tillegget startes.
+          default: 10
+          selector:
+            number:
+              min: 1
+              max: 120
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+        cloudflare_addon:
+          name: Cloudflared-tillegg (slug)
+          description: Trengs normalt ikke å justeres.
+          default: 396f0234_cloudflared
+          selector:
+            text:
+
     varsling:
       name: Varsling (Valgfri)
       icon: mdi:bell
@@ -126,8 +171,8 @@ blueprint:
         send_varsel:
           name: Send varsel når watchdogen griper inn
           description: >
-            Sender Pushover når en climate er skrudd på igjen eller Tailscale er
-            startet.
+            Sender Pushover når en climate er skrudd på igjen, eller Tailscale eller
+            Cloudflared er startet.
           default: true
           selector:
             boolean:
@@ -210,6 +255,15 @@ triggers:
     for:
       minutes: !input tailscale_minutter
 
+  # Alt. 3: Cloudflared har stått AV i valgt antall minutter.
+  - trigger: state
+    id: cloudflare
+    alias: Cloudflared har stått av
+    entity_id: !input cloudflare_sensor
+    to: "off"
+    for:
+      minutes: !input cloudflare_minutter
+
   # Sikkerhetssjekk én gang i timen, i tilfelle et forsøk har feilet.
   - trigger: time_pattern
     id: sikkerhetssjekk
@@ -237,6 +291,9 @@ variables:
   io_tailscale_aktiv: !input tailscale_aktiv
   io_tailscale_sensor: !input tailscale_sensor
   io_tailscale_minutter: !input tailscale_minutter
+  io_cloudflare_aktiv: !input cloudflare_aktiv
+  io_cloudflare_sensor: !input cloudflare_sensor
+  io_cloudflare_minutter: !input cloudflare_minutter
   climate_av: >-
     {{ (integration_entities('versatile_thermostat')
         | select('match', '^climate[.]')
@@ -249,17 +306,24 @@ variables:
        and is_state(io_tailscale_sensor, 'off')
        and (now() - states[io_tailscale_sensor].last_changed).total_seconds()
            >= (io_tailscale_minutter | float(10)) * 60 }}
+  cloudflare_av: >-
+    {{ io_cloudflare_aktiv
+       and states[io_cloudflare_sensor] is not none
+       and is_state(io_cloudflare_sensor, 'off')
+       and (now() - states[io_cloudflare_sensor].last_changed).total_seconds()
+           >= (io_cloudflare_minutter | float(10)) * 60 }}
 
 conditions:
-  - alias: Noe er galt (en climate er av, eller Tailscale har stått av lenge nok)
+  - alias: Noe er galt (en climate er av, eller Tailscale eller Cloudflared har stått av lenge nok)
     condition: template
-    value_template: "{{ climate_av | count > 0 or tailscale_av }}"
+    value_template: "{{ climate_av | count > 0 or tailscale_av or cloudflare_av }}"
 
 actions:
   - alias: Steg 1 – Les innstillinger fra blueprint
     variables:
       io_climate_sett_preset: !input climate_sett_preset
       io_tailscale_addon: !input tailscale_addon
+      io_cloudflare_addon: !input cloudflare_addon
       io_send_varsel: !input send_varsel
       pushover_destination: !input pushover_destination
       pushover_priority: !input pushover_priority
@@ -275,99 +339,124 @@ actions:
     variables:
       climate_av_funnet: "{{ climate_av }}"
       tailscale_av_funnet: "{{ tailscale_av }}"
+      cloudflare_av_funnet: "{{ cloudflare_av }}"
 
-  - alias: Steg 4 – Velg hva som skal rettes (ett alternativ per kjøring)
-    choose:
-      - alias: Alt. 1 – Climate er av
-        conditions:
+  - alias: Steg 4 – Alt. 1 – Climate er av
+    if:
+      - condition: template
+        value_template: "{{ climate_av_funnet | count > 0 }}"
+    then:
+      - alias: Steg 4-A – Skru på climate (heat)
+        action: climate.set_hvac_mode
+        target:
+          entity_id: "{{ climate_av_funnet }}"
+        data:
+          hvac_mode: heat
+
+      - alias: Steg 4-B – Sett tilbake mistet preset når settpunktet er likt en preset-temperatur
+        if:
           - condition: template
-            value_template: "{{ climate_av_funnet | count > 0 }}"
-        sequence:
-          - alias: Steg 4.1-A – Skru på climate (heat)
-            action: climate.set_hvac_mode
-            target:
-              entity_id: "{{ climate_av_funnet }}"
-            data:
-              hvac_mode: heat
-
-          - alias: Steg 4.1-B – Sett tilbake mistet preset når settpunktet er likt en preset-temperatur
-            if:
-              - condition: template
-                value_template: "{{ io_climate_sett_preset }}"
-            then:
-              - repeat:
-                  for_each: "{{ climate_av_funnet }}"
-                  sequence:
-                    - alias: Finn preset som passer til settpunktet
-                      variables:
-                        preset_funnet: >-
-                          {% set e = repeat.item %}
-                          {% set t = state_attr(e, 'temperature') %}
-                          {% set pt = state_attr(e, 'preset_temperatures') or {} %}
-                          {% set ns = namespace(p='') %}
-                          {% if state_attr(e, 'preset_mode') in ['none', none] and t is not none %}
-                            {% for p in ['comfort', 'eco', 'frost', 'boost'] %}
-                              {% if ns.p == '' and pt.get(p ~ '_temp') is not none
-                                    and pt.get(p ~ '_temp') | float(-999) == t | float(-998) %}
-                                {% set ns.p = p %}
-                              {% endif %}
-                            {% endfor %}
+            value_template: "{{ io_climate_sett_preset }}"
+        then:
+          - repeat:
+              for_each: "{{ climate_av_funnet }}"
+              sequence:
+                - alias: Finn preset som passer til settpunktet
+                  variables:
+                    preset_funnet: >-
+                      {% set e = repeat.item %}
+                      {% set t = state_attr(e, 'temperature') %}
+                      {% set pt = state_attr(e, 'preset_temperatures') or {} %}
+                      {% set ns = namespace(p='') %}
+                      {% if state_attr(e, 'preset_mode') in ['none', none] and t is not none %}
+                        {% for p in ['comfort', 'eco', 'frost', 'boost'] %}
+                          {% if ns.p == '' and pt.get(p ~ '_temp') is not none
+                                and pt.get(p ~ '_temp') | float(-999) == t | float(-998) %}
+                            {% set ns.p = p %}
                           {% endif %}
-                          {{ ns.p }}
-                    - alias: Sett preset hvis en passer
-                      if:
-                        - condition: template
-                          value_template: "{{ preset_funnet != '' }}"
-                      then:
-                        - action: climate.set_preset_mode
-                          target:
-                            entity_id: "{{ repeat.item }}"
-                          data:
-                            preset_mode: "{{ preset_funnet }}"
+                        {% endfor %}
+                      {% endif %}
+                      {{ ns.p }}
+                - alias: Sett preset hvis en passer
+                  if:
+                    - condition: template
+                      value_template: "{{ preset_funnet != '' }}"
+                  then:
+                    - action: climate.set_preset_mode
+                      target:
+                        entity_id: "{{ repeat.item }}"
+                      data:
+                        preset_mode: "{{ preset_funnet }}"
 
-          - alias: Steg 4.1-C – Bygg navneliste til varselet
-            variables:
-              climate_navn: "{{ climate_av_funnet | map('state_attr', 'friendly_name') | join(', ') }}"
+      - alias: Steg 4-C – Bygg navneliste til varselet
+        variables:
+          climate_navn: "{{ climate_av_funnet | map('state_attr', 'friendly_name') | join(', ') }}"
 
-          - alias: Steg 4.1-D – Send varsel (valgfri)
-            if:
-              - condition: template
-                value_template: "{{ io_send_varsel }}"
-            then:
-              - action: script.varsel_pushover_send_melding_webhome
-                continue_on_error: true
-                data:
-                  title: "🌡️ Climate skrudd på igjen"
-                  message: "Sto av og er skrudd på igjen: {{ climate_navn }}"
-                  destination: "{{ pushover_destination }}"
-                  priority: "{{ pushover_priority | int(0) }}"
-                  ttl_hours: "{{ pushover_ttl_hours | int(168) }}"
-
-      - alias: Alt. 2 – Tailscale har stått av
-        conditions:
+      - alias: Steg 4-D – Send varsel (valgfri)
+        if:
           - condition: template
-            value_template: "{{ tailscale_av_funnet }}"
-        sequence:
-          - alias: Steg 4.2-A – Start Tailscale-tillegget
-            action: hassio.addon_start
+            value_template: "{{ io_send_varsel }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            continue_on_error: true
             data:
-              addon: "{{ io_tailscale_addon }}"
+              title: "🌡️ Climate skrudd på igjen"
+              message: "Sto av og er skrudd på igjen: {{ climate_navn }}"
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl_hours: "{{ pushover_ttl_hours | int(168) }}"
 
-          - alias: Steg 4.2-B – Send varsel (valgfri)
-            if:
-              - condition: template
-                value_template: "{{ io_send_varsel }}"
-            then:
-              - action: script.varsel_pushover_send_melding_webhome
-                continue_on_error: true
-                data:
-                  title: "🔗 Tailscale startet"
-                  message: "Tailscale kjørte ikke på {{ io_tailscale_minutter | int(10) }} minutter og er startet på nytt."
-                  destination: "{{ pushover_destination }}"
-                  priority: "{{ pushover_priority | int(0) }}"
-                  ttl_hours: "{{ pushover_ttl_hours | int(168) }}"
+  - alias: Steg 5 – Alt. 2 – Tailscale har stått av
+    if:
+      - condition: template
+        value_template: "{{ tailscale_av_funnet }}"
+    then:
+      - alias: Steg 5-A – Start Tailscale-tillegget
+        action: hassio.addon_start
+        continue_on_error: true
+        data:
+          addon: "{{ io_tailscale_addon }}"
 
-  - alias: Steg 5 – Varsling ved manuell kjøring (valgfri)
+      - alias: Steg 5-B – Send varsel (valgfri)
+        if:
+          - condition: template
+            value_template: "{{ io_send_varsel }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            continue_on_error: true
+            data:
+              title: "🔗 Tailscale startet"
+              message: "Tailscale kjørte ikke på {{ io_tailscale_minutter | int(10) }} minutter og er startet på nytt."
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl_hours: "{{ pushover_ttl_hours | int(168) }}"
+
+  - alias: Steg 6 – Alt. 3 – Cloudflared har stått av
+    if:
+      - condition: template
+        value_template: "{{ cloudflare_av_funnet }}"
+    then:
+      - alias: Steg 6-A – Start tillegget Cloudflared
+        action: hassio.addon_start
+        continue_on_error: true
+        data:
+          addon: "{{ io_cloudflare_addon }}"
+
+      - alias: Steg 6-B – Send varsel (valgfri)
+        if:
+          - condition: template
+            value_template: "{{ io_send_varsel }}"
+        then:
+          - action: script.varsel_pushover_send_melding_webhome
+            continue_on_error: true
+            data:
+              title: "☁️ Cloudflare-tunnel startet"
+              message: "Cloudflared kjørte ikke på {{ io_cloudflare_minutter | int(10) }} minutter og er startet på nytt."
+              destination: "{{ pushover_destination }}"
+              priority: "{{ pushover_priority | int(0) }}"
+              ttl_hours: "{{ pushover_ttl_hours | int(168) }}"
+
+  - alias: Steg 7 – Varsling ved manuell kjøring (valgfri)
     if:
       - condition: template
         value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring }}"
@@ -379,6 +468,7 @@ actions:
           message: |-
             Climate av: {{ (climate_av_funnet | join(', ')) if (climate_av_funnet | count) > 0 else 'ingen' }}
             Tailscale av lenge nok: {{ 'ja' if tailscale_av_funnet else 'nei' }}
+            Cloudflared av lenge nok: {{ 'ja' if cloudflare_av_funnet else 'nei' }}
           destination: "{{ pushover_destination }}"
           priority: 0
           ttl_hours: "{{ pushover_ttl_hours | int(168) }}"
