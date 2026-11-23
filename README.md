@@ -240,6 +240,20 @@ Detaljert funksjonsbeskrivelse:
 
 ---
 
+### webhome_watchdog.yaml — WebHome - WatchDog
+
+Felles watchdog for en WebHome-installasjon. Én automasjon per Home Assistant passer på ting som alltid skal være på, og retter dem selv når de har falt ut:
+
+- **Alt. 1 Climate:** termostater i Versatile Thermostat som har stått AV i 10 sekunder skrus PÅ igjen (heat). Har termostaten mistet preset, settes den tilbake når settpunktet passer til en preset.
+- **Alt. 2 Tailscale:** Tailscale-tillegget startes når det ikke har kjørt på 10 minutter.
+
+Automasjonen kjører bare når noe er galt, pluss ved oppstart av Home Assistant og en sikkerhetssjekk én gang i timen. Sender Pushover-varsel når den griper inn.
+
+Detaljert funksjonsbeskrivelse:
+- [README_webhome_watchdog.md](./README_webhome_watchdog.md)
+
+---
+
 ## Script blueprints
 
 ### varsel_pushover.yaml — Varsel - Pushover Send Melding

@@ -1,0 +1,384 @@
+blueprint:
+  name: WebHome - WatchDog (WebHome Automation)
+  description: >
+    Felles watchdog for en WebHome-installasjon. Én automasjon per Home Assistant,
+    med ett alternativ per ting som overvåkes:
+
+    - Alt. 1 Climate: Versatile Thermostat-climate som har stått AV i valgt antall
+      sekunder (standard 10) skrus PÅ igjen (heat). Går automatisk gjennom alle
+      climate i integrasjonen Versatile Thermostat, så nye termostater kommer med
+      av seg selv. Har termostaten mistet preset (none) og settpunktet er likt en
+      av preset-temperaturene, settes den preseten tilbake.
+    - Alt. 2 Tailscale: tillegget startes når det ikke har kjørt på valgt antall
+      minutter (standard 10).
+
+    Automasjonen kjører bare når noe er galt, pluss ved oppstart av Home Assistant
+    og en sikkerhetssjekk én gang i timen. Bare ett alternativ kjøres per kjøring.
+
+    Skal en termostat stå av med vilje, legg den i «Climate som holdes utenfor»
+    eller skru av denne automasjonen.
+
+    Forutsetter scriptet script.varsel_pushover_send_melding_webhome for varsling.
+
+    Dokumentasjon/wiki:
+    https://github.com/surematu/WebHomeHelpFiles/blob/main/README_webhome_watchdog.md
+
+    Blueprint versjon: 2026.11.00
+
+  domain: automation
+  source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/webhome_watchdog.yaml
+  author: WebHome
+  homeassistant:
+    min_version: 2025.11.0
+
+  input:
+    climate:
+      name: Alt. 1 Climate
+      icon: mdi:thermostat
+      input:
+        climate_aktiv:
+          name: Overvåk climate
+          description: >
+            Skru PÅ igjen climate i Versatile Thermostat som står AV.
+          default: true
+          selector:
+            boolean:
+
+        climate_forsinkelse_sek:
+          name: Climate må ha stått av i (sekunder)
+          description: >
+            Hvor lenge en climate må stå AV før den skrus PÅ igjen. Litt ventetid
+            gjør at man ser at den faktisk blir AV i Home Assistant før den kommer
+            på igjen. Gjelder ikke ved oppstart, sikkerhetssjekk og manuell kjøring.
+          default: 10
+          selector:
+            number:
+              min: 0
+              max: 600
+              step: 1
+              unit_of_measurement: s
+              mode: box
+
+        climate_unntak:
+          name: Climate som holdes utenfor (valgfri)
+          description: >
+            Climate som watchdogen ikke skal røre, f.eks. varmepumper som skal kunne
+            stå AV eller brukes til kjøling.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              domain: climate
+
+        climate_sett_preset:
+          name: Sett tilbake mistet preset
+          description: >
+            Når en climate skrus PÅ og står uten preset (none), og settpunktet er
+            likt en av termostatens egne preset-temperaturer, settes den preseten
+            tilbake (f.eks. 21 °C = comfort). Temperaturen endres ikke.
+          default: true
+          selector:
+            boolean:
+
+    tailscale:
+      name: Alt. 2 Tailscale
+      icon: mdi:vpn
+      input:
+        tailscale_aktiv:
+          name: Overvåk Tailscale
+          description: Start Tailscale-tillegget når det ikke kjører.
+          default: true
+          selector:
+            boolean:
+
+        tailscale_sensor:
+          name: Tailscale kjører
+          description: binary_sensor som er PÅ når Tailscale-tillegget kjører.
+          default: binary_sensor.tailscale_running
+          selector:
+            entity:
+              domain: binary_sensor
+
+        tailscale_minutter:
+          name: Tailscale må ha stått av i (minutter)
+          description: Hvor lenge Tailscale må ha vært AV før tillegget startes.
+          default: 10
+          selector:
+            number:
+              min: 1
+              max: 120
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
+        tailscale_addon:
+          name: Tailscale-tillegg (slug)
+          description: Trengs normalt ikke å justeres.
+          default: a0d7b954_tailscale
+          selector:
+            text:
+
+    varsling:
+      name: Varsling (Valgfri)
+      icon: mdi:bell
+      collapsed: true
+      input:
+        send_varsel:
+          name: Send varsel når watchdogen griper inn
+          description: >
+            Sender Pushover når en climate er skrudd på igjen eller Tailscale er
+            startet.
+          default: true
+          selector:
+            boolean:
+
+        pushover_destination:
+          name: Pushover destination (valgfri)
+          description: >
+            Trengs normalt ikke å justeres. Ved flere ulike grupper kan denne justeres
+            slik at den blir sendt ulikt.
+          default: pushover
+          selector:
+            text:
+
+        pushover_priority:
+          name: Pushover priority
+          description: >
+            −2 (Sendes uten varsling), −1 (varsling uten lyd), 0 (Varsel med lyd),
+            1 (Høy prioritet, rødt varsel, omgår stilleperiode),
+            2 (nødvarsel som gjentas til det bekreftes).
+          default: 0
+          selector:
+            number:
+              min: -2
+              max: 2
+              step: 1
+              mode: box
+
+        pushover_ttl_hours:
+          name: Levetid varsel (timer)
+          description: Hvor lenge skal varslet være synlig før det forsvinner?
+          default: 168
+          selector:
+            number:
+              min: 0
+              max: 168
+              step: 1
+              unit_of_measurement: h
+              mode: box
+
+        varsel_ved_manuell_kjoring:
+          name: Send varsel ved manuell kjøring
+          description: >
+            Sett til true for å sende varsel når automasjonen kjøres manuelt.
+            Sett til false for å ikke sende varsel ved manuell kjøring.
+          default: false
+          selector:
+            boolean:
+
+mode: single
+max_exceeded: silent
+
+trace:
+  stored_traces: 100
+
+trigger_variables:
+  tv_climate_aktiv: !input climate_aktiv
+  tv_climate_unntak: !input climate_unntak
+
+triggers:
+  # Alt. 1: en climate i Versatile Thermostat har stått AV i valgt antall sekunder.
+  - trigger: template
+    id: climate
+    alias: En climate har stått av
+    value_template: >-
+      {{ tv_climate_aktiv and (
+           integration_entities('versatile_thermostat')
+           | select('match', '^climate[.]')
+           | reject('in', tv_climate_unntak)
+           | select('is_state', 'off')
+           | list | count > 0) }}
+    for:
+      seconds: !input climate_forsinkelse_sek
+
+  # Alt. 2: Tailscale har stått AV i valgt antall minutter.
+  - trigger: state
+    id: tailscale
+    alias: Tailscale har stått av
+    entity_id: !input tailscale_sensor
+    to: "off"
+    for:
+      minutes: !input tailscale_minutter
+
+  # Sikkerhetssjekk én gang i timen, i tilfelle et forsøk har feilet.
+  - trigger: time_pattern
+    id: sikkerhetssjekk
+    alias: Sikkerhetssjekk én gang i timen
+    minutes: "30"
+
+  # Etter omstart kan termostater komme opp som AV.
+  - trigger: homeassistant
+    id: ha_start
+    alias: Home Assistant har startet
+    event: start
+
+  # Automasjonen blir skrudd PÅ eller lagret: sjekk med en gang.
+  # «this» er automasjonen selv.
+  - trigger: template
+    id: automation_enabled
+    alias: Automasjonen er skrudd på
+    value_template: "{{ this is defined and this is not none and is_state(this.entity_id, 'on') }}"
+
+# Regnes ut før betingelsen, slik at automasjonen bare regnes som utløst
+# (loggbok og «sist utløst») når det faktisk er noe å gjøre.
+variables:
+  io_climate_aktiv: !input climate_aktiv
+  io_climate_unntak: !input climate_unntak
+  io_tailscale_aktiv: !input tailscale_aktiv
+  io_tailscale_sensor: !input tailscale_sensor
+  io_tailscale_minutter: !input tailscale_minutter
+  climate_av: >-
+    {{ (integration_entities('versatile_thermostat')
+        | select('match', '^climate[.]')
+        | reject('in', io_climate_unntak)
+        | select('is_state', 'off')
+        | list) if io_climate_aktiv else [] }}
+  tailscale_av: >-
+    {{ io_tailscale_aktiv
+       and states[io_tailscale_sensor] is not none
+       and is_state(io_tailscale_sensor, 'off')
+       and (now() - states[io_tailscale_sensor].last_changed).total_seconds()
+           >= (io_tailscale_minutter | float(10)) * 60 }}
+
+conditions:
+  - alias: Noe er galt (en climate er av, eller Tailscale har stått av lenge nok)
+    condition: template
+    value_template: "{{ climate_av | count > 0 or tailscale_av }}"
+
+actions:
+  - alias: Steg 1 – Les innstillinger fra blueprint
+    variables:
+      io_climate_sett_preset: !input climate_sett_preset
+      io_tailscale_addon: !input tailscale_addon
+      io_send_varsel: !input send_varsel
+      pushover_destination: !input pushover_destination
+      pushover_priority: !input pushover_priority
+      pushover_ttl_hours: !input pushover_ttl_hours
+      io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
+
+  - alias: Steg 2 – Hvorfor kjører automasjonen nå
+    variables:
+      is_manual_run: "{{ trigger is none or trigger.platform not in ['state', 'homeassistant', 'template', 'time_pattern'] }}"
+      trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
+
+  - alias: Steg 3 – Vis hva som er funnet (synlig i trace, også ved manuell kjøring)
+    variables:
+      climate_av_funnet: "{{ climate_av }}"
+      tailscale_av_funnet: "{{ tailscale_av }}"
+
+  - alias: Steg 4 – Velg hva som skal rettes (ett alternativ per kjøring)
+    choose:
+      - alias: Alt. 1 – Climate er av
+        conditions:
+          - condition: template
+            value_template: "{{ climate_av_funnet | count > 0 }}"
+        sequence:
+          - alias: Steg 4.1-A – Skru på climate (heat)
+            action: climate.set_hvac_mode
+            target:
+              entity_id: "{{ climate_av_funnet }}"
+            data:
+              hvac_mode: heat
+
+          - alias: Steg 4.1-B – Sett tilbake mistet preset når settpunktet er likt en preset-temperatur
+            if:
+              - condition: template
+                value_template: "{{ io_climate_sett_preset }}"
+            then:
+              - repeat:
+                  for_each: "{{ climate_av_funnet }}"
+                  sequence:
+                    - alias: Finn preset som passer til settpunktet
+                      variables:
+                        preset_funnet: >-
+                          {% set e = repeat.item %}
+                          {% set t = state_attr(e, 'temperature') %}
+                          {% set pt = state_attr(e, 'preset_temperatures') or {} %}
+                          {% set ns = namespace(p='') %}
+                          {% if state_attr(e, 'preset_mode') in ['none', none] and t is not none %}
+                            {% for p in ['comfort', 'eco', 'frost', 'boost'] %}
+                              {% if ns.p == '' and pt.get(p ~ '_temp') is not none
+                                    and pt.get(p ~ '_temp') | float(-999) == t | float(-998) %}
+                                {% set ns.p = p %}
+                              {% endif %}
+                            {% endfor %}
+                          {% endif %}
+                          {{ ns.p }}
+                    - alias: Sett preset hvis en passer
+                      if:
+                        - condition: template
+                          value_template: "{{ preset_funnet != '' }}"
+                      then:
+                        - action: climate.set_preset_mode
+                          target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            preset_mode: "{{ preset_funnet }}"
+
+          - alias: Steg 4.1-C – Bygg navneliste til varselet
+            variables:
+              climate_navn: "{{ climate_av_funnet | map('state_attr', 'friendly_name') | join(', ') }}"
+
+          - alias: Steg 4.1-D – Send varsel (valgfri)
+            if:
+              - condition: template
+                value_template: "{{ io_send_varsel }}"
+            then:
+              - action: script.varsel_pushover_send_melding_webhome
+                continue_on_error: true
+                data:
+                  title: "🌡️ Climate skrudd på igjen"
+                  message: "Sto av og er skrudd på igjen: {{ climate_navn }}"
+                  destination: "{{ pushover_destination }}"
+                  priority: "{{ pushover_priority | int(0) }}"
+                  ttl_hours: "{{ pushover_ttl_hours | int(168) }}"
+
+      - alias: Alt. 2 – Tailscale har stått av
+        conditions:
+          - condition: template
+            value_template: "{{ tailscale_av_funnet }}"
+        sequence:
+          - alias: Steg 4.2-A – Start Tailscale-tillegget
+            action: hassio.addon_start
+            data:
+              addon: "{{ io_tailscale_addon }}"
+
+          - alias: Steg 4.2-B – Send varsel (valgfri)
+            if:
+              - condition: template
+                value_template: "{{ io_send_varsel }}"
+            then:
+              - action: script.varsel_pushover_send_melding_webhome
+                continue_on_error: true
+                data:
+                  title: "🔗 Tailscale startet"
+                  message: "Tailscale kjørte ikke på {{ io_tailscale_minutter | int(10) }} minutter og er startet på nytt."
+                  destination: "{{ pushover_destination }}"
+                  priority: "{{ pushover_priority | int(0) }}"
+                  ttl_hours: "{{ pushover_ttl_hours | int(168) }}"
+
+  - alias: Steg 5 – Varsling ved manuell kjøring (valgfri)
+    if:
+      - condition: template
+        value_template: "{{ is_manual_run and io_varsel_ved_manuell_kjoring }}"
+    then:
+      - action: script.varsel_pushover_send_melding_webhome
+        continue_on_error: true
+        data:
+          title: "🔔 WebHome WatchDog (manuell kjøring)"
+          message: |-
+            Climate av: {{ (climate_av_funnet | join(', ')) if (climate_av_funnet | count) > 0 else 'ingen' }}
+            Tailscale av lenge nok: {{ 'ja' if tailscale_av_funnet else 'nei' }}
+          destination: "{{ pushover_destination }}"
+          priority: 0
+          ttl_hours: "{{ pushover_ttl_hours | int(168) }}"
