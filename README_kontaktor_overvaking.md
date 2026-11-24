@@ -13,7 +13,7 @@ Kontaktoren for elkolben skal alltid ligge inne, og termostaten i berederen styr
 - varsler hvis kontaktoren er AV eller utilgjengelig i 5 minutter,
 - varsler hvis spolen trekker under 30 % av normal spoleeffekt i 2 minutter (kontaktoren trekker ikke inn),
 - varsler hvis det ikke er last i 60 minutter (sikring, element eller termostat),
-- varsler hvis lasten ikke har vært oppe i full effekt på 24 timer (f.eks. ett av tre elementer er defekt).
+- varsler hvis lasten ikke har vært oppe i full effekt på 72 timer (f.eks. ett av tre elementer er defekt).
 
 Termostaten kobler ut og inn hele tiden, så «lav last» i seg selv er ikke feil. Derfor brukes lange forsinkelser på lastsjekkene.
 
@@ -38,7 +38,7 @@ Nei. La spolesensor stå tom (eller forventet spoleeffekt 0) for å slå av spol
 Det sensoren faktisk viser når hele lasten er inne, ikke merkeeffekten. Se på historikken for sensoren et par døgn og bruk det høyeste vanlige nivået.
 
 **Hvorfor varierer lasten mellom flere nivåer?**
-Typisk for elkolber med flere elementer og egne termostater, og for målinger der bare én leder måles. I et IT-nett med én strømtang per kurs faller målt effekt til ca. 58 % (1/√3) når ett av elementene som henger på den målte lederen kobler ut. Det er normal drift, derfor er det «ingen last over tid» og «ikke full last på et døgn» som brukes som feil.
+Typisk for elkolber med flere elementer og egne termostater, og for målinger der bare én leder måles. I et IT-nett med én strømtang per kurs faller målt effekt til ca. 58 % (1/√3) når ett av elementene som henger på den målte lederen kobler ut. Det er normal drift, derfor er det «ingen last over tid» og «ikke full last på tre døgn» som brukes som feil.
 
 **Kan alle feil oppdages?**
 Nei. Med én strømtang per kurs vises ikke et dødt element som ikke henger på den målte lederen. Spolesjekken viser bare at kontaktoren trekker inn, ikke at hovedkontaktene leder.
@@ -100,7 +100,7 @@ Tidtakerne for forsinkelsene starter på nytt. En oppstartsjekk ser etter feil s
 | Ingen last – grense | 10 % | Feil når kontaktoren er PÅ og lasten er under denne andelen av full effekt |
 | Ingen last – forsinkelse før feil | 60 min | Må være lengre enn normale termostatpauser |
 | Ikke full last – grense | 80 % | Feil når lasten ikke har vært over denne andelen i hele perioden. 0 = av |
-| Ikke full last – periode | 24 t | Hvor lenge lasten kan være under grensen |
+| Ikke full last – periode | 72 t | Hvor lenge lasten kan være under grensen. En bereder med lavt forbruk kan gå godt over et døgn uten full effekt |
 | Henger inne – grense | 10 % | Feil når kontaktoren er AV og lasten er over denne andelen |
 | Henger inne – forsinkelse før feil | 2 min | Avviket må vare sammenhengende så lenge |
 
@@ -199,7 +199,7 @@ På valgte ukedager og tidspunkt (standard onsdag 09:00) sendes en påminnelse m
 - **Oppstartsjekk:** `Feil som fortsatt sto etter 5 min da overvåkingen startet (automasjonen ble skrudd på): Kontaktoren skal alltid være PÅ, men er AV.`
 - **Spole:** `Kontaktoren er PÅ, men spoleeffekten er 0.0 (forventet ca. 1.7, grense 0.5). Kontaktoren trekker trolig ikke inn. Sjekk reléutgang, styresikring og spole.`
 - **Ingen last:** `Kontaktoren er PÅ, men lasten har vært under 650 i 60 min (nå 0, full last ca. 6500). Sjekk sikring, kontaktor og last (f.eks. element eller termostat).`
-- **Ikke full last:** `Lasten har ikke nådd full effekt (grense 5200, full last ca. 6500) på 24 timer. Nå: 3720. Mulig feil på en del av lasten, f.eks. ett element.`
+- **Ikke full last:** `Lasten har ikke nådd full effekt (grense 5200, full last ca. 6500) på 72 timer. Nå: 3720. Mulig feil på en del av lasten, f.eks. ett element.`
 - **Henger inne:** `Kontaktoren er AV, men det måles fortsatt last: 6480 (grense 650). Kontaktoren kan henge inne.`
 - **Vern:** `Reléet melder vern: <navn på vern-sensor>. Sjekk last og kabling.`
 
@@ -354,7 +354,7 @@ Ingen egne debug-varsler. Feilsøking gjøres i sporloggen (Trace) til automasjo
 
 1. Åpne historikken for spole- og lastsensoren for 3–7 døgn.
 2. **Spole:** les av normal verdi når kontaktoren ligger inne (f.eks. 1,7 W). Standard 30 % gir grense ca. 0,5 W.
-3. **Full effekt:** bruk det høyeste nivået som nås hver dag (f.eks. 6500 W). Sjekk at det nås minst én gang per «Ikke full last – periode».
+3. **Full effekt:** bruk det høyeste nivået som nås jevnlig (f.eks. 6500 W). Sjekk at det nås minst én gang per «Ikke full last – periode».
 4. **Ingen last – forsinkelse:** finn lengste normale periode med 0 W mens kontaktoren er PÅ, og sett forsinkelsen minst 2–3 ganger lengre.
 
 ## 11. Dokumentasjon

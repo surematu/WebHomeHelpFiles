@@ -26,7 +26,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_kontaktor_overvaking.md
 
-    Blueprint versjon: 2026.11.03
+    Blueprint versjon: 2026.11.04
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/kontaktor_overvaking.yaml
@@ -207,7 +207,7 @@ blueprint:
 
         not_full_hours:
           name: Ikke full last – periode (timer)
-          default: 24
+          default: 72
           selector:
             number:
               min: 1

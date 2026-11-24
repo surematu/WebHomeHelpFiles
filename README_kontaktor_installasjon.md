@@ -6,7 +6,7 @@ Oppskriften er skrevet slik at den kan følges både for hånd og av en AI-assis
 
 I eksemplene står **«Tappevann»** for anlegget og **«RS50-54»** for en tavle. Bytt med anleggets egne navn.
 
-Versjon: 2026.11.03
+Versjon: 2026.11.04
 
 ## 1. Hva løsningen består av
 
@@ -89,9 +89,9 @@ Se på historikken for spole og last for hver kontaktor, 3–7 døgn (mer i [REA
 | Verdi | Slik finner du den | Eksempel (vtoppen) |
 |---|---|---|
 | Spole – forventet effekt | Normal spoleeffekt når kontaktoren ligger inne | 1,4–1,9 W |
-| Last – full effekt | Høyeste vanlige nivå som nås **hver dag** | 6500 W (RS52), 8700 W og 7900 W (RS60) |
+| Last – full effekt | Høyeste vanlige nivå som nås **jevnlig** (minst hver tredje dag) | 6500 W (RS52), 8700 W og 7900 W (RS60) |
 | Ingen last – forsinkelse | Minst 2–3 ganger lengste normale pause med 0 W | 60 min (lengste pause var 20 min) |
-| Ikke full last | Behold 80 % / 24 t hvis full effekt nås hver dag. Sett 0 % ellers | 80 % / 24 t |
+| Ikke full last | Behold 80 % / 72 t hvis full effekt nås minst én gang per tre døgn. Sett 0 % eller øk perioden ellers | 80 % / 72 t (lengste periode uten full effekt var 34 t) |
 
 ## 5. Forutsetninger
 
@@ -263,7 +263,7 @@ Testene som gir Pushover (nr. 4–6) avtales på forhånd med den som mottar var
 
 - Med én strømtang per kurs vises ikke et dødt element som ikke henger på den målte lederen. Spolesjekken viser at kontaktoren trekker inn, ikke at hovedkontaktene leder.
 - Oppstartsjekken dekker ikke på, spole, henger inne og vern. «Ingen last» og «Ikke full last» fanges når avviket oppstår på nytt etter en omstart.
-- Forsinkelsene (f.eks. 24 t for «Ikke full last», 10 t for varmepumpe) starter på nytt ved omstart av Home Assistant. En feil som allerede står, blir stående.
+- Forsinkelsene (f.eks. 72 t for «Ikke full last», 10 t for varmepumpe) starter på nytt ved omstart av Home Assistant. En feil som allerede står, blir stående.
 - Er den overordnede roboten AV, sendes ingen fellesfeil-varsler. Fellesfeil står, og hjemsideknappen blir gul.
 - Listene over kontaktorer må holdes like i Antall feil per tavle og Fellesfeil årsak.
 - En varmepumpe som står med vilje (f.eks. nattstopp på grunn av støy) gir «Under sjekk» (gul) så lenge den står. Det sendes ikke varsel.
