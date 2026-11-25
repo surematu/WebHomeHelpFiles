@@ -18,6 +18,10 @@ blueprint:
     og en sikkerhetssjekk én gang i timen. Hvert alternativ er sin egen blokk, så
     flere ting kan rettes i samme kjøring.
 
+    Etter oppstart av Home Assistant (omstart eller strømbrudd) venter den valgt
+    antall minutter (standard 6) før den sjekker, slik at ting rekker å komme på
+    plass. Ingen andre utløsere slipper til mens den venter.
+
     Skal en termostat stå av med vilje, legg den i «Climate som holdes utenfor»
     eller skru av denne automasjonen.
 
@@ -28,7 +32,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_webhome_watchdog.md
 
-    Blueprint versjon: 2026.11.01
+    Blueprint versjon: 2026.11.02
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/webhome_watchdog.yaml
@@ -163,6 +167,26 @@ blueprint:
           selector:
             text:
 
+    oppstart:
+      name: Oppstart
+      icon: mdi:restart
+      input:
+        oppstart_ventetid_min:
+          name: Ventetid etter oppstart (minutter)
+          description: >
+            Hvor lenge watchdogen venter etter at Home Assistant har startet før den
+            sjekker. Etter omstart eller strømbrudd tar det litt tid før alt er på
+            plass. Ingen andre utløsere slipper til mens den venter. 0 = ingen
+            ventetid.
+          default: 6
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              unit_of_measurement: min
+              mode: box
+
     varsling:
       name: Varsling (Valgfri)
       icon: mdi:bell
@@ -270,7 +294,9 @@ triggers:
     alias: Sikkerhetssjekk én gang i timen
     minutes: "30"
 
-  # Etter omstart kan termostater komme opp som AV.
+  # Etter omstart kan termostater komme opp som AV. Kjøringen venter først
+  # «Ventetid etter oppstart», og holder de andre utløserne ute så lenge
+  # (mode: single).
   - trigger: homeassistant
     id: ha_start
     alias: Home Assistant har startet
@@ -284,8 +310,9 @@ triggers:
     value_template: "{{ this is defined and this is not none and is_state(this.entity_id, 'on') }}"
 
 # Regnes ut før betingelsen, slik at automasjonen bare regnes som utløst
-# (loggbok og «sist utløst») når det faktisk er noe å gjøre.
+# (loggbok og «sist utløst») når det faktisk er noe å gjøre, eller ved oppstart.
 variables:
+  er_oppstart: "{{ trigger is defined and trigger is not none and trigger.id is defined and trigger.id == 'ha_start' }}"
   io_climate_aktiv: !input climate_aktiv
   io_climate_unntak: !input climate_unntak
   io_tailscale_aktiv: !input tailscale_aktiv
@@ -314,9 +341,9 @@ variables:
            >= (io_cloudflare_minutter | float(10)) * 60 }}
 
 conditions:
-  - alias: Noe er galt (en climate er av, eller Tailscale eller Cloudflared har stått av lenge nok)
+  - alias: Noe er galt (en climate er av, eller Tailscale eller Cloudflared har stått av lenge nok), eller Home Assistant har nettopp startet
     condition: template
-    value_template: "{{ climate_av | count > 0 or tailscale_av or cloudflare_av }}"
+    value_template: "{{ er_oppstart or climate_av | count > 0 or tailscale_av or cloudflare_av }}"
 
 actions:
   - alias: Steg 1 – Les innstillinger fra blueprint
@@ -329,17 +356,44 @@ actions:
       pushover_priority: !input pushover_priority
       pushover_ttl_hours: !input pushover_ttl_hours
       io_varsel_ved_manuell_kjoring: !input varsel_ved_manuell_kjoring
+      io_oppstart_ventetid_min: !input oppstart_ventetid_min
 
   - alias: Steg 2 – Hvorfor kjører automasjonen nå
     variables:
       is_manual_run: "{{ trigger is none or trigger.platform not in ['state', 'homeassistant', 'template', 'time_pattern'] }}"
       trigger_id: "{{ trigger.id if trigger is not none and trigger.id is defined else 'manual_run' }}"
 
-  - alias: Steg 3 – Vis hva som er funnet (synlig i trace, også ved manuell kjøring)
+  - alias: Steg 2-B – Vent etter oppstart (bare når Home Assistant har startet)
+    if:
+      - condition: template
+        value_template: "{{ er_oppstart and (io_oppstart_ventetid_min | float(0)) > 0 }}"
+    then:
+      - alias: Venter etter oppstart, slik at ting rekker å komme på plass
+        delay:
+          minutes: "{{ io_oppstart_ventetid_min | float(6) }}"
+
+  # Leses på nytt her (ikke kopi av variablene før betingelsen), slik at det som
+  # har kommet på plass i ventetiden etter oppstart ikke røres.
+  - alias: Steg 3 – Finn hva som er av nå (synlig i trace, også ved manuell kjøring)
     variables:
-      climate_av_funnet: "{{ climate_av }}"
-      tailscale_av_funnet: "{{ tailscale_av }}"
-      cloudflare_av_funnet: "{{ cloudflare_av }}"
+      climate_av_funnet: >-
+        {{ (integration_entities('versatile_thermostat')
+            | select('match', '^climate[.]')
+            | reject('in', io_climate_unntak)
+            | select('is_state', 'off')
+            | list) if io_climate_aktiv else [] }}
+      tailscale_av_funnet: >-
+        {{ io_tailscale_aktiv
+           and states[io_tailscale_sensor] is not none
+           and is_state(io_tailscale_sensor, 'off')
+           and (now() - states[io_tailscale_sensor].last_changed).total_seconds()
+               >= (io_tailscale_minutter | float(10)) * 60 }}
+      cloudflare_av_funnet: >-
+        {{ io_cloudflare_aktiv
+           and states[io_cloudflare_sensor] is not none
+           and is_state(io_cloudflare_sensor, 'off')
+           and (now() - states[io_cloudflare_sensor].last_changed).total_seconds()
+               >= (io_cloudflare_minutter | float(10)) * 60 }}
 
   - alias: Steg 4 – Alt. 1 – Climate er av
     if:

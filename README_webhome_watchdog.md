@@ -12,7 +12,7 @@ Automasjonen kjører bare når noe er galt, pluss ved oppstart av Home Assistant
 
 ## 2. Eksempler på bruk
 
-- **Etter omstart:** Home Assistant starter på nytt, og en termostat kommer opp som AV uten preset. Watchdogen skrur den på og setter preseten tilbake.
+- **Etter omstart eller strømbrudd:** Home Assistant starter på nytt, og en termostat kommer opp som AV uten preset. Watchdogen venter 6 minutter til alt er på plass, og skrur den så på og setter preseten tilbake hvis den fortsatt står av.
 - **Noen skrur av ved et uhell:** en termostat blir skrudd av i dashbordet. Etter 10 sekunder er den på igjen.
 - **Fjerntilgang faller ut:** Tailscale-tillegget stopper. Etter 10 minutter startes det på nytt, slik at fjerntilgangen kommer tilbake uten besøk på stedet.
 - **Kundeportalen faller ut:** tillegget Cloudflared stopper, og kunden når ikke Home Assistant via portalen. Etter 10 minutter startes det på nytt.
@@ -24,6 +24,9 @@ Det er watchdogen. Den skrur på alle termostater i Versatile Thermostat som st�
 
 **Hvorfor tar det 10 sekunder?**
 Uten ventetid ser det ut som om av-knappen i Home Assistant ikke virker. Med 10 sekunder ser du at termostaten blir AV før den kommer på igjen. Ventetiden kan justeres.
+
+**Hvorfor skjer det ingenting de første minuttene etter en omstart?**
+Etter omstart eller strømbrudd tar det litt tid før enheter og integrasjoner er på plass. Watchdogen venter derfor 6 minutter etter oppstart før den sjekker, og slipper ingen andre utløsere til i mellomtiden. Ventetiden kan justeres.
 
 **Må jeg velge hvilke termostater som skal overvåkes?**
 Nei. Den går selv gjennom alle climate i integrasjonen Versatile Thermostat. Nye termostater kommer med automatisk.
@@ -62,6 +65,7 @@ Den gjør det samme som ellers. Er ingen termostat av, og Tailscale og Cloudflar
 | Cloudflared kjører | `binary_sensor.cloudflared_running` | Sensor som er PÅ når tillegget kjører |
 | Cloudflared må ha stått av i (minutter) | 10 | Ventetid før tillegget startes |
 | Cloudflared-tillegg (slug) | `396f0234_cloudflared` | Trengs normalt ikke å justeres |
+| Ventetid etter oppstart (minutter) | 6 | Hvor lenge den venter etter at Home Assistant har startet før den sjekker. 0 = ingen ventetid |
 
 <details>
 <summary>Varsling (Valgfri)</summary>
@@ -84,10 +88,12 @@ Automasjonen utløses av seks ting:
 2. **Tailscale har stått av** i valgt antall minutter.
 3. **Cloudflared har stått av** i valgt antall minutter.
 4. **Sikkerhetssjekk** én gang i timen (på halv), i tilfelle et forsøk har feilet.
-5. **Home Assistant har startet.** Termostater kan komme opp som AV etter en omstart.
+5. **Home Assistant har startet.** Termostater kan komme opp som AV etter en omstart. Kjøringen venter først «Ventetid etter oppstart» (standard 6 minutter).
 6. **Automasjonen er skrudd på eller lagret.**
 
 Før betingelsen regnes tre variabler ut: `climate_av` (liste over climate som er av), `tailscale_av` og `cloudflare_av` (true når tillegget har stått av lenge nok). Er listen tom og begge tilleggene i orden, stopper automasjonen på betingelsen og regnes ikke som utløst.
+
+**Etter oppstart** kjører automasjonen alltid, også når ingenting er galt. Den venter valgt antall minutter, og siden den bare kjører én ting om gangen, blir alle andre utløsere avvist mens den venter. Etterpå leser den tilstandene på nytt, så det som har kommet på plass av seg selv ikke røres.
 
 Deretter går den gjennom alternativene i rekkefølge, og kjører de som har noe å rette:
 
@@ -97,7 +103,7 @@ Deretter går den gjennom alternativene i rekkefølge, og kjører de som har noe
 
 Hvert alternativ er sin egen blokk, så flere ting kan rettes i samme kjøring.
 
-Ventetiden på 10 sekunder gjelder bare utløser 1. Ved oppstart, sikkerhetssjekk og manuell kjøring skrus en climate som er av på med en gang.
+Ventetiden på 10 sekunder gjelder bare utløser 1. Ved sikkerhetssjekk og manuell kjøring skrus en climate som er av på med en gang. Ved oppstart gjelder «Ventetid etter oppstart».
 
 ## 7. Resultat
 
@@ -166,7 +172,8 @@ use_blueprint:
 | `climate_av` | Climate i Versatile Thermostat som er `off`, uten de som holdes utenfor. Regnes ut før betingelsen. |
 | `tailscale_av` | True når Tailscale-sensoren har vært `off` i minst valgt antall minutter. Regnes ut før betingelsen. |
 | `cloudflare_av` | True når Cloudflared-sensoren har vært `off` i minst valgt antall minutter. Regnes ut før betingelsen. |
-| `climate_av_funnet`, `tailscale_av_funnet`, `cloudflare_av_funnet` | Kopi av de tre over, satt i Steg 3 slik at de vises i trace også ved manuell kjøring. |
+| `er_oppstart` | True når kjøringen er utløst av at Home Assistant har startet. Slipper kjøringen gjennom betingelsen og gir ventetiden i Steg 2-B. |
+| `climate_av_funnet`, `tailscale_av_funnet`, `cloudflare_av_funnet` | De tre over, lest på nytt i Steg 3 (etter en eventuell ventetid etter oppstart). Det er disse alternativene bruker, og de vises i trace også ved manuell kjøring. |
 | `is_manual_run`, `trigger_id` | Hvorfor automasjonen kjører. |
 | `preset_funnet` | Per climate: preseten som har samme temperatur som settpunktet, eller tom. |
 | `climate_navn` | Navnene på climate som ble skrudd på, til varselet. |
@@ -178,6 +185,7 @@ use_blueprint:
 - **Utløseren slår bare til når en climate går til av.** En climate som allerede er av når automasjonen lagres, tas av utløseren «Automasjonen er skrudd på», ellers av sikkerhetssjekken.
 - **To climate av i samme sekund:** begge tas i samme kjøring. Går en av mens en kjøring pågår, tas den av sikkerhetssjekken.
 - **Climate uten `heat`:** `climate.set_hvac_mode` feiler for den. Legg den i «Climate som holdes utenfor».
+- **Lagring like etter oppstart:** blir automasjonen lagret eller skrudd av og på mens den venter etter oppstart, avbrytes ventetiden og den sjekker med en gang.
 - **Tailscale eller Cloudflared starter ikke:** det prøves på nytt ved hver sikkerhetssjekk. Feiler selve startkommandoen, vises feilen i trace og automasjonen fortsetter.
 
 ### 10.6 Varsling og debug info
