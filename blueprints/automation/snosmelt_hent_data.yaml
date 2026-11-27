@@ -41,7 +41,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.12
+    Blueprint versjon: 2026.11.13
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -532,12 +532,50 @@ actions:
           0
         {% endif %}
 
-  - alias: Steg 15 – Avgjør snø nå
+  - alias: Steg 15 – Avgjør snø nå, og hvor lenge snøværet ser ut til å vare
     variables:
       too_warm: "{{ has_data and (min_temp | float(0)) > (sp_temp_stop_warm | float(2)) }}"
       too_cold: "{{ has_data and (max_temp | float(0)) < (sp_temp_stop_cold | float(-10)) }}"
       precip_expected: "{{ has_data and (precip_sum | float(0)) >= (sp_precip_threshold | float(0.1)) }}"
       snow_detected: "{{ has_data and not too_warm and not too_cold and precip_expected }}"
+      # Hvor lenge snøregelen slår ut time for time fremover, når nedbøren slutter og hvor mye som er meldt.
+      # Brukes bare i forklaringsteksten. timer = timer på rad regelen slår ut, slutt_i = første time uten nedbør.
+      snow_duration: >-
+        {% set warm = sp_temp_stop_warm | float(2) %}
+        {% set coldstop = sp_temp_stop_cold | float(-10) %}
+        {% set thr = sp_precip_threshold | float(0.1) %}
+        {% set ns = namespace(n=0, stop=false, span=0) %}
+        {% for i in range(0, hourly_table | length) %}
+          {% if not ns.stop %}
+            {% set hit = false %}
+            {% set hh = sp_hours_check_warm | int(3) %}
+            {% set cw = hourly_table[i:i + (sp_hours_check_cold | int(6))] | map(attribute='temp') | select('number') | list %}
+            {% if cw | length > 0 %}
+              {% set cold = (cw | min) <= (sp_temp_cold_mode | float(-5)) %}
+              {% set hh = (sp_hours_check_cold if cold else sp_hours_check_warm) | int(3) %}
+              {% set win = hourly_table[i:i + hh] %}
+              {% set t = win | map(attribute='temp') | select('number') | list %}
+              {% set p = win | map(attribute='nedbor') | select('number') | list %}
+              {% if t | length > 0 and p | length > 0 %}
+                {% set hit = not ((t | min) > warm) and not ((t | max) < coldstop) and (p | sum) >= thr %}
+              {% endif %}
+            {% endif %}
+            {% if hit %}
+              {% set ns.n = ns.n + 1 %}
+              {% set ns.span = [ns.span, i + hh] | max %}
+            {% else %}
+              {% set ns.stop = true %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {% set span = hourly_table[:ns.span] %}
+        {% set last = namespace(i=-1) %}
+        {% for r in span %}
+          {% if r.nedbor is number and r.nedbor > 0 %}
+            {% set last.i = r.i %}
+          {% endif %}
+        {% endfor %}
+        {{ {'timer': ns.n, 'slutt_i': last.i + 1, 'nedbor': (span | map(attribute='nedbor') | select('number') | sum | round(1))} }}
 
   - alias: Steg 16 – Avgjør rim nå, og hvor mange timer fremover rimfaren varer
     variables:
@@ -752,18 +790,31 @@ actions:
       explanation_weather: >-
         {% macro num(v, d=1) %}{{ (v | float(0) | round(d) | string).replace('.', ',').replace('-', '−') }}{% endmacro %}
         {% macro temp(v) %}{{ ('+' if (v | float(0)) > 0 else '') ~ num(v) }} °C{% endmacro %}
+        {% macro until(i) %}{% set wd = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag'] %}{% set mo = ['jan.', 'feb.', 'mars', 'apr.', 'mai', 'juni', 'juli', 'aug.', 'sep.', 'okt.', 'nov.', 'des.'] %}{% set raw = wf[io_weather].forecast %}{% set dt = raw[[i | int(0), (raw | length) - 1] | min].datetime | as_datetime | as_local %}{% set days = (dt.date() - now().date()).days %}rundt kl. {{ dt.strftime('%H') }} {{ 'i dag' if days == 0 else ('i morgen' if days == 1 else (wd[dt.weekday()] ~ ' ' ~ dt.day ~ '. ' ~ mo[dt.month - 1])) }}{% endmacro %}
+        {% set total_hours = hourly_table | length %}
         {% if not has_data %}
           Anlegget starter ikke på vær før varselet er tilbake.
         {% elif snow_detected %}
-          Det er meldt {{ num(precip_sum) }} mm, og det er {{ temp(temp_now) }}. Anlegget går for å holde bakken fri for snø.
+          {% set e = [snow_duration.slutt_i | int(1), 1] | max %}
+          {% if (snow_duration.timer | int(0)) >= total_hours %}
+            Snøværet ser ut til å vare i minst {{ total_hours }} timer, med til sammen {{ num(snow_duration.nedbor) }} mm nedbør.
+          {% elif e == 1 %}
+            Snøværet ser ut til å vare i 1 time, med til sammen {{ num(snow_duration.nedbor) }} mm nedbør.
+          {% elif e <= 12 %}
+            Snøværet ser ut til å vare i {{ e }} timer, med til sammen {{ num(snow_duration.nedbor) }} mm nedbør.
+          {% else %}
+            Snøværet ser ut til å vare til {{ until(e) }}, med til sammen {{ num(snow_duration.nedbor) }} mm nedbør.
+          {% endif %}
         {% elif frost_detected %}
           {% set n = [frost_hours_ahead | int(1), 1] | max %}
-          {% if n >= (hourly_table | length) %}
+          {% if n >= total_hours %}
             Temperatur og fukt tilsier at det er fare for rim i minst {{ n }} timer fremover.
           {% elif n == 1 %}
             Temperatur og fukt tilsier at det er fare for rim den neste timen.
-          {% else %}
+          {% elif n <= 12 %}
             Temperatur og fukt tilsier at det er fare for rim de neste {{ n }} timene.
+          {% else %}
+            Temperatur og fukt tilsier at det er fare for rim frem til {{ until(n) }}.
           {% endif %}
         {% elif afterrun_active %}
           {% set n = ((afterrun_remaining_h | float(0)) + 0.999) | int %}

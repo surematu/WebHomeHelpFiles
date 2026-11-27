@@ -115,8 +115,10 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 
 | Situasjon | Årsak (hovedstatus, kort) | Forklaring (ekstrastatus, lang) |
 |---|---|---|
-| Snø | Start. Meldt snø de neste 3 timene. | Det er meldt 0,6 mm, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
+| Snø | Start. Meldt snø de neste 3 timene. | Snøværet ser ut til å vare i 5 timer, med til sammen 2,4 mm nedbør. |
+| Snø, lenge | Start. Meldt snø de neste 3 timene. | Snøværet ser ut til å vare til rundt kl. 14 i morgen, med til sammen 21,0 mm nedbør. |
 | Rim | Start. Fare for rim. | Temperatur og fukt tilsier at det er fare for rim de neste 4 timene. |
+| Rim, lenge | Start. Fare for rim. | Temperatur og fukt tilsier at det er fare for rim frem til rundt kl. 13 i morgen. |
 | Etterdrift | Etterdrift etter snøfall. | Anlegget går i 2 timer til for å smelte og tørke opp det som ligger igjen. |
 | Manuell kjøring | Manuell kjøring til kl. 05:58. | Uten manuell kjøring: Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. |
 | Av, ingen snø meldt | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting. |
@@ -131,6 +133,8 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 - Etterdrift etter rim gir årsaken «Etterdrift etter rim.».
 - «For varmt» og «for kaldt» kan ha alle tre variantene av neste start (klokkeslett, dag eller ikke behov).
 - I tekstene kalles nedbør innenfor temperaturgrensene «snø».
+- Varigheten ved snø og rim er et anslag fra timevarselet: de samme reglene kjøres time for time fremover til de ikke lenger slår ut. Opptil 12 timer oppgis som antall timer, lengre som dag og omtrentlig klokkeslett, og «i minst 48 timer» når det varer ut hele timevarselet. Etterdriften kommer i tillegg.
+- Nedbørsmengden ved snø er summen frem til snøværet ser ut til å gi seg.
 - Hvordan neste start spås, står i §9.2.
 
 ## 7. Resultat
@@ -346,6 +350,7 @@ Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): h
 | `too_warm`, `too_cold`, `precip_expected`, `snow_detected` | Delvilkår for snø, og resultatet |
 | `dew_point_margin`, `frost_near_dew_point`, `frost_cold_enough`, `frost_detected` | Delvilkår for rim, og resultatet |
 | `frost_hours_ahead` | Antall timer på rad fra nå der rimregelen slår ut i timevarselet. Brukes bare i forklaringsteksten |
+| `snow_duration` | `timer`: timer på rad snøregelen slår ut. `slutt_i`: første time uten nedbør. `nedbor`: sum nedbør frem dit. Brukes bare i forklaringsteksten |
 
 **Neste start**
 
