@@ -129,6 +129,7 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 | Av, for kaldt | Stopp. For kaldt de neste 6 timene. | Det er −15,0 °C eller kaldere. Anlegget starter ikke på snøfall når det er så kaldt. I dag rundt kl. 22 er det meldt snø, som vil starte snøsmeltingen. |
 | Ingen værdata | Stopp. Værvarselet er ikke tilgjengelig. | Anlegget starter ikke på vær før varselet er tilbake. |
 
+- Slutter manuell kjøring en annen dag enn i dag, står dagen med: «Manuell kjøring til kl. 13:06 i morgen.» eller «… kl. 13:06 mandag 30.11.».
 - Går manuell kjøring samtidig med snø, rim eller etterdrift, viser årsaken været, og forklaringen får tillegget «Anlegget er også startet manuelt og går til kl. 05:58.».
 - Etterdrift etter rim gir årsaken «Etterdrift etter rim.».
 - «For varmt» og «for kaldt» kan ha alle tre variantene av neste start (klokkeslett, dag eller ikke behov).

@@ -43,7 +43,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.14
+    Blueprint versjon: 2026.11.15
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -779,7 +779,12 @@ actions:
   - alias: Steg 28 – Årsak (hovedstatus) med manuell kjøring
     variables:
       weather_demand: "{{ snow_detected or frost_detected or afterrun_active }}"
-      manual_until_text: "{{ (ts_manual_until | float(0)) | timestamp_custom('%H:%M') }}"
+      # Klokkeslett for slutt på manuell kjøring, med dag når det ikke er i dag (manuell kjøring kan vare over 24 timer).
+      manual_until_text: >-
+        {% set wd = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag'] %}
+        {% set dt = (ts_manual_until | float(0)) | as_datetime | as_local %}
+        {% set days = (dt.date() - now().date()).days %}
+        {{ dt.strftime('%H:%M') }}{{ '' if days == 0 else (' i morgen' if days == 1 else (' ' ~ wd[dt.weekday()] ~ ' ' ~ dt.day ~ '.' ~ dt.month)) }}
       reason_combined: >-
         {% if manual_active and not weather_demand %}
           Manuell kjøring til kl. {{ manual_until_text }}.
