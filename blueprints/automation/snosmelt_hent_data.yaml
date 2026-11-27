@@ -33,6 +33,8 @@ blueprint:
     - input_button.snosmelt_manuell_kjoring     (Snøsmelt - Manuellkjøring)
     - input_datetime.snosmelt_sist_fullfort     (Snøsmelt - Sist fullført, dato + tid, valgfri – trengs for varsel hvis automasjonen stopper)
     - input_datetime.snosmelt_feil_sist_varslet (Snøsmelt - Feil sist varslet, dato + tid, valgfri – trengs for feilvarsel)
+    - input_number.snosmelt_temp_na, input_number.snosmelt_rimgrense, input_number.snosmelt_temp_min,
+      input_number.snosmelt_temp_maks og input_number.snosmelt_nedbor_sum (valgfrie – tallverdier til graf)
 
     Feilvarsel (Pushover) sendes når fellesfeilen binary_sensor.snosmelt_fellesfeil
     er aktiv (hvis den finnes), når værvarselet mangler, og når automasjonen ikke
@@ -41,7 +43,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.13
+    Blueprint versjon: 2026.11.14
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -867,7 +869,7 @@ actions:
           Ingen gyldige værdata.
         {% endif %}
 
-  - alias: Steg 33 – Skriv årsak, forklaring og detaljer til hjelpere
+  - alias: Steg 33 – Skriv årsak, forklaring, detaljer og tallverdier til hjelpere
     sequence:
       - action: input_text.set_value
         target:
@@ -892,6 +894,32 @@ actions:
               entity_id: "{{ io_details }}"
             data:
               value: "{{ (details_text | trim)[:255] }}"
+      # Tallverdier til valgfrie tall-hjelpere, slik at de kan vises i en graf uten egne YAML-sensorer.
+      # Hjelpere som ikke finnes hoppes over. Verdien holdes innenfor hjelperens min og maks.
+      - variables:
+          numeric_values: >-
+            {{ [
+              {'entity': 'input_number.snosmelt_temp_na', 'verdi': temp_now},
+              {'entity': 'input_number.snosmelt_rimgrense', 'verdi': (dew_point | float(0)) + (sp_frost_margin | float(1.5))},
+              {'entity': 'input_number.snosmelt_temp_min', 'verdi': min_temp},
+              {'entity': 'input_number.snosmelt_temp_maks', 'verdi': max_temp},
+              {'entity': 'input_number.snosmelt_nedbor_sum', 'verdi': precip_sum}
+            ] if has_data else [] }}
+      - repeat:
+          for_each: "{{ numeric_values }}"
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ repeat.item.entity in (states.input_number | map(attribute='entity_id') | list) }}"
+              then:
+                - action: input_number.set_value
+                  target:
+                    entity_id: "{{ repeat.item.entity }}"
+                  data:
+                    value: >-
+                      {% set lo = state_attr(repeat.item.entity, 'min') | float(-100000) %}
+                      {% set hi = state_attr(repeat.item.entity, 'max') | float(100000) %}
+                      {{ [[repeat.item.verdi | float(0) | round(1), lo] | max, hi] | min }}
 
   - alias: Steg 34 – Skriv samlet behov til hjelper (kun ved endring)
     choose:

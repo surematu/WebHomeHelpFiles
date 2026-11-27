@@ -152,6 +152,7 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 | Snøsmelt - Manuellkjøring til | Settes av knappen (start/stopp) |
 | Snøsmelt - Sist fullført (valgfri) | Tidspunkt for siste fullførte kjøring. Brukes til å oppdage at automasjonen har stoppet |
 | Snøsmelt - Feil sist varslet (valgfri) | Tidspunkt for siste feilvarsel. Nullstilles når feilen er borte |
+| Fem tall-hjelpere (valgfrie) | Temperatur nå, rimgrense, laveste og høyeste temperatur og sum nedbør de kommende timene. Skrives hver time, og brukes til grafen i eksempel-dashbordet |
 
 ## 8. Varsling
 
@@ -290,6 +291,11 @@ Blueprintet bruker egne hjelpere og sin egen hendelse, og skriver ikke til noe a
 | Knapp (input_button) | Snøsmelt - Manuellkjøring | `input_button.snosmelt_manuell_kjoring` | |
 | Dato og tid (input_datetime) | Snøsmelt - Sist fullført | `input_datetime.snosmelt_sist_fullfort` | Valgfri. Trengs for varsel hvis automasjonen stopper |
 | Dato og tid (input_datetime) | Snøsmelt - Feil sist varslet | `input_datetime.snosmelt_feil_sist_varslet` | Valgfri. Trengs for feilvarsel |
+| Tall (input_number) | Snøsmelt - Temperatur nå | `input_number.snosmelt_temp_na` | Valgfri, til graf. −60 til 60, steg 0,1 |
+| Tall (input_number) | Snøsmelt - Rimgrense | `input_number.snosmelt_rimgrense` | Valgfri, til graf. Duggpunkt + rimavstanden i innstillingene. −60 til 60, steg 0,1 |
+| Tall (input_number) | Snøsmelt - Temperatur kommende timer (min) | `input_number.snosmelt_temp_min` | Valgfri, til graf. −60 til 60, steg 0,1 |
+| Tall (input_number) | Snøsmelt - Temperatur kommende timer (maks) | `input_number.snosmelt_temp_maks` | Valgfri, til graf. −60 til 60, steg 0,1 |
+| Tall (input_number) | Snøsmelt - Nedbør kommende timer (sum) | `input_number.snosmelt_nedbor_sum` | Valgfri, til graf. 0 til 500, steg 0,1 |
 
 Alle navn har prefikset «Snøsmelt - ». Om været brukes ordet «rim» (ikke «frost») gjennomgående: anlegget starter på fuktig luft nær duggpunktet, ikke på kuldegrader alene.
 

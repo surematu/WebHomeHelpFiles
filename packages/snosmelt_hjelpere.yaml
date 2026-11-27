@@ -14,7 +14,7 @@
 # Alternativt kan de samme hjelperne opprettes manuelt under
 # Innstillinger → Enheter og tjenester → Hjelpere (se README_snosmelt_hent_data.md).
 #
-# Versjon: 2026.11.05
+# Versjon: 2026.11.06
 
 input_boolean:
   snosmelt_behov:
@@ -68,3 +68,46 @@ input_button:
   snosmelt_manuell_kjoring:
     name: Snøsmelt - Manuellkjøring
     icon: mdi:gesture-tap-button
+
+# Valgfrie tallverdier til graf. «Hent data» skriver til dem hver time hvis de finnes.
+input_number:
+  snosmelt_temp_na:
+    name: Snøsmelt - Temperatur nå
+    min: -60
+    max: 60
+    step: 0.1
+    mode: box
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer
+  snosmelt_rimgrense:
+    name: Snøsmelt - Rimgrense
+    min: -60
+    max: 60
+    step: 0.1
+    mode: box
+    unit_of_measurement: "°C"
+    icon: mdi:snowflake-alert
+  snosmelt_temp_min:
+    name: Snøsmelt - Temperatur kommende timer (min)
+    min: -60
+    max: 60
+    step: 0.1
+    mode: box
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-low
+  snosmelt_temp_maks:
+    name: Snøsmelt - Temperatur kommende timer (maks)
+    min: -60
+    max: 60
+    step: 0.1
+    mode: box
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-high
+  snosmelt_nedbor_sum:
+    name: Snøsmelt - Nedbør kommende timer (sum)
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+    unit_of_measurement: mm
+    icon: mdi:weather-snowy-heavy

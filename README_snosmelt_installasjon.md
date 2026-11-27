@@ -84,6 +84,11 @@ Entitets-ID-ene er hardkodet i «Hent data» og **må være nøyaktig slik**:
 | Snøsmelt - Sist fullført | `input_datetime.snosmelt_sist_fullfort` | Dato og tid. Trengs for varsel hvis automasjonen stopper |
 | Snøsmelt - Feil sist varslet | `input_datetime.snosmelt_feil_sist_varslet` | Dato og tid. Trengs for feilvarsel |
 | Snøsmelt - Manuellkjøring | `input_button.snosmelt_manuell_kjoring` | |
+| Snøsmelt - Temperatur nå | `input_number.snosmelt_temp_na` | Valgfri, til graf. −60 til 60, steg 0,1, °C |
+| Snøsmelt - Rimgrense | `input_number.snosmelt_rimgrense` | Valgfri, til graf. −60 til 60, steg 0,1, °C |
+| Snøsmelt - Temperatur kommende timer (min) | `input_number.snosmelt_temp_min` | Valgfri, til graf. −60 til 60, steg 0,1, °C |
+| Snøsmelt - Temperatur kommende timer (maks) | `input_number.snosmelt_temp_maks` | Valgfri, til graf. −60 til 60, steg 0,1, °C |
+| Snøsmelt - Nedbør kommende timer (sum) | `input_number.snosmelt_nedbor_sum` | Valgfri, til graf. 0 til 500, steg 0,1, mm |
 
 Opprettes hjelperne i brukergrensesnittet, lages ID-en av navnet og blir feil (f.eks. `input_boolean.snosmelt_driftsstatus`). Endre ID-en etterpå slik at den er lik tabellen.
 
