@@ -4,7 +4,7 @@ Oppskrift for å sette opp hele snøsmelt-løsningen på en ny Home Assistant-in
 
 Oppskriften er skrevet slik at den kan følges både for hånd og av en AI-assistent som jobber i nettleseren (se §9).
 
-Versjon: 2026.11.04
+Versjon: 2026.11.05
 
 ## 1. Hva løsningen består av
 
@@ -92,7 +92,16 @@ Entitets-ID-ene er hardkodet i «Hent data» og **må være nøyaktig slik**:
 
 Opprettes hjelperne i brukergrensesnittet, lages ID-en av navnet og blir feil (f.eks. `input_boolean.snosmelt_driftsstatus`). Endre ID-en etterpå slik at den er lik tabellen.
 
-**Kontroll:** alle 12 finnes med riktig ID, og de tre tekst-hjelperne har maks lengde 255.
+**Startverdier for nye hjelpere.** Lages hjelperne i brukergrensesnittet, får de verdier som må rettes før automasjonen slås på:
+
+| Hjelper | Sett til | Hvorfor |
+|---|---|---|
+| Snøsmelt - Feil sist varslet | `2000-01-01 00:00:00` | Ny hjelper får dagens dato, og da sendes «Tilbake i normal drift» ved første kjøring |
+| Snøsmelt - Snø sist aktiv og Rim sist aktivert | Verdiene fra den gamle løsningen, eller en dato langt tilbake | Ny hjelper får dagens dato kl. 00:00, og kan gi etterdrift første morgen |
+| Snøsmelt - Manuellkjøring til | Et tidspunkt som er passert | |
+| De fem tall-hjelperne | Startverdi 0 (`initial: 0` ved oppretting) | Ellers starter de på minimum (−60), som blir stående som et punkt i grafen |
+
+**Kontroll:** alle 12 finnes med riktig ID (17 med tall-hjelperne), og de tre tekst-hjelperne har maks lengde 255.
 
 ## 6. Automasjoner
 
@@ -118,6 +127,20 @@ use_blueprint:
 ```
 
 Standardverdiene er de som er testet. Endres antall timer for manuell kjøring, må teksten på dashbordet rettes tilsvarende.
+
+**Erstatter den en eldre automasjon,** videreføres innstillingene derfra. Eksempel fra et anlegg med 5 og 10 timer, og 28 timers manuell kjøring:
+
+```yaml
+    hours_check_warm: 5
+    hours_check_cold: 10
+    hours_afterrun_warm: 6      # gammel løsning: 5 timer + 1
+    hours_afterrun_cold: 11     # gammel løsning: 10 timer + 1
+    manual_hours: 28
+```
+
+De eldre automasjonene la én time til etterdriften i selve regnestykket. I blueprintet er tallet hele etterdriften, så det må økes med én for å gi samme oppførsel.
+
+Har den gamle automasjonen samme navn, gi den et nytt navn og ny entitets-ID først (f.eks. `automation.snosmelt_hent_data_v1`), slik at den nye får `automation.snosmelt_hent_data`.
 
 **Kontroll:** kjør automasjonen én gang og åpne sporingen (trace). Den skal fullføre, «Snøsmelt - Årsak» og «Snøsmelt - Årsak - Utvidet forklaring» skal ha fått tekst, og «Snøsmelt - Sist fullført» skal vise tidspunktet. Stemmer statusen med værvarselet?
 
@@ -149,6 +172,17 @@ Rekkefølge når det finnes en eldre styring:
 
 Mellom steg 2 og 3 er kontaktoren uten styring. Gjør stegene rett etter hverandre.
 
+**Anlegg med én utgang, der hele den gamle løsningen skal bort:** kontroller at anlegget står i ro (driftsstatus AV i gammel og ny løsning, bryteren av), slå av de gamle automasjonene, og opprett så den nye roboten. De gamle automasjonene slettes først når den nye er testet.
+
+**Uten effektmåler:** utelat `power_sensor` og `power_expected`. Er effekten bare kalkulert ut fra om bryteren er på, skal den ikke brukes til overvåkning, for den kan aldri vise feil. Bruk spoleeffekten alene:
+
+```yaml
+    output_switch: switch.snosmelt_io_ute
+    output_name: Oppkjørsel
+    coil_sensor: sensor.snosmelt_io_ute_effekt_rele
+    coil_expected: 2.3
+```
+
 **Kontroll:** med driftsstatus AV skal kontaktoren være av. Start manuell kjøring: kontaktoren skal gå inn innen den tilfeldige startforsinkelsen (0 til 30 s) og lasten skal komme opp på normalt nivå. Stopp manuell kjøring: kontaktoren skal gå ut.
 
 ## 7. Feilsensorer, fellesfeil og samlestatus
@@ -165,6 +199,9 @@ Bruk [packages/snosmelt_fellesfeil_eksempel.yaml](./packages/snosmelt_fellesfeil
 | Anlegg | `sensor.snosmelt_samlestatus` | Snøsmelt - Samlestatus | Av / På / Fellesfeil |
 
 - **Grensen for lav last** settes til ca. 70 % av normal last, samme andel som standarden i «Styr utgang».
+- **Uten effektmåler** brukes spoleeffekten i feilsensoren i stedet for lasten: feil når bryteren er på og spolen trekker under ca. 30 % av normalt.
+- **Opprett robotene før feilsensorene.** Feilsensoren slår ut når roboten ikke finnes eller er av, og gir da fellesfeil og varsel etter ett minutt.
+- **Ett anlegg, én utgang:** behold de samme nivåene (utgang → «tavle» → fellesfeil), med ett navn for stedet, f.eks. «Snøsmelt - Oppkjørsel Feil» og «Snøsmelt - Oppkjørsel Status». Da er dashbord og sensorer like på alle anlegg.
 - **Navn:** feilsensoren til en kontaktor følger navnet til bryteren med « Feil» bak. Alt annet har prefikset «Snøsmelt - ».
 - **Ikon:** `mdi:bell-alert` på alle feilsensorer, `device_class: problem`.
 - **Faste ID-er:** `binary_sensor.snosmelt_fellesfeil` og `sensor.snosmelt_fellesfeil_arsak` leses av «Hent data» og må hete nøyaktig dette. Uten dem sendes ikke Pushover ved fellesfeil.
@@ -201,6 +238,10 @@ Begrensninger i Home Assistant som styrer utformingen:
 - Markdown-kortet fjerner `style` og `slot`. Ikonet i en `ha-alert` følger typen og kan ikke byttes, og det finnes ingen grå `ha-alert` utover `info`.
 - Mal-hjelpere laget i brukergrensesnittet kan ha forsinkelse (`delay_on`), men ikke egne attributter.
 - I YAML må `rows` og `columns` i `grid_options` være tall, ikke tekst.
+
+Feilsøkingssiden har også en samlet graf for rim og snø. Den leser de fem tall-hjelperne og trenger ingen egne sensorer.
+
+**Erstatter dashbordet et eldre snøsmelt-dashbord,** lagres det gamle først som et eget skjult dashbord (f.eks. «Snøsmelting v1 (kopi)», bare for admin, ikke i sidemenyen). Knapper på andre sider som viser til gamle entiteter, pekes om til «Snøsmelt - Driftsstatus» og fellesfeilen (se knappen nederst i eksempel-dashbordet).
 
 **Kontroll:** åpne hver visning som admin og som vanlig bruker. Kontroller grå tilstand (av), grønn (manuell kjøring) og rød (slå av én kontaktor-automasjon).
 
@@ -257,5 +298,6 @@ Testene som gir Pushover (nr. 5 og 6) avtales på forhånd med den som mottar va
 ## 12. Kjente begrensninger
 
 - Er «Hent data» slått av, sendes ingen Pushover. Fellesfeil-lampa blir rød.
+- Når «Hent data» lagres eller blueprintet oppdateres, er automasjonen utilgjengelig et øyeblikk. Fellesfeilen blinker da på og av i samme sekund. Det gir ingen varsler, men én ekstra kjøring ett minutt senere.
 - «Styr utgang» har ingen egen sjekk for at den selv har stoppet. Går ikke kontaktoren inn ved behov, fanges det av feilsensoren og fellesfeilen.
 - Spådommen om neste start brukes bare i teksten. Start og stopp følger timene i innstillingene.

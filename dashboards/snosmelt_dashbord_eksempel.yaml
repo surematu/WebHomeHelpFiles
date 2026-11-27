@@ -31,7 +31,7 @@
 #       - user: <bruker-ID>            # Innstillinger → Personer → Brukere → ID
 # og fjern det når løsningen er godkjent.
 #
-# Versjon: 2026.11.03
+# Versjon: 2026.11.04
 
 views:
   # ===========================================================================
@@ -428,6 +428,394 @@ views:
               Snøsmelt kjører etterdrift i 7 timer etter siste snøfall.
 
               **Nå:** {{ states('input_text.snosmelt_detaljer') }}
+
+      # --- Vær: YR-varselet og samlet graf for rim og snø --------------------------
+      # Grafen bruker de fem valgfrie tall-hjelperne (input_number.snosmelt_*) som
+      # «Hent data» skriver til hver time. Den trenger ingen egne YAML-sensorer.
+      # Rimgrensen følger innstillingen automatisk. Grensene +2 °C, −10 °C og 0,1 mm
+      # er skrevet inn i grafen.                                        # TILPASS
+      # Bildet er YR-meteogrammet for stedet: bytt ut steds-ID-en i adressen.  # TILPASS
+      - type: grid
+        column_span: 2
+        cards:
+        - type: heading
+          heading: Vær
+          heading_style: title
+        - type: picture
+          image: https://www.yr.no/nb/innhold/1-73616/meteogram.svg
+          tap_action:
+            action: none
+          grid_options:
+            columns: full
+        - type: custom:plotly-graph
+          title: 'Samlet: rim og snø (YR)'
+          entities:
+          - entity: input_number.snosmelt_nedbor_sum
+            name: Nedbør kommende timer (sum)
+            yaxis: y2
+            filters: &id003
+            - force_numeric
+            line:
+              color: rgba(130, 60, 200, 1)
+              width: 1
+              shape: hv
+            fill: tozeroy
+            fillcolor: rgba(130, 60, 200, 0.35)
+            showlegend: true
+            hovertemplate: 'Nedbør kommende timer: %{y} mm<extra></extra>'
+            legendgroup: nedbor
+            legendgrouptitle: &id001
+              text: Nedbør
+            legendrank: 3
+          - entity: input_number.snosmelt_nedbor_sum
+            name: Nedbørgrense (0,1 mm)
+            yaxis: y2
+            unit_of_measurement: mm
+            filters:
+            - map_y: '0.1'
+            line:
+              color: rgba(130, 60, 200, 1)
+              dash: dash
+              width: 2
+              shape: hv
+            hoverinfo: skip
+            hovertemplate: null
+            showlegend: true
+            legendgroup: nedbor
+            legendgrouptitle: *id001
+            legendrank: 3
+          - entity: input_number.snosmelt_temp_min
+            name: For varmt (over +2 °C)
+            yaxis: y1
+            filters:
+            - map_y: '2'
+            line:
+              color: rgba(50, 160, 60, 1)
+              dash: dash
+              width: 2
+              shape: hv
+            hoverinfo: skip
+            hovertemplate: null
+            showlegend: true
+            legendgroup: sno
+            legendgrouptitle: &id002
+              text: Snø
+            legendrank: 2
+          - entity: input_number.snosmelt_temp_min
+            name: For kaldt (under −10 °C)
+            yaxis: y1
+            filters:
+            - map_y: '-10'
+            line:
+              color: rgba(130, 205, 110, 1)
+              dash: dash
+              width: 2
+              shape: hv
+            hoverinfo: skip
+            hovertemplate: null
+            showlegend: true
+            legendgroup: sno
+            legendgrouptitle: *id002
+            legendrank: 2
+          - entity: input_number.snosmelt_temp_min
+            name: Laveste
+            yaxis: y1
+            showlegend: false
+            filters: *id003
+            line:
+              color: rgba(0, 100, 30, 1)
+              width: 1
+              shape: hv
+            hovertemplate: 'Laveste: %{y} °C<extra></extra>'
+            legendgroup: sno
+            legendgrouptitle: *id002
+            legendrank: 2
+          - entity: input_number.snosmelt_temp_maks
+            name: Temperatur kommende timer
+            yaxis: y1
+            showlegend: true
+            filters: *id003
+            line:
+              color: rgba(0, 100, 30, 1)
+              width: 1
+              shape: hv
+            fill: tonexty
+            fillcolor: rgba(0, 130, 40, 0.25)
+            hovertemplate: 'Høyeste: %{y} °C<extra></extra>'
+            legendgroup: sno
+            legendgrouptitle: *id002
+            legendrank: 2
+          - entity: input_number.snosmelt_rimgrense
+            name: Rimfelt (skjult bunn)
+            yaxis: y1
+            filters:
+            - force_numeric
+            - map_y: Math.min(-11, y - 3)
+            line:
+              color: rgba(0,0,0,0)
+              width: 0
+              shape: hv
+            showlegend: false
+            hoverinfo: skip
+            hovertemplate: null
+            legendgroup: rim
+            legendgrouptitle: &id004
+              text: Rim
+            legendrank: 1
+          - entity: input_number.snosmelt_rimgrense
+            name: Rimgrense
+            yaxis: y1
+            filters: *id003
+            line:
+              color: rgba(40, 110, 230, 1)
+              dash: dash
+              width: 2
+              shape: hv
+            fill: tonexty
+            fillcolor: rgba(40, 110, 230, 0.13)
+            showlegend: true
+            hovertemplate: 'Rimgrense: %{y:.1f} °C<extra></extra>'
+            legendgroup: rim
+            legendgrouptitle: *id004
+            legendrank: 1
+          - entity: input_number.snosmelt_temp_na
+            name: Utetemperatur
+            yaxis: y1
+            filters: *id003
+            line:
+              color: rgba(40, 110, 230, 1)
+              width: 3
+              shape: hv
+            showlegend: true
+            legendgroup: rim
+            legendgrouptitle: *id004
+            legendrank: 1
+          - yaxis: y5
+            unit_of_measurement: ''
+            mode: lines
+            connectgaps: false
+            hoverinfo: skip
+            hovertemplate: null
+            legendgroup: drift
+            legendgrouptitle:
+              text: Drift
+            legendrank: 4
+            entity: input_boolean.snosmelt_behov
+            name: Snøsmelting på
+            showlegend: true
+            filters:
+            - map_y: 'y === "on" ? 1 : y === "off" ? 0 : null'
+            line:
+              color: rgba(255, 140, 0, 0.8)
+              width: 0
+              shape: hv
+            fill: tozeroy
+            fillcolor: rgba(255, 140, 0, 0.65)
+          - yaxis: y5
+            unit_of_measurement: ''
+            mode: lines
+            connectgaps: false
+            hoverinfo: skip
+            hovertemplate: null
+            legendgroup: drift
+            legendgrouptitle:
+              text: Drift
+            legendrank: 4
+            entity: input_boolean.snosmelt_rim_detektert
+            name: Rim detektert bunn
+            showlegend: false
+            filters:
+            - map_y: '1.5'
+            line:
+              color: rgba(0,0,0,0)
+              width: 0
+              shape: hv
+            fill: none
+          - yaxis: y5
+            unit_of_measurement: ''
+            mode: lines
+            connectgaps: false
+            hoverinfo: skip
+            hovertemplate: null
+            legendgroup: drift
+            legendgrouptitle:
+              text: Drift
+            legendrank: 4
+            entity: input_boolean.snosmelt_rim_detektert
+            name: Rim detektert
+            showlegend: true
+            filters:
+            - map_y: 'y === "on" ? 2.5 : y === "off" ? 1.5 : null'
+            line:
+              color: rgba(40, 110, 230, 0.7)
+              width: 0
+              shape: hv
+            fill: tonexty
+            fillcolor: rgba(40, 110, 230, 0.7)
+          - yaxis: y5
+            unit_of_measurement: ''
+            mode: lines
+            connectgaps: false
+            hoverinfo: skip
+            hovertemplate: null
+            legendgroup: drift
+            legendgrouptitle:
+              text: Drift
+            legendrank: 4
+            entity: input_boolean.snosmelt_sno_detektert
+            name: Snø detektert bunn
+            showlegend: false
+            filters:
+            - map_y: '3'
+            line:
+              color: rgba(0,0,0,0)
+              width: 0
+              shape: hv
+            fill: none
+          - yaxis: y5
+            unit_of_measurement: ''
+            mode: lines
+            connectgaps: false
+            hoverinfo: skip
+            hovertemplate: null
+            legendgroup: drift
+            legendgrouptitle:
+              text: Drift
+            legendrank: 4
+            entity: input_boolean.snosmelt_sno_detektert
+            name: Snø detektert
+            showlegend: true
+            filters:
+            - map_y: 'y === "on" ? 4 : y === "off" ? 3 : null'
+            line:
+              color: rgba(0, 130, 40, 0.85)
+              width: 0
+              shape: hv
+            fill: tonexty
+            fillcolor: rgba(0, 130, 40, 0.85)
+          - yaxis: y5
+            unit_of_measurement: ''
+            mode: lines
+            connectgaps: false
+            hoverinfo: skip
+            hovertemplate: null
+            legendgroup: drift
+            legendgrouptitle:
+              text: Drift
+            legendrank: 4
+            entity: input_text.snosmelt_arsak
+            name: Manuell kjøring bunn
+            showlegend: false
+            filters:
+            - map_y: '4.5'
+            line:
+              color: rgba(0,0,0,0)
+              width: 0
+              shape: hv
+            fill: none
+          - yaxis: y5
+            unit_of_measurement: ''
+            mode: lines
+            connectgaps: false
+            hoverinfo: skip
+            hovertemplate: null
+            legendgroup: drift
+            legendgrouptitle:
+              text: Drift
+            legendrank: 4
+            entity: input_text.snosmelt_arsak
+            name: Manuell kjøring
+            showlegend: true
+            filters:
+            - map_y: 'typeof y === "string" && y.startsWith("Manuell") ? 5.5 : 4.5'
+            line:
+              color: rgba(90, 90, 90, 0.85)
+              width: 0
+              shape: hv
+            fill: tonexty
+            fillcolor: rgba(90, 90, 90, 0.85)
+          hours_to_show: 48
+          refresh_interval: 60
+          layout:
+            margin:
+              r: 70
+              t: '$ex window.innerWidth >= 1900 ? 160 : 225'
+            legend:
+              x: 0
+              y: 1.12
+              yanchor: bottom
+              orientation: h
+              traceorder: grouped
+              groupclick: togglegroup
+            yaxis:
+              title:
+                text: ''
+              autorange: true
+              ticksuffix: ' °C'
+              zeroline: true
+              fixedrange: true
+            yaxis2:
+              title:
+                text: ''
+              visible: true
+              overlaying: y
+              side: right
+              fixedrange: true
+              autorange: true
+              rangemode: tozero
+              autorangeoptions:
+                include:
+                - 0
+                - 1
+                minallowed: 0
+              tickmode: auto
+              nticks: 5
+              tickformat: .1f
+              ticksuffix: ' mm'
+              showgrid: false
+              zeroline: false
+              tickfont:
+                color: rgba(130, 60, 200, 1)
+            yaxis5:
+              visible: false
+              overlaying: y
+              fixedrange: true
+              autorange: false
+              range:
+              - 0
+              - 40
+              showgrid: false
+              zeroline: false
+            xaxis:
+              rangeselector:
+                y: 1
+                x: 0.7
+                buttons:
+                - count: 12
+                  step: hour
+                - count: 1
+                  step: day
+                - count: 2
+                  step: day
+                - count: 7
+                  step: day
+          grid_options:
+            columns: full
+            rows: 9
+        - type: markdown
+          grid_options:
+            columns: full
+          content: '**Slik leses grafen:** Den viser hvor nær anlegget er å starte på rim eller snø, med tallene automasjonen selv har brukt (hentet fra værvarselet hver time). Tegnforklaringen er delt i **Rim**, **Snø**, **Nedbør** og **Drift**. Trykk på en linje i tegnforklaringen for å skjule eller vise hele kategorien, og dobbelttrykk for å vise bare den.
+
+
+            - **Rim (blått):** rim meldes når den heltrukne blå linja (utetemperatur) kommer under den blå stiplede rimgrensen. Det lyseblå feltet under linja er området der rim meldes. Rimgrensen følger innstillingen i «Snøsmelt - Hent data».
+
+            - **Snø (grønt) og nedbør (lilla):** snø meldes når det lilla feltet (høyre akse) når opp til den lilla stiplede linja, mens det grønne feltet er mellom de grønne stiplede grensene.
+
+            - **Drift:** båndene nederst viser når snøsmeltingen var på (oransje), når rim (blått) og snø (grønt) ble detektert, og når anlegget gikk på manuell kjøring (grått).
+
+
+            Grensene +2 °C, −10 °C og 0,1 mm er skrevet inn i grafen, og må rettes her hvis de endres i «Snøsmelt - Hent data».'
 
   # ===========================================================================
   # 3. TAVLESIDE  –  én visning per tavle (kopier og tilpass)
