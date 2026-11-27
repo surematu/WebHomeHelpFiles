@@ -116,7 +116,7 @@ Automasjonen avgjør først hvilken situasjon som gjelder, og skriver den ut på
 | Situasjon | Årsak (hovedstatus, kort) | Forklaring (ekstrastatus, lang) |
 |---|---|---|
 | Snø | Start. Meldt snø de neste 3 timene. | Det er meldt 0,6 mm, og det er −2,0 °C. Anlegget går for å holde bakken fri for snø. |
-| Rim | Start. Fare for rim. | Det er −1,0 °C og fuktig luft, bare 0,4 °C over duggpunktet. Anlegget går for å holde bakken tørr. |
+| Rim | Start. Fare for rim. | Temperatur og fukt tilsier at det er fare for rim de neste 4 timene. |
 | Etterdrift | Etterdrift etter snøfall. | Anlegget går i 2 timer til for å smelte og tørke opp det som ligger igjen. |
 | Manuell kjøring | Manuell kjøring til kl. 05:58. | Uten manuell kjøring: Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. |
 | Av, ingen snø meldt | Stopp. Lite/ingen nedbør og ingen fare for rim de neste 3 timene. | De neste 5 dagene ser det ikke ut til å bli behov for snøsmelting. |
@@ -345,6 +345,7 @@ Automasjonen er bygget for å være enkel å etterprøve i sporloggen (Trace): h
 | `temp_now`, `hum_now`, `dew_point` | Første time i vinduet og beregnet duggpunkt |
 | `too_warm`, `too_cold`, `precip_expected`, `snow_detected` | Delvilkår for snø, og resultatet |
 | `dew_point_margin`, `frost_near_dew_point`, `frost_cold_enough`, `frost_detected` | Delvilkår for rim, og resultatet |
+| `frost_hours_ahead` | Antall timer på rad fra nå der rimregelen slår ut i timevarselet. Brukes bare i forklaringsteksten |
 
 **Neste start**
 

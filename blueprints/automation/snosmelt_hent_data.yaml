@@ -41,7 +41,7 @@ blueprint:
     Dokumentasjon/wiki:
     https://github.com/surematu/WebHomeHelpFiles/blob/main/README_snosmelt_hent_data.md
 
-    Blueprint versjon: 2026.11.11
+    Blueprint versjon: 2026.11.12
 
   domain: automation
   source_url: https://github.com/surematu/WebHomeHelpFiles/blob/main/blueprints/automation/snosmelt_hent_data.yaml
@@ -539,13 +539,36 @@ actions:
       precip_expected: "{{ has_data and (precip_sum | float(0)) >= (sp_precip_threshold | float(0.1)) }}"
       snow_detected: "{{ has_data and not too_warm and not too_cold and precip_expected }}"
 
-  - alias: Steg 16 – Avgjør rim nå
+  - alias: Steg 16 – Avgjør rim nå, og hvor mange timer fremover rimfaren varer
     variables:
       dew_point_margin: "{{ ((temp_now | float(0)) - (dew_point | float(0))) | round(1) }}"
       frost_near_dew_point: "{{ has_data and (hum_now | float(0)) > 0 and ((temp_now | float(0)) - (dew_point | float(0))) < (sp_frost_margin | float(1.5)) }}"
       frost_cold_enough: "{{ has_data and (temp_now | float(0)) < (sp_temp_stop_warm | float(2)) }}"
       frost_detected: "{{ frost_near_dew_point and frost_cold_enough }}"
       frost_was_detected: "{{ is_state(io_frost_detected, 'on') }}"
+      # Antall timer på rad fra nå der rimregelen slår ut i timevarselet. Brukes bare i forklaringsteksten.
+      frost_hours_ahead: >-
+        {% set warm = sp_temp_stop_warm | float(2) %}
+        {% set margin = sp_frost_margin | float(1.5) %}
+        {% set ns = namespace(n=0, stop=false) %}
+        {% for r in hourly_table %}
+          {% if not ns.stop %}
+            {% set hit = false %}
+            {% if r.temp is number and r.fukt is number and r.fukt > 0 %}
+              {% set a = 17.625 %}
+              {% set b = 243.04 %}
+              {% set alpha = ((a * r.temp) / (b + r.temp)) + log(r.fukt / 100) %}
+              {% set dp = ((b * alpha) / (a - alpha)) | round(1) %}
+              {% set hit = (r.temp - dp) < margin and r.temp < warm %}
+            {% endif %}
+            {% if hit %}
+              {% set ns.n = ns.n + 1 %}
+            {% else %}
+              {% set ns.stop = true %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.n }}
 
   - alias: Steg 17 – Spådomstabell – samme regler time for time fremover, til første treff
     variables:
@@ -734,7 +757,14 @@ actions:
         {% elif snow_detected %}
           Det er meldt {{ num(precip_sum) }} mm, og det er {{ temp(temp_now) }}. Anlegget går for å holde bakken fri for snø.
         {% elif frost_detected %}
-          Det er {{ temp(temp_now) }} og fuktig luft, bare {{ num((temp_now | float(0)) - (dew_point | float(0))) }} °C over duggpunktet. Anlegget går for å holde bakken tørr.
+          {% set n = [frost_hours_ahead | int(1), 1] | max %}
+          {% if n >= (hourly_table | length) %}
+            Temperatur og fukt tilsier at det er fare for rim i minst {{ n }} timer fremover.
+          {% elif n == 1 %}
+            Temperatur og fukt tilsier at det er fare for rim den neste timen.
+          {% else %}
+            Temperatur og fukt tilsier at det er fare for rim de neste {{ n }} timene.
+          {% endif %}
         {% elif afterrun_active %}
           {% set n = ((afterrun_remaining_h | float(0)) + 0.999) | int %}
           Anlegget går i {{ n }} {{ 'time' if n == 1 else 'timer' }} til for å smelte og tørke opp det som ligger igjen.
